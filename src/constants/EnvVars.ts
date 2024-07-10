@@ -25,9 +25,9 @@ export default {
     Exp: process.env.COOKIE_EXP ?? "", // exp at the same time as the cookie
   },
   MySQL: {
-    User: process.env.USER ?? "",
+    User: process.env.DB_USER ?? "",
     Password: process.env.PASSWORD ?? "",
-    Host: process.env.HOST ?? "",
+    Host: process.env.DB_HOST ?? "",
     Database: process.env.DATABASE ?? "",
   },
 } as const;
