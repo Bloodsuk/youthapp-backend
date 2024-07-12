@@ -219,6 +219,17 @@ CREATE TABLE `users` (
   `stripe_id` varchar(255) DEFAULT ''
 );
 
+CREATE TABLE messages (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    practitioner_id INT NOT NULL,
+    customer_id INT NOT NULL,
+    message TEXT NOT NULL,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
 
 
 

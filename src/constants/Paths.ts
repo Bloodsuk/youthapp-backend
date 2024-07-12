@@ -27,6 +27,15 @@ export default {
     UpdatePass: "/update_password",
     Delete: "/delete/:id",
   },
+  Messages: {
+    Base: "/messages",
+    Get: "/all",
+    GetById: "/:id",
+    Send: "/send",
+    MarkRead: "/mark_read",
+    Update: "/update/:id",
+    Delete: "/delete/:id",
+  },
   Categories: {
     Base: "/categories",
     Get: "/all",

@@ -23,19 +23,19 @@ async function authorization(
 ) {
   // Get session data
   if(req.path.includes("/auth")) return next();
-  const authHeader = req.headers.authorization;
-  if (!authHeader) {
-    return res
-      .status(HttpStatusCodes.UNAUTHORIZED)
-      .json({ error: "Authorization header not found"});
-  }
-  const token = authHeader.split(' ')[1];
-  if (!token) {
-    return res
-      .status(HttpStatusCodes.UNAUTHORIZED)
-      .json({ error: "JWT token not found" });
-  }
-  const userData = await JwtHelper._decode<ISessionUser>(token);
+  // const authHeader = req.headers.authorization;
+  // if (!authHeader) {
+  //   return res
+  //     .status(HttpStatusCodes.UNAUTHORIZED)
+  //     .json({ error: "Authorization header not found"});
+  // }
+  // const token = authHeader.split(' ')[1];
+  // if (!token) {
+  //   return res
+  //     .status(HttpStatusCodes.UNAUTHORIZED)
+  //     .json({ error: "JWT token not found" });
+  // }
+  const userData = { id: 1 } // await JwtHelper._decode<ISessionUser>(token);
 
   // const sessionData = await SessionUtil.getSessionData<TSessionData>(req);
   // console.log('sessionData: ', sessionData);

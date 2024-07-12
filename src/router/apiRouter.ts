@@ -14,6 +14,7 @@ import creditRequestRouter from "./creditRequestRouter";
 import servicesRouter from "./servicesRouter";
 import statsRouter from "./statsRouter";
 import resultRouter from "./resultRouter";
+import messageRouter from "./messageRouter";
 
 const routes = Router();
 
@@ -61,5 +62,8 @@ routes.use(Paths.CreditRequests.Base, creditRequestRouter);
 
 // Add StatsRouter
 routes.use(Paths.Stats.Base, statsRouter);
+
+// Add MessagesRouter
+routes.use(Paths.Messages.Base, messageRouter);
 
 export default routes;
