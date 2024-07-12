@@ -65,7 +65,12 @@ process.on("exit", () => {
     pool.end();
   }
 });
-
+app.get("/health", (req, res, next) => {
+  res.status(200).json({
+    success: true,
+    message: "API is working"
+  })
+});
 // Authorization middleware
 app.use(authorization);
 
