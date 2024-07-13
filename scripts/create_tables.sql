@@ -221,13 +221,13 @@ CREATE TABLE `users` (
 
 CREATE TABLE messages (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    practitioner_id INT NOT NULL,
-    customer_id INT NOT NULL,
+    sent_from INT NOT NULL,
+    sent_to INT NOT NULL,
+    sent_from_role varchar(20) NOT NULL,
+    sent_to_role varchar(20) NOT NULL,
     message TEXT NOT NULL,
-    is_deleted BOOLEAN DEFAULT FALSE,
     is_read BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 

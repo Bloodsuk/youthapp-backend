@@ -57,6 +57,197 @@ async function getById(req: IReq, res: IRes) {
 }
 
 /**
+ * INFO: Get messages for customer
+ * @param req 
+ * @param res 
+ * @returns 
+ */
+async function getCustomerMessages(req: IReq, res: IRes) {
+  const customer_id = parseInt(req.params.customer_id);
+  const practitioner_id = parseInt(req.params.practitioner_id);
+  try {
+    const { data, total } = await MessageService.getCustomerMessages(customer_id, practitioner_id);
+    return res
+      .status(HttpStatusCodes.OK)
+      .json({
+        success: true,
+        messages: data,
+        total
+      })
+      .end();
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
+/**
+ * INFO: Get messages for practitioner
+ * @param req 
+ * @param res 
+ * @returns 
+ */
+async function getPractitionerMessages(req: IReq, res: IRes) {
+  const customer_id = parseInt(req.params.customer_id);
+  const practitioner_id = parseInt(req.params.practitioner_id);
+  try {
+    const { data, total } = await MessageService.getPractitionerMessages(customer_id, practitioner_id);
+    return res
+      .status(HttpStatusCodes.OK)
+      .json({
+        success: true,
+        messages: data,
+        total
+      })
+      .end();
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
+/**
+ * INFO: Check if customer has unread messages
+ * @param req 
+ * @param res 
+ * @returns 
+ */
+async function customerHasMessages(req: IReq, res: IRes) {
+  const customer_id = parseInt(req.params.customer_id);
+  const practitioner_id = parseInt(req.params.practitioner_id);
+  try {
+    const messages = await MessageService.customerHasMessages(customer_id, practitioner_id);
+    return res
+      .status(HttpStatusCodes.OK)
+      .json({
+        success: true,
+        messages,
+      })
+      .end();
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
+/**
+ * INFO: Check if practitioner has even 1 unread message to show notificatoin on top bar
+ * @param req 
+ * @param res 
+ * @returns 
+ */
+async function practitionerHasMessages(req: IReq, res: IRes) {
+  const practitioner_id = parseInt(req.params.practitioner_id);
+  try {
+    const messages = await MessageService.practitionerHasMessages(practitioner_id);
+    return res
+      .status(HttpStatusCodes.OK)
+      .json({
+        success: true,
+        messages,
+      })
+      .end();
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
+/**
+ * INFO: Check if practitioner has unread messages against each customers list
+ * @param req 
+ * @param res 
+ * @returns 
+ */
+async function practitionerHasMessagesByCustomer(req: IReq, res: IRes) {
+  const practitioner_id = parseInt(req.params.practitioner_id);
+  try {
+    const { data, total } = await MessageService.practitionerHasMessagesByCustomer(practitioner_id);
+    return res
+      .status(HttpStatusCodes.OK)
+      .json({
+        success: true,
+        messages: data,
+        total
+      })
+      .end();
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
+/**
  * INFO: Send message
  * @param req 
  * @param res 
@@ -178,6 +369,11 @@ async function delete_(req: IReq, res: IRes) {
 export default {
   getAll,
   getById,
+  getCustomerMessages,
+  getPractitionerMessages,
+  customerHasMessages,
+  practitionerHasMessages,
+  practitionerHasMessagesByCustomer,
   sendMessage,
   update,
   markRead,

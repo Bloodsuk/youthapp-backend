@@ -1,12 +1,20 @@
 export interface IMessage {
     id: number;
-    practitioner_id: number;
-    practitioner_name: string;
-    customer_id: number;
-    customer_name: string;
+    sent_from: number;
+    sent_from_role: string;
+    sent_to: number;
+    sent_to_role: string;
     message: string;
-    is_deleted: boolean;
     is_read: boolean;
     created_at: string;
-    updated_at: string;
+    display_name: string;
+}
+
+export interface IUnreadMessageCount {
+    unread_count: number;
+}
+
+export interface ICustomerPracMessage {
+    sent_by_customer_id: number;
+    message_type: string;
 }

@@ -30,6 +30,11 @@ export default {
   Messages: {
     Base: "/messages",
     Get: "/all",
+    GetCustomerMessages: "/get_customer_msg/:customer_id/:practitioner_id",
+    GetPractitionerMessages: "/get_practitioner_msg/:customer_id/:practitioner_id",
+    CustomerHasMessages: "/customer_has_msg/:customer_id/:practitioner_id",
+    PractitionerHasMessages: "/practitioner_has_msg/:practitioner_id",
+    PractitionerHasMessagesByCustomer: "/pract_has_msg_by_customers/:practitioner_id",
     GetById: "/:id",
     Send: "/send",
     MarkRead: "/mark_read",

@@ -9,6 +9,21 @@ const messageRouter = Router();
 // Get all messages
 messageRouter.get(Paths.Messages.Get, MessageController.getAll);
 
+// Get messages for customer
+messageRouter.get(Paths.Messages.GetCustomerMessages, MessageController.getCustomerMessages);
+
+// Get messages for practitioner
+messageRouter.get(Paths.Messages.GetPractitionerMessages, MessageController.getPractitionerMessages);
+
+// Check if customer has unread messages
+messageRouter.get(Paths.Messages.CustomerHasMessages, MessageController.customerHasMessages);
+
+// Check if practitioner has even 1 unread message to show notificatoin on top bar
+messageRouter.get(Paths.Messages.PractitionerHasMessages, MessageController.practitionerHasMessages);
+
+// Check if practitioner has unread messages against each customers list
+messageRouter.get(Paths.Messages.PractitionerHasMessagesByCustomer, MessageController.practitionerHasMessagesByCustomer);
+
 // Get Message By Id
 messageRouter.get(Paths.Messages.GetById, validate(["id", "string", "params"]), MessageController.getById);
 
