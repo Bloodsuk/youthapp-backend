@@ -41,6 +41,15 @@ export default {
     Update: "/update/:id",
     Delete: "/delete/:id",
   },
+  Roles: {
+    Base: "/roles",
+    Get: "/all",
+    GetById: "/:id",
+    Add: "/add",
+    MarkActive: "/change_active_status",
+    Update: "/update/:id",
+    Delete: "/delete/:id",
+  },
   Categories: {
     Base: "/categories",
     Get: "/all",

@@ -11,12 +11,31 @@ import { RouteError } from "@src/other/classes";
  * @returns 
  */
 async function getAll(req: IReq, res: IRes) {
-  let page = parseInt(req.query.page as string);
-  if (isNaN(page)) page = 1;
-  const search = (req.query.search as string) || "";
+  try {
+    let page = parseInt(req.query.page as string);
+    if (isNaN(page)) page = 1;
+    const search = (req.query.search as string) || "";
 
-  const { data, total } = await MessageService.getAll(page, search);
-  return res.status(HttpStatusCodes.OK).json({ messages: data, total });
+    const { data, total } = await MessageService.getAll(page, search);
+    return res.status(HttpStatusCodes.OK).json({ messages: data, total });
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
 }
 
 /**
@@ -255,9 +274,9 @@ async function practitionerHasMessagesByCustomer(req: IReq, res: IRes) {
  */
 async function sendMessage(req: IReq<{ message: Record<string, any> }>, res: IRes) {
   const { message } = req.body;
+  try {
+    const id = await MessageService.addOne(message);
 
-  const id = await MessageService.addOne(message);
-  if (id)
     return res
       .status(HttpStatusCodes.CREATED)
       .json({
@@ -265,7 +284,24 @@ async function sendMessage(req: IReq<{ message: Record<string, any> }>, res: IRe
         id: id
       })
       .end();
-  else return res.status(HttpStatusCodes.BAD_REQUEST).end();
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
 }
 
 /**

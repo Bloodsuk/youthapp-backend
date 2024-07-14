@@ -230,6 +230,14 @@ CREATE TABLE messages (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE roles (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    role_name varchar(20) NOT NULL,
+    created_by INT NOT NULL,
+    is_active TINYINT DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 
 
 
