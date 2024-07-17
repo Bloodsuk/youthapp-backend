@@ -92,6 +92,45 @@ async function markActive(
   return true;
 }
 
+/**
+ * INFO: Assign role to user
+ * @param user_id 
+ * @param role_id
+ * @returns 
+ */
+async function assignRoleToUser(
+  user_id: number,
+  role_id: number,
+): Promise<boolean> {
+  const sql = "UPDATE users SET role = ? WHERE id = ?";
+  const [result] = await pool.query<ResultSetHeader>(sql, [role_id, user_id]);
+  if (result.affectedRows === 0) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, "User not found!");
+  }
+  return true;
+}
+
+/**
+ * INFO: Assign role to user
+ * @param role_id
+ * @param permission_id
+ * @returns 
+ */
+async function assignPermissionToRole(
+  role_id: number,
+  permission_id: number,
+): Promise<number> {
+  const data = {
+    role_id,
+    permission_id
+  }
+  const [rows] = await pool.query<RowDataPacket[]>(`SELECT * FROM role_permissions WHERE role_id = ${role_id} And permission_id = ${permission_id}`);
+  if (!rows.length) {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, "Role already exists!");
+  }
+  const [result3] = await pool.query<ResultSetHeader>("INSERT INTO roles SET ?", data);
+  return result3.insertId;
+}
 
 /**
  * INFO: Update role by id
@@ -128,6 +167,8 @@ export default {
   getOne,
   addOne,
   markActive,
+  assignRoleToUser,
+  assignPermissionToRole,
   updateOne,
   delete: _delete,
 } as const;

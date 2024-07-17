@@ -1,11 +1,11 @@
 import HttpStatusCodes from "@src/constants/HttpStatusCodes";
-import RoleService from "@src/services/RoleService";
+import PermissionService from "@src/services/PermissionService";
 import { IReq, IRes } from "@src/types/express/misc";
 import { RouteError } from "@src/other/classes";
 
 
 /**
- * INFO: Get all the roles
+ * INFO: Get all the permissions
  * @param req 
  * @param res 
  * @returns 
@@ -16,8 +16,8 @@ async function getAll(req: IReq, res: IRes) {
     if (isNaN(page)) page = 1;
     const search = (req.query.search as string) || "";
 
-    const { data, total } = await RoleService.getAll(page, search);
-    return res.status(HttpStatusCodes.OK).json({ roles: data, total });
+    const { data, total } = await PermissionService.getAll(page, search);
+    return res.status(HttpStatusCodes.OK).json({ permissions: data, total });
   } catch (error) {
     if (error instanceof RouteError)
       return res
@@ -39,7 +39,7 @@ async function getAll(req: IReq, res: IRes) {
 }
 
 /**
- * INFO: Get role by id
+ * INFO: Get permission by id
  * @param req 
  * @param res 
  * @returns 
@@ -47,12 +47,12 @@ async function getAll(req: IReq, res: IRes) {
 async function getById(req: IReq, res: IRes) {
   const id = parseInt(req.params.id);
   try {
-    const role = await RoleService.getOne(id);
+    const permission = await PermissionService.getOne(id);
     return res
       .status(HttpStatusCodes.OK)
       .json({
         success: true,
-        role,
+        permission,
       })
       .end();
   } catch (error) {
@@ -76,15 +76,15 @@ async function getById(req: IReq, res: IRes) {
 }
 
 /**
- * INFO: Add role
+ * INFO: Add permission
  * @param req 
  * @param res 
  * @returns 
  */
-async function add(req: IReq<{ role: Record<string, any> }>, res: IRes) {
-  const { role } = req.body;
+async function add(req: IReq<{ permission: Record<string, any> }>, res: IRes) {
+  const { permission } = req.body;
   try {
-    const id = await RoleService.addOne(role);
+    const id = await PermissionService.addOne(permission);
     if (id)
       return res
         .status(HttpStatusCodes.CREATED)
@@ -114,15 +114,15 @@ async function add(req: IReq<{ role: Record<string, any> }>, res: IRes) {
 }
 
 /**
- * INFO: Mark role as read
+ * INFO: Mark permission as read
  * @param req 
  * @param res 
  * @returns 
  */
-async function markActive(req: IReq<{ role: Record<string, any> }>, res: IRes) {
-  const { role } = req.body;
+async function markActive(req: IReq<{ permission: Record<string, any> }>, res: IRes) {
+  const { permission } = req.body;
   try {
-    await RoleService.markActive(role);
+    await PermissionService.markActive(permission);
     return res.status(HttpStatusCodes.OK).json({ success: true }).end();
   } catch (error) {
     if (error instanceof RouteError)
@@ -145,79 +145,17 @@ async function markActive(req: IReq<{ role: Record<string, any> }>, res: IRes) {
 }
 
 /**
- * INFO: Assign role to user
+ * INFO: Update permission
  * @param req 
  * @param res 
  * @returns 
  */
-async function assignRoleToUser(req: IReq<{ user_id: number, role_id: number }>, res: IRes) {
-  const { user_id, role_id } = req.body;
-  try {
-    await RoleService.assignRoleToUser(user_id, role_id);
-    return res.status(HttpStatusCodes.OK).json({ success: true, message: "Role assign to user successfully!" }).end();
-  } catch (error) {
-    if (error instanceof RouteError)
-      return res
-        .status(error.status)
-        .json({
-          success: false,
-          error: error.message,
-        })
-        .end();
-    else
-      return res
-        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
-        .json({
-          success: false,
-          error: "Internal Error: " + error,
-        })
-        .end();
-  }
-}
-
-/**
- * INFO: Assign permission to role
- * @param req 
- * @param res 
- * @returns 
- */
-async function assignPermissionToRole(req: IReq<{ role_id: number, permission_id: number }>, res: IRes) {
-  const { role_id, permission_id } = req.body;
-  try {
-    await RoleService.assignPermissionToRole(role_id, permission_id);
-    return res.status(HttpStatusCodes.OK).json({ success: true, message: "Permission assign to role successfully!" }).end();
-  } catch (error) {
-    if (error instanceof RouteError)
-      return res
-        .status(error.status)
-        .json({
-          success: false,
-          error: error.message,
-        })
-        .end();
-    else
-      return res
-        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
-        .json({
-          success: false,
-          error: "Internal Error: " + error,
-        })
-        .end();
-  }
-}
-
-/**
- * INFO: Update role
- * @param req 
- * @param res 
- * @returns 
- */
-async function update(req: IReq<{ role: Record<string, any> }>, res: IRes) {
-  const { role } = req.body;
+async function update(req: IReq<{ permission: Record<string, any> }>, res: IRes) {
+  const { permission } = req.body;
   const id = req.params.id;
   const uid = parseInt(id);
   try {
-    await RoleService.updateOne(uid, role);
+    await PermissionService.updateOne(uid, permission);
     return res.status(HttpStatusCodes.OK).json({ success: true }).end();
   } catch (error) {
     if (error instanceof RouteError)
@@ -240,7 +178,7 @@ async function update(req: IReq<{ role: Record<string, any> }>, res: IRes) {
 }
 
 /**
- * INFO: Delete role 
+ * INFO: Delete permission 
  * @param req 
  * @param res 
  * @returns 
@@ -249,7 +187,7 @@ async function delete_(req: IReq, res: IRes) {
   const id = req.params.id;
   const uid = parseInt(id);
   try {
-    await RoleService.delete(uid);
+    await PermissionService.delete(uid);
     return res.status(HttpStatusCodes.OK).json({
       success: true
     }).end();
@@ -278,8 +216,6 @@ export default {
   getById,
   add,
   markActive,
-  assignRoleToUser,
-  assignPermissionToRole,
   update,
   delete: delete_,
 } as const;

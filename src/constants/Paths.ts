@@ -49,6 +49,17 @@ export default {
     MarkActive: "/change_active_status",
     Update: "/update/:id",
     Delete: "/delete/:id",
+    AssignRoleToUser: "/assign_to_user",
+    AssignPermissionToRole: "/assign_permission",
+  },
+  Permissions: {
+    Base: "/permissions",
+    Get: "/all",
+    GetById: "/:id",
+    Add: "/add",
+    MarkActive: "/change_active_status",
+    Update: "/update/:id",
+    Delete: "/delete/:id"
   },
   Categories: {
     Base: "/categories",

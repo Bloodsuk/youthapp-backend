@@ -16,6 +16,7 @@ import statsRouter from "./statsRouter";
 import resultRouter from "./resultRouter";
 import messageRouter from "./messageRouter";
 import roleRouter from "./roleRouter";
+import permissionRouter from "./permissionRouter";
 
 const routes = Router();
 
@@ -69,5 +70,8 @@ routes.use(Paths.Messages.Base, messageRouter);
 
 // Add RolesRouter
 routes.use(Paths.Roles.Base, roleRouter);
+
+// Add PermissionsRouter
+routes.use(Paths.Permissions.Base, permissionRouter);
 
 export default routes;

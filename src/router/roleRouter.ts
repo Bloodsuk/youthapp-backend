@@ -18,6 +18,12 @@ roleRouter.post(Paths.Roles.Add, RoleController.add);
 // Update role active status
 roleRouter.put(Paths.Roles.MarkActive, RoleController.markActive);
 
+// Assign role to user
+roleRouter.put(Paths.Roles.AssignRoleToUser, RoleController.assignRoleToUser);
+
+// Assign permission to role
+roleRouter.put(Paths.Roles.AssignPermissionToRole, RoleController.assignPermissionToRole);
+
 // Update role
 roleRouter.patch(Paths.Roles.Update, RoleController.update);
 
