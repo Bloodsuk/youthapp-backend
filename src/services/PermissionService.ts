@@ -102,6 +102,10 @@ async function updateOne(
   id: number,
   permission: Record<string, any>
 ): Promise<boolean> {
+  const [rows] = await pool.query<RowDataPacket[]>(`SELECT * FROM permissions WHERE permission_name LIKE '%${permission.permission_name}%' And id <> ${id}`);
+  if (rows.length) {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, "Permission already exists!");
+  }
   const sql = "UPDATE permissions SET permission_name = ? WHERE id = ?";
   const [result] = await pool.query<ResultSetHeader>(sql, [permission.permission_name, id]);
   if (result.affectedRows === 0) {

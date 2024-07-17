@@ -142,6 +142,10 @@ async function updateOne(
   id: number,
   role: Record<string, any>
 ): Promise<boolean> {
+  const [rows] = await pool.query<RowDataPacket[]>(`SELECT * FROM roles WHERE role_name LIKE '%${role.role_name}%' And id <> ${id}`);
+  if (rows.length) {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, "Role already exists!");
+  }
   const sql = "UPDATE roles SET role_name = ? WHERE id = ?";
   const [result] = await pool.query<ResultSetHeader>(sql, [role.role_name, id]);
   if (result.affectedRows === 0) {
