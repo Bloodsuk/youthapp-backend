@@ -120,6 +120,10 @@ async function updateOne(
  */
 async function _delete(id: number): Promise<void> {
   try {
+    const [rows] = await pool.query<RowDataPacket[]>(`SELECT * FROM role_permissions WHERE permission_id = ${id}`);
+    if (rows.length) {
+      throw new RouteError(HttpStatusCodes.BAD_REQUEST, "This permission is assigned to role so can't be delete for now!");
+    }
     await pool.query<ResultSetHeader>("DELETE FROM permissions WHERE id = ?", [id]);
   } catch (error) {
     throw new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error deleting permission: " + error);

@@ -181,7 +181,7 @@ async function assignRoleToUser(req: IReq<{ user_id: number, role_id: number }>,
  * @param res 
  * @returns 
  */
-async function assignPermissionToRole(req: IReq<{ role_id: number, permission_id: number }>, res: IRes) {
+async function assignPermissionToRole(req: IReq<{ role_id: number, permission_id: string }>, res: IRes) {
   const { role_id, permission_id } = req.body;
   try {
     await RoleService.assignPermissionToRole(role_id, permission_id);

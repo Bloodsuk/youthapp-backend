@@ -102,7 +102,7 @@ async function assignRoleToUser(
   user_id: number,
   role_id: number,
 ): Promise<boolean> {
-  const sql = "UPDATE users SET role = ? WHERE id = ?";
+  const sql = "UPDATE users SET role_id = ? WHERE id = ?";
   const [result] = await pool.query<ResultSetHeader>(sql, [role_id, user_id]);
   if (result.affectedRows === 0) {
     throw new RouteError(HttpStatusCodes.NOT_FOUND, "User not found!");
@@ -118,18 +118,21 @@ async function assignRoleToUser(
  */
 async function assignPermissionToRole(
   role_id: number,
-  permission_id: number,
-): Promise<number> {
+  permission_id: string,
+): Promise<boolean> {
   const data = {
     role_id,
     permission_id
   }
-  const [rows] = await pool.query<RowDataPacket[]>(`SELECT * FROM role_permissions WHERE role_id = ${role_id} And permission_id = ${permission_id}`);
-  if (!rows.length) {
-    throw new RouteError(HttpStatusCodes.BAD_REQUEST, "Role already exists!");
+  const [rows] = await pool.query<RowDataPacket[]>(`SELECT * FROM role_permissions WHERE role_id = ${role_id}`);
+  if (rows.length) {
+    const sql = "UPDATE role_permissions SET permission_id = ? WHERE role_id = ?";
+    const [result] = await pool.query<ResultSetHeader>(sql, [permission_id, role_id]);
+    return result.affectedRows != 0
+  } else {
+    const [result3] = await pool.query<ResultSetHeader>("INSERT INTO role_permissions SET ?", data);
+    return result3.insertId > 0;
   }
-  const [result3] = await pool.query<ResultSetHeader>("INSERT INTO roles SET ?", data);
-  return result3.insertId;
 }
 
 /**
@@ -160,7 +163,11 @@ async function updateOne(
  */
 async function _delete(id: number): Promise<void> {
   try {
-    await pool.query<ResultSetHeader>("DELETE FROM roles WHERE id = ?", [id]);
+    const [rows] = await pool.query<RowDataPacket[]>(`SELECT * FROM users WHERE role_id = ${id}`);
+    if (rows.length) {
+      throw new RouteError(HttpStatusCodes.BAD_REQUEST, "This role may assign to some users. By deleting it, those user will lose all given permissions. Do you want to continue?");
+    }
+    await pool.query<ResultSetHeader>("UPDATE roles SET is_active = ? WHERE id = ?", [id]);
   } catch (error) {
     throw new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error deleting role: " + error);
   }
