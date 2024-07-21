@@ -97,7 +97,7 @@ async function getOne(id: number): Promise<ICustomer> {
   const [rows] = await pool.query<RowDataPacket[]>(
     // get customer details with practitioner name
     `SELECT customers.id, customers.client_code, customers.fore_name, customers.sur_name, customers.date_of_birth, customers
-    .created_at, customers.gender, customers.address, customers.town, customers.country, customers.postal_code, customers.email, customers.telephone, customers.comments, customers.current_medication, customers.username, customers.password, customers.user_level, customers.status, customers.notifications, customers.notification_types, CONCAT(users.first_name, ' ', users.last_name) AS practitioner_name
+    .created_at, customers.created_by, customers.gender, customers.address, customers.town, customers.country, customers.postal_code, customers.email, customers.telephone, customers.comments, customers.current_medication, customers.username, customers.password, customers.user_level, customers.status, customers.notifications, customers.notification_types, CONCAT(users.first_name, ' ', users.last_name) AS practitioner_name
     FROM customers
     LEFT JOIN users ON users.id = customers.created_by
     WHERE customers.id = ?`,
@@ -118,7 +118,7 @@ async function getByUserId(
 ): Promise<IGetResponse<ICustomer>> {
   const pagination = `LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`;
   const [rows] = await pool.query<RowDataPacket[]>(
-    "SELECT customers.fore_name, customers.sur_name, customers.date_of_birth, customers.id, customers.created_at, customers.email, concat(users.first_name, ' ', users.last_name) as practitioner_name from customers left join users on users.id = customers.created_by WHERE customers.created_by = ? " +
+    "SELECT customers.fore_name, customers.sur_name, customers.date_of_birth, customers.id, customers.created_at, customers.created_by, customers.email, concat(users.first_name, ' ', users.last_name) as practitioner_name from customers left join users on users.id = customers.created_by WHERE customers.created_by = ? " +
       pagination,
     [userId]
   );
