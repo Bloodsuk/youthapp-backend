@@ -146,7 +146,7 @@ async function practitionerHasMessagesByCustomer(
   let sql = `SELECT id FROM customers`;
   let [rows] = await pool.query<RowDataPacket[]>(sql, [practitioner_id]);
   const customerIds = rows?.map(el => el.id);
-  sql = `SELECT id as sent_by_customer_id, 'unread' as message_type FROM messages WHERE sent_to = ? AND sent_from IN (?) AND is_read = 0`;
+  sql = `SELECT sent_from as sent_by_customer_id, 'unread' as message_type FROM messages WHERE sent_to = ? AND sent_from IN (?) AND is_read = 0`;
   [rows] = await pool.query<RowDataPacket[]>(sql, [practitioner_id, customerIds]);
   const allMessages = rows.map((message) => {
     return message as ICustomerPracMessage;
