@@ -167,7 +167,7 @@ async function _delete(id: number): Promise<void> {
     if (rows.length) {
       throw new RouteError(HttpStatusCodes.BAD_REQUEST, "This role may assign to some users. By deleting it, those user will lose all given permissions. Do you want to continue?");
     }
-    await pool.query<ResultSetHeader>("UPDATE roles SET is_active = ? WHERE id = ?", [id]);
+    await pool.query<ResultSetHeader>("UPDATE roles SET is_active = 1 WHERE id = ?", [id]);
   } catch (error) {
     throw new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error deleting role: " + error);
   }

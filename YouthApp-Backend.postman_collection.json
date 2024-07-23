@@ -19,19 +19,10 @@
 						"header": [
 							{
 								"key": "authorization",
-								"value": "Bearer {{authorization}}",
+								"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJvcmRlcnNAeW91dGgtcmV2aXNpdGVkLmNvLnVrIiwidXNlcm5hbWUiOiJhZG1pbiIsImZpcnN0X25hbWUiOiJZb3V0aCIsImxhc3RfbmFtZSI6IlJldmlzaXRlZCIsInVzZXJfbGV2ZWwiOiJBZG1pbiIsImlhdCI6MTcyMTQ1NjkyNCwiZXhwIjoxNzIxNzE2MTI0fQ.D1TBl-UfJetE5qI1E7TshPdM4SmhjvGCV1QTKC23qic",
 								"type": "text"
 							}
 						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"message\": {\n        \"sent_from\": 341,\n        \"sent_to\": 7402,\n        \"sent_from_role\": \"p\",\n        \"sent_to_role\": \"c\",\n        \"message\": \"Hello, this is a sample message.\"\n    }\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
 						"url": {
 							"raw": "{{baseUrl}}/api/messages/send",
 							"host": [
@@ -689,7 +680,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"permission\": {\n        \"permission_name\": \"Admin\"\n    }\n}",
+							"raw": "{\n    \"permission\": {\n        \"permission_name\": \"All\"\n    }\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -816,6 +807,65 @@
 								"permissions",
 								"delete",
 								"{{permission_id}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Customer",
+			"item": [
+				{
+					"name": "Get customer details by id",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NzQwNywiZW1haWwiOiJ0ZXN0Y3VzdEBnbWFpbC5jb20iLCJ1c2VybmFtZSI6InRlc3QyMDA1IiwidXNlcl9sZXZlbCI6IkN1c3RvbWVyIiwiaWF0IjoxNzIxNTYzMDQxLCJleHAiOjE3MjE4MjIyNDF9.zH-5oGf_N1uEusFNcCb0PPxUDKIWfEU1l5Q4B3y0NUk",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "https://youth-practioner-be-production.up.railway.app/api/customers/7407",
+							"protocol": "https",
+							"host": [
+								"youth-practioner-be-production",
+								"up",
+								"railway",
+								"app"
+							],
+							"path": [
+								"api",
+								"customers",
+								"7407"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Register customer",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "authorization",
+								"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NzQwNywiZW1haWwiOiJ0ZXN0Y3VzdEBnbWFpbC5jb20iLCJ1c2VybmFtZSI6InRlc3QyMDA1IiwidXNlcl9sZXZlbCI6IkN1c3RvbWVyIiwiaWF0IjoxNzIxNTYzMDQxLCJleHAiOjE3MjE4MjIyNDF9.zH-5oGf_N1uEusFNcCb0PPxUDKIWfEU1l5Q4B3y0NUk",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/register",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"register"
 							]
 						}
 					},
