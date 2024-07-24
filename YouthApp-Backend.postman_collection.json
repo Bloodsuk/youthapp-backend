@@ -829,18 +829,40 @@
 							}
 						],
 						"url": {
-							"raw": "https://youth-practioner-be-production.up.railway.app/api/customers/7407",
-							"protocol": "https",
+							"raw": "{{baseUrl}}/api/customers/{{customer_id}}",
 							"host": [
-								"youth-practioner-be-production",
-								"up",
-								"railway",
-								"app"
+								"{{baseUrl}}"
 							],
 							"path": [
 								"api",
 								"customers",
-								"7407"
+								"{{customer_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List all practiciner",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "authorization",
+								"value": "Bearer {{authorization}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/users/all/practitioners",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"all",
+								"practitioners"
 							]
 						}
 					},
@@ -852,11 +874,21 @@
 						"method": "POST",
 						"header": [
 							{
-								"key": "authorization",
-								"value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6NzQwNywiZW1haWwiOiJ0ZXN0Y3VzdEBnbWFpbC5jb20iLCJ1c2VybmFtZSI6InRlc3QyMDA1IiwidXNlcl9sZXZlbCI6IkN1c3RvbWVyIiwiaWF0IjoxNzIxNTYzMDQxLCJleHAiOjE3MjE4MjIyNDF9.zH-5oGf_N1uEusFNcCb0PPxUDKIWfEU1l5Q4B3y0NUk",
-								"type": "text"
+								"key": "",
+								"value": "",
+								"type": "text",
+								"disabled": true
 							}
 						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"first_name\": \"Vishal\",\n  \"last_name\": \"Chaubey\",\n  \"email\": \"vishal3@gmaail.com\",\n  \"phone\": \"+912345678901\",\n  \"comments_box\": \"Looking forward to working with you.\",\n  \"password\": \"SecureP@ssw0rd\",\n  \"con_pass\": \"SecureP@ssw0rd\",\n  \"user_level\": \"Customer\",\n  \"created_by\": 346\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
 						"url": {
 							"raw": "{{baseUrl}}/api/auth/register",
 							"host": [
@@ -866,6 +898,41 @@
 								"api",
 								"auth",
 								"register"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login customer",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "",
+								"value": "",
+								"type": "text",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"vishal3@gmaail.com\",\n  \"password\": \"SecureP@ssw0rd\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login"
 							]
 						}
 					},

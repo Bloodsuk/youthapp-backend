@@ -84,6 +84,8 @@ interface ISignupReq {
     last_name: string;
     email: string;
     phone: string;
+    user_level?: string;
+    created_by?: number;
     company_name: string;
     area_of_business: string;
     number_of_clients: string;
@@ -98,6 +100,8 @@ async function register(req: IReq<ISignupReq>, res: IRes) {
   const last_name = (req.body['last_name']) ? trim(req.body['last_name']) : '';
   const email = (req.body['email']) ? trim(req.body['email']) : '';
   const phone = (req.body['phone']) ? trim(req.body['phone']) : '';
+  const user_level = (req.body['user_level']) ? trim(req.body['user_level']) : null;
+  const created_by = (req.body['created_by']) ? req.body['created_by'] : 0;
   const company_name = (req.body['company_name']) ? trim(req.body['company_name']) : '';
   const area_of_business = (req.body['area_of_business']) ? trim(req.body['area_of_business']) : '';
   const number_of_clients = (req.body['number_of_clients']) ? trim(req.body['number_of_clients']) : '';
@@ -119,6 +123,8 @@ async function register(req: IReq<ISignupReq>, res: IRes) {
       comments_box,
       password,
       con_pass,
+      user_level,
+      created_by
     );
     console.log("user", user);
 
@@ -158,7 +164,7 @@ async function register(req: IReq<ISignupReq>, res: IRes) {
         .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
         .json({
           success: false,
-          message: "Login Error: " + JSON.stringify(error),
+          message: "Register Error: " + JSON.stringify(error),
         })
         .end();
   }
