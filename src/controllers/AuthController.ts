@@ -83,6 +83,7 @@ interface ISignupReq {
     first_name: string;
     last_name: string;
     email: string;
+    username: string;
     phone: string;
     user_level?: string;
     created_by?: number;
@@ -93,15 +94,24 @@ interface ISignupReq {
     comments_box: string;
     password: string;
     con_pass: string;
+    address: string;
+    town: string;
+    country: string;
+    postal_code: string;
+    cus_notification_types: any;
+    mail_sent: string;
+    date_of_birth: string;
+    gender: string;
 }
 
 async function register(req: IReq<ISignupReq>, res: IRes) {
   const first_name = (req.body['first_name']) ? trim(req.body['first_name']) : '';
   const last_name = (req.body['last_name']) ? trim(req.body['last_name']) : '';
   const email = (req.body['email']) ? trim(req.body['email']) : '';
+  const username = (req.body['username']) ? trim(req.body['username']) : (email ? email.split("@")[0]: '');
   const phone = (req.body['phone']) ? trim(req.body['phone']) : '';
   const user_level = (req.body['user_level']) ? trim(req.body['user_level']) : null;
-  const created_by = (req.body['created_by']) ? req.body['created_by'] : 0;
+  const created_by = (req.body['created_by']) ? req.body['created_by'] : 1;
   const company_name = (req.body['company_name']) ? trim(req.body['company_name']) : '';
   const area_of_business = (req.body['area_of_business']) ? trim(req.body['area_of_business']) : '';
   const number_of_clients = (req.body['number_of_clients']) ? trim(req.body['number_of_clients']) : '';
@@ -109,6 +119,14 @@ async function register(req: IReq<ISignupReq>, res: IRes) {
   const comments_box = (req.body['comments_box']) ? trim(req.body['comments_box']) : '';
   const password = (req.body['password']) ? trim(req.body['password']) : '';
   const con_pass = (req.body['con_pass']) ? trim(req.body['con_pass']) : '';
+  const address = (req.body['address']) ? trim(req.body['address']) : '';
+  const town = (req.body['town']) ? trim(req.body['town']) : '';
+  const country = (req.body['country']) ? trim(req.body['country']) : '';
+  const postal_code = (req.body['postal_code']) ? trim(req.body['postal_code']) : '';
+  const cus_notification_types = req.body['cus_notification_types']
+  const mail_sent = (req.body['mail_sent']) ? trim(req.body['mail_sent']) : '';
+  const date_of_birth = (req.body['date_of_birth']) ? trim(req.body['date_of_birth']) : '';
+  const gender = (req.body['gender']) ? trim(req.body['gender']) : '';
 
   try {
     const user = await AuthService.register(
@@ -124,7 +142,16 @@ async function register(req: IReq<ISignupReq>, res: IRes) {
       password,
       con_pass,
       user_level,
-      created_by
+      created_by,
+      address,
+      town,
+      country,
+      postal_code,
+      cus_notification_types,
+      mail_sent,
+      date_of_birth,
+      gender,
+      username,
     );
     console.log("user", user);
 

@@ -46,7 +46,8 @@ async function getAll(req: IReq, res: IRes) {
  */
 async function getAssignedRolePermission(req: IReq, res: IRes) {
   try {
-    const role_id = parseInt(req.params.role_id);
+    // const role_id = parseInt(req.params.role_id);
+    const role_id = req.query.role_id ? parseInt(req.query.role_id as string): 0;
     const { data, total } = await RoleService.getAssignedRolePermission(role_id);
     return res.status(HttpStatusCodes.OK).json({ permissions: data, total });
   } catch (error) {

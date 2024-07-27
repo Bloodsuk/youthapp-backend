@@ -576,6 +576,50 @@
 					"response": []
 				},
 				{
+					"name": "Get all permission based on role with assign status",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "authorization",
+								"value": "Bearer {{authorization}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"role_id\": 1,\n    \"permission_id\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/roles/get_assigned_permission/all?role_id=2",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"roles",
+								"get_assigned_permission",
+								"all"
+							],
+							"query": [
+								{
+									"key": "role_id",
+									"value": "2"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
 					"name": "List all the roles",
 					"request": {
 						"method": "GET",
@@ -882,7 +926,42 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"first_name\": \"Vishal\",\n  \"last_name\": \"Chaubey\",\n  \"email\": \"vishal3@gmaail.com\",\n  \"phone\": \"+912345678901\",\n  \"comments_box\": \"Looking forward to working with you.\",\n  \"password\": \"SecureP@ssw0rd\",\n  \"con_pass\": \"SecureP@ssw0rd\",\n  \"user_level\": \"Customer\",\n  \"created_by\": 346\n}",
+							"raw": "{\n    \"first_name\": \"Vishal\",\n    \"last_name\": \"Chaubey\",\n    \"username\": \"dadduTum@1\",\n    \"email\": \"vishal11@gmaail.com\",\n    \"phone\": \"+912345678901\",\n    \"comments_box\": \"Looking forward to working with you.\",\n    \"password\": \"SecureP@ssw0rd\",\n    \"con_pass\": \"SecureP@ssw0rd\",\n    \"user_level\": \"Customer\",\n    \"created_by\": 346,\n    \"address\": \"#102, Avenue road, sec 12, chandigarh\",\n    \"town\": \"Chandigarh\",\n    \"country\": \"India\",\n    \"postal_code\": \"140301\",\n    \"cus_notification_types\": [\n        \"all\"\n    ],\n    \"date_of_birth\": \"2000-05-10\",\n    \"gender\": \"Male\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/register",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"register"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Register practitioner",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "",
+								"value": "",
+								"type": "text",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"first_name\": \"Vishal\",\n    \"last_name\": \"Chaubey\",\n    \"email\": \"vishal12@gmaail.com\",\n    \"phone\": \"+912345678901\",\n    \"comments_box\": \"Looking forward to working with you.\",\n    \"password\": \"SecureP@ssw0rd\",\n    \"con_pass\": \"SecureP@ssw0rd\",\n    \"user_level\": \"Practitioner\"\n    \n}",
 							"options": {
 								"raw": {
 									"language": "json"

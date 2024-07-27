@@ -7,7 +7,7 @@ import { pool } from "@src/server";
 import crypto from "crypto";
 import { ResultSetHeader, RowDataPacket } from "mysql2";
 import MailService from "./MailService";
-import { Gender } from "@src/constants/enums";
+import { Gender, YesNo } from "@src/constants/enums";
 import { ICustomer } from "@src/interfaces/ICustomer";
 
 // **** Variables **** //
@@ -18,6 +18,7 @@ export const Errors = {
   InvalidPassword: `Invalid password`,
   NoPassword: `No password`,
   AlreadyExists: "Email Already Exists!!",
+  UsernameAlreadyExists: "Username Already Exists!!",
   InvalidToken: "Invalid token.",
   TokenExpired: "Token expired.",
 } as const;
@@ -79,7 +80,16 @@ async function register(
   password: string,
   con_pass: string,
   user_level: string | null,
-  created_by: number
+  created_by: number,
+  address: string,
+  town: string,
+  country: string,
+  postal_code: string,
+  cus_notification_types: any,
+  mail_sent: string,
+  date_of_birth: string,
+  gender: string,
+  username: string,
 ) {
   if (!user_level) user_level = "Practitioner"
   if (!["practitioner", "customer"].includes(user_level.toLocaleLowerCase())) {
@@ -88,20 +98,30 @@ async function register(
       "Invalid user type!!"
     );
   }
-  if (user_level.toLocaleLowerCase() == "customer" && !created_by) {
-    throw new RouteError(
-      HttpStatusCodes.BAD_REQUEST,
-      "Practitioner should be valid!!"
-    );
-  }
-  let username = email.split("@")[0];
-  if (!(await usernameAvailable(username))) {
-    username = (username + last_name).replace(' ', '-')
-    if (!(await usernameAvailable(username))) {
-      username = generateUniqueString(username);
+
+  if (user_level.toLocaleLowerCase() == "customer") {
+    if (!created_by) {
+      throw new RouteError(
+        HttpStatusCodes.BAD_REQUEST,
+        "Practitioner should be valid!!"
+      );
     }
+    if (!(await usernameAvailable(username))) {
+      throw new RouteError(
+        HttpStatusCodes.CONFLICT,
+        Errors.UsernameAlreadyExists
+      );
+    }
+    con_pass = con_pass ? con_pass : password;
+  } else {
+    if (!(await usernameAvailable(username))) {
+      username = (username + last_name).replace(' ', '-')
+      if (!(await usernameAvailable(username))) {
+        username = generateUniqueString(username);
+      }
+    }
+    username = username.toLowerCase();
   }
-  username = username.toLowerCase();
 
   if (password != con_pass) {
     throw new RouteError(
@@ -133,6 +153,8 @@ async function register(
     const customerId = await addCustomer({
       first_name,
       last_name,
+      date_of_birth,
+      gender,
       username,
       email,
       phone,
@@ -143,7 +165,13 @@ async function register(
       area_of_business,
       company_name,
       user_level,
-      created_by
+      created_by,
+      address,
+      town,
+      country,
+      postal_code,
+      cus_notification_types,
+      mail_sent
     })
     if (!customerId) {
       throw new RouteError(
@@ -207,29 +235,30 @@ async function addCustomer(customer: Record<string, any>): Promise<number> {
     ? customer["date_of_birth"].trim()
     : "";
   const gender = customer["gender"] ? customer["gender"] : Gender.Male;
-  // const address = customer["address"] ? customer["address"].trim() : "";
-  // const town = customer["town"] ? customer["town"].trim() : "";
-  // const country = customer["country"] ? customer["country"].trim() : "";
-  // const postal_code = customer["postal_code"]
-  //   ? customer["postal_code"].trim()
-  //   : "";
+  const address = customer["address"] ? customer["address"].trim() : "";
+  const town = customer["town"] ? customer["town"].trim() : "";
+  const country = customer["country"] ? customer["country"].trim() : "";
+  const postal_code = customer["postal_code"]
+    ? customer["postal_code"].trim()
+    : "";
   const email = customer["email"] ? customer["email"].trim() : "";
   const telephone = customer["phone"] ? customer["phone"].trim() : "";
   const comments = customer["comments_box"] ? customer["comments_box"].trim() : "";
-  const created_by = customer["created_by"] ? customer["created_by"] : 0;
+  const created_by = customer["created_by"] ? customer["created_by"] : 1;
   const username = customer["username"] ? customer["username"].trim() : "";
   const password = customer["password"] ? customer["password"].trim() : "";
   const notification_types = customer["cus_notification_types"] ? customer["cus_notification_types"] : "";
+  const notifications = customer["mail_sent"] === "Yes" ? YesNo.Yes : YesNo.No;
 
   const data: Partial<ICustomer> = {
     fore_name,
     sur_name,
     date_of_birth,
     gender,
-    // address,
-    // town,
-    // country,
-    // postal_code,
+    address,
+    town,
+    country,
+    postal_code,
     username,
     email,
     telephone,
@@ -237,6 +266,7 @@ async function addCustomer(customer: Record<string, any>): Promise<number> {
     created_by,
     password,
     user_level,
+    notifications,
     notification_types: Array.isArray(notification_types)
       ? notification_types.join(",")
       : "",

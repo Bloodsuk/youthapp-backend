@@ -44,7 +44,7 @@ export default {
   Roles: {
     Base: "/roles",
     Get: "/all",
-    GetAssignedRolePermission: "/get_assigned_permission/:role_id",
+    GetAssignedRolePermission: "/get_assigned_permission/all",
     GetById: "/:id",
     Add: "/add",
     MarkActive: "/change_active_status",
