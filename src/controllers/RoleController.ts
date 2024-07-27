@@ -39,6 +39,37 @@ async function getAll(req: IReq, res: IRes) {
 }
 
 /**
+ * INFO: Get all assgined permission to role
+ * @param req 
+ * @param res 
+ * @returns 
+ */
+async function getAssignedRolePermission(req: IReq, res: IRes) {
+  try {
+    const role_id = parseInt(req.params.role_id);
+    const { data, total } = await RoleService.getAssignedRolePermission(role_id);
+    return res.status(HttpStatusCodes.OK).json({ permissions: data, total });
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
+/**
  * INFO: Get role by id
  * @param req 
  * @param res 
@@ -282,4 +313,5 @@ export default {
   assignPermissionToRole,
   update,
   delete: delete_,
+  getAssignedRolePermission,
 } as const;

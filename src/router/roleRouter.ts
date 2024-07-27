@@ -24,6 +24,9 @@ roleRouter.put(Paths.Roles.AssignRoleToUser, RoleController.assignRoleToUser);
 // Assign permission to role
 roleRouter.put(Paths.Roles.AssignPermissionToRole, RoleController.assignPermissionToRole);
 
+// List Assigned permission to role
+roleRouter.get(Paths.Roles.GetAssignedRolePermission, RoleController.getAssignedRolePermission);
+
 // Update role
 roleRouter.patch(Paths.Roles.Update, RoleController.update);
 
