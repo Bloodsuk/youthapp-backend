@@ -149,6 +149,101 @@ async function getAll(
   };
 }
 
+/**
+ * INFO: Get customer orders by customer Id.
+ */
+async function getAllCustomerOrder(
+  customer_id: number,
+  search?: string,
+  status?: string,
+  shipping_type?: string,
+  service?: string,
+  page: number = 1
+): Promise<IGetResponse<IOrder>> {
+  const whereClauses = ["1"];
+  const params: any[] = [];
+
+  whereClauses.push("orders.customer_id = ?");
+  params.push(customer_id);
+
+  if (status && !empty(status)) {
+    if (status === "Pending Validation") {
+      whereClauses.push("orders.status IN ('Pending Validation', 'Complete')");
+    } else if (status === "Received at the Lab") {
+      whereClauses.push("orders.status IN ('Ready', 'Received at the Lab')");
+    } else {
+      whereClauses.push("orders.status = ?");
+      params.push(status);
+    }
+  } else {
+    whereClauses.push("orders.status != 'Failed'");
+  }
+
+  if (shipping_type && !empty(shipping_type)) {
+    whereClauses.push("orders.shipping_type = ?");
+    params.push(shipping_type);
+  }
+
+  if (service && !empty(service)) {
+    whereClauses.push("orders.other_charges = ?");
+    params.push(service);
+  }
+
+  if (search && !empty(search)) {
+    whereClauses.push("client_name LIKE ?");
+    params.push(`%${search}%`);
+  }
+
+  const pagination = `LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`;
+
+  const sql = `
+    SELECT 
+      orders.*, 
+      customers.id AS customer_id,
+      customers.fore_name AS customer_fore_name,
+      customers.sur_name AS customer_sur_name,
+      customers.email AS customer_email, 
+      users.id AS practitioner_id,
+      users.first_name AS practitioner_first_name,
+      users.last_name AS practitioner_last_name,
+      users.email AS practitioner_email,
+      tests.id AS test_id,
+      tests.test_name AS test_name,
+      tests.description AS test_description
+    FROM orders 
+    LEFT JOIN customers ON orders.customer_id = customers.id 
+    LEFT JOIN users ON orders.created_by = users.id
+    LEFT JOIN tests ON FIND_IN_SET(tests.id, orders.test_ids)
+    WHERE ${whereClauses.join(" AND ")} 
+    ORDER BY orders.id DESC 
+    ${pagination}
+  `;
+  console.log(sql);
+  console.log(params);
+
+  const [rows] = await pool.query<RowDataPacket[]>(sql, params);
+  const allOrders = rows.map((order) => {
+    return {
+      ...order,
+      test_ids: order.test_ids,
+      practitioner_id: order.practitioner_id,
+    } as IOrder;
+  });
+  const totalSql = `
+    SELECT COUNT(*) as count
+    FROM orders 
+    LEFT JOIN customers ON orders.customer_id = customers.id 
+    WHERE ${whereClauses.join(" AND ")}
+  `;
+  const [totalResult] = await pool.query<RowDataPacket[]>(totalSql, params);
+  const total = totalResult[0].count;
+
+  return {
+    data: allOrders,
+    total,
+  };
+}
+
 async function getOutstandingCreditOrders(
   page: number = 1
 ): Promise<IGetResponse<IOrder>> {
@@ -340,6 +435,7 @@ async function markPaid(order_ids: number[]): Promise<boolean> {
 
 export default {
   getAll,
+  getAllCustomerOrder,
   getOutstandingCreditOrders,
   getOne,
   addOne,

@@ -41,6 +41,46 @@ async function getAll(req: IReq<IGetOrdersReqBody>, res: IRes) {
   );
   return res.status(HttpStatusCodes.OK).json({ orders: data, total });
 }
+
+/**
+ * INFO: Get customer orders by customer Id.
+ * @param req 
+ * @param res 
+ * @returns 
+ */
+async function getAllCustomerOrder(req: IReq<IGetOrdersReqBody>, res: IRes) {
+  const customer_id = parseInt(req.params.customer_id);
+  try {
+    const { status, shipping_type, service, client_name, page } = req.body;
+    const { data, total } = await OrderService.getAllCustomerOrder(
+      customer_id,
+      client_name,
+      status,
+      shipping_type,
+      service,
+      page
+    );
+    return res.status(HttpStatusCodes.OK).json({ orders: data, total });
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
 /**
  * Get order by Id.
  */
@@ -446,9 +486,9 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
 
     console.log("total_val", total_val);
 
-    if(total_val <= 0)
-      return res.status(HttpStatusCodes.BAD_REQUEST).json({ success: false, error: "Total calculated amount is 0 or less. Please check your order details again. "});
-    
+    if (total_val <= 0)
+      return res.status(HttpStatusCodes.BAD_REQUEST).json({ success: false, error: "Total calculated amount is 0 or less. Please check your order details again. " });
+
     const order_id = moment().format("YYMM") + `${mt_rand(55, 55555)}`;
     const order = {
       order_id,
@@ -492,7 +532,7 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
         })
         .end();
     else return res.status(HttpStatusCodes.BAD_REQUEST).end();
-    
+
   } catch (error) {
     if (error instanceof RouteError)
       return res
@@ -568,7 +608,7 @@ async function addPaymentMethod(
       type: "card",
       card,
     });
-    if (paymentMethod.id){
+    if (paymentMethod.id) {
       await stripe.paymentMethods.attach(paymentMethod.id, {
         customer: stripe_cust_id,
       });
@@ -673,6 +713,7 @@ async function getSripeCards(stripe_cust_id: string) {
 
 export default {
   getAll,
+  getAllCustomerOrder,
   getOutstandingCreditOrders,
   getById,
   add,

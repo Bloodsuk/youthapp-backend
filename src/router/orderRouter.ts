@@ -7,6 +7,9 @@ const orderRouter = Router();
 // Get all orders
 orderRouter.post(Paths.Orders.Get, OrderController.getAll);
 
+// Get all orders
+orderRouter.post(Paths.Orders.GetCustomerOrder, OrderController.getAllCustomerOrder);
+
 // Get all outstanding credit orders
 orderRouter.get(Paths.Orders.GetOutstanding, OrderController.getOutstandingCreditOrders);
 
