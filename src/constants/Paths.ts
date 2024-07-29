@@ -101,7 +101,7 @@ export default {
     Base: "/orders",
     Get: "/all",
     GetOutstanding: "/outstanding_credit",
-    GetCustomerOrder: "/customer/all/:customer_id",
+    GetCustomerOrder: "/customer/:customer_id",
     GetById: "/:id",
     Add: "/add",
     Update: "/update/:id",
