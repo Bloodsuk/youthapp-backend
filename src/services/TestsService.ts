@@ -20,10 +20,11 @@ interface IGetResponse<T> {
   total: number;
 }
 
-async function getAll(page: number = 1, search: string = ""): Promise<IGetResponse<ITest>> {
+async function getAll(page: number = 1, search: string = "", cate_id: string = ""): Promise<IGetResponse<ITest>> {
   const joinColumns =
-    ", CONCAT(u1.first_name, ' ', u1.last_name) as practitioner_name";
-  const join = " LEFT JOIN users u1 ON (u1.id = tests.practitioner_id)";
+    ", CONCAT(u1.first_name, ' ', u1.last_name) as practitioner_name, tc.customer_cost as practitioner_customer_cost";
+  const join = ` LEFT JOIN users u1 ON (u1.id = tests.practitioner_id)
+                 LEFT JOIN tests_cost_by_practitioner tc ON (tc.tests_id = tests.id And tc.practitioner_id = tests.practitioner_id)`;
 
   const pagination = `LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`;
 
@@ -32,6 +33,91 @@ async function getAll(page: number = 1, search: string = ""): Promise<IGetRespon
   let searchSql = "";
   if (search && !empty(search)) {
     searchSql += ` AND test_name LIKE '%${search}%'`;
+    sql += searchSql;
+  }
+  if (cate_id && !empty(cate_id)) {
+    searchSql += ` AND cate_id = ${cate_id}`;
+    sql += searchSql;
+  }
+
+  sql += ` ORDER BY id DESC ${pagination}`;
+
+  const [rows] = await pool.query<RowDataPacket[]>(sql);
+  const allTests = rows.map((test) => {
+    return test as ITest;
+  });
+
+  const total = await getTotalCount(pool, 'tests', `WHERE 1 ${searchSql}`);
+
+  return { data: allTests, total };
+}
+
+/**
+ * INFO: get practitioner test
+ * @param practitioner_id 
+ * @param page 
+ * @param search 
+ * @returns 
+ */
+async function getPractitionerTest(practitioner_id: number, page: number = 1, search: string = "", cate_id: string = ""): Promise<IGetResponse<ITest>> {
+  const joinColumns =
+    ", CONCAT(u1.first_name, ' ', u1.last_name) as practitioner_name, tc.customer_cost as practitioner_customer_cost";
+  const join = ` LEFT JOIN users u1 ON (u1.id = tests.practitioner_id)
+                 LEFT JOIN tests_cost_by_practitioner tc ON (tc.tests_id = tests.id And tc.practitioner_id = tests.practitioner_id)`;
+
+  const pagination = `LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`;
+
+  let sql = `SELECT tests.* ${joinColumns} from tests ${join} WHERE 
+  (tests.practitioner_id IS NULL OR tests.practitioner_id = 0 OR tests.practitioner_id = ${practitioner_id})`;
+  // If there's a search term, add the search condition
+  let searchSql = "";
+  if (search && !empty(search)) {
+    searchSql += ` AND test_name LIKE '%${search}%'`;
+    sql += searchSql;
+  }
+  if (cate_id && !empty(cate_id)) {
+    searchSql += ` AND cate_id = ${cate_id}`;
+    sql += searchSql;
+  }
+
+  sql += ` ORDER BY id DESC ${pagination}`;
+
+  const [rows] = await pool.query<RowDataPacket[]>(sql);
+  const allTests = rows.map((test) => {
+    return test as ITest;
+  });
+
+  const total = await getTotalCount(pool, 'tests', `WHERE (tests.practitioner_id IS NULL OR tests.practitioner_id = 0 OR tests.practitioner_id = ${practitioner_id}) ${searchSql}`);
+
+  return { data: allTests, total };
+}
+
+/**
+ * INFO: Get all customer test
+ * @param customer_id 
+ * @param page 
+ * @param search 
+ * @returns 
+ */
+async function getCustomerTest(customer_id: number, page: number = 1, search: string = "", cate_id: string = ""): Promise<IGetResponse<ITest>> {
+  const joinColumns =
+    ", CONCAT(u1.first_name, ' ', u1.last_name) as practitioner_name, tc.customer_cost as practitioner_customer_cost";
+  const join = ` LEFT JOIN users u1 ON (u1.id = tests.practitioner_id)
+                 LEFT JOIN tests_cost_by_practitioner tc ON (tc.tests_id = tests.id And tc.practitioner_id = tests.practitioner_id)
+                 LEFT JOIN customers c ON (c.created_by = tests.practitioner_id)`;
+
+  const pagination = `LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`;
+
+  let sql = `SELECT tests.* ${joinColumns} from tests ${join} WHERE 
+  (tests.practitioner_id IS NULL OR tests.practitioner_id = 0 OR c.id = ${customer_id})`;
+  // If there's a search term, add the search condition
+  let searchSql = "";
+  if (search && !empty(search)) {
+    searchSql += ` AND test_name LIKE '%${search}%'`;
+    sql += searchSql;
+  }
+  if (cate_id && !empty(cate_id)) {
+    searchSql += ` AND cate_id = ${cate_id}`;
     sql += searchSql;
   }
 
@@ -68,12 +154,15 @@ async function getOne(id: number): Promise<ITest> {
 async function addOne(test: Partial<ITest>): Promise<number> {
   const data = {
     test_name: test.test_name || '',
-    cate_id : test.cate_id || '',
-    practitioner_id : test.practitioner_id || null,
-    description : test.description || '',
-    test_sku : test.test_sku || '',
-    test_biomarker : test.test_biomarker || '',
-    price : test.price || '',
+    cate_id: test.cate_id || '',
+    practitioner_id: test.practitioner_id || null,
+    description: test.description || '',
+    test_sku: test.test_sku || '',
+    test_biomarker: test.test_biomarker || '',
+    price: test.price || '',
+    discount_type: test.discount_type || '',
+    cost: test.cost || '',
+    customer_cost: test.customer_cost || '',
   };
   const [result3] = await pool.query<ResultSetHeader>("INSERT INTO tests SET ?", data);
   return result3.insertId;
@@ -103,6 +192,27 @@ async function updateOne(
   }
   return true;
 }
+
+/**
+ * Update one test.
+ */
+async function updateCustomerPrice(
+  id: number,
+  practitioner_id: number,
+  customer_cost: number
+): Promise<boolean> {
+  let sql = `INSERT INTO tests_cost_by_practitioner (practitioner_id, tests_id, customer_cost)
+      VALUES (?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+      customer_cost = VALUES(customer_cost);`
+
+  const [result] = await pool.query<ResultSetHeader>(sql, [practitioner_id, id, customer_cost]);
+  if (result.affectedRows === 0) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, NOT_FOUND_ERR);
+  }
+  return true;
+}
+
 /**
  * Delete a test by their id.
  */
@@ -110,7 +220,7 @@ async function _delete(testId: number): Promise<void> {
   try {
     await pool.query<ResultSetHeader>("DELETE FROM tests WHERE id = ?", [testId]);
   } catch (error) {
-    throw new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error deleting test: "+error);
+    throw new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error deleting test: " + error);
   }
 }
 
@@ -118,8 +228,11 @@ async function _delete(testId: number): Promise<void> {
 
 export default {
   getAll,
+  getPractitionerTest,
+  getCustomerTest,
   getOne,
   addOne,
   updateOne,
+  updateCustomerPrice,
   delete: _delete,
 } as const;

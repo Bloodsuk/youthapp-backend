@@ -115,9 +115,12 @@ export default {
   Tests: {
     Base: "/tests",
     Get: "/all",
+    GetPractitionerTest: "/practitioner/all/:practitioner_id",
+    GetCustomerTest: "/customer/all/:customer_id",
     GetById: "/:id",
     Add: "/add",
     Update: "/update/:id",
+    UpdateCustomerPrice: "/set_customer_price/:id",
     Delete: "/delete/:id",
   },
   Coupons: {

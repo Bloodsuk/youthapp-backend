@@ -12,6 +12,9 @@ export interface ITest {
   procedure: string ;
   side_effects: string ;
   price: string ;
+  discount_type: string;
+  cost: string;
+  customer_cost: string;
   is_featured: YesNo;
   product_unit: string ;
   weights: string ;
