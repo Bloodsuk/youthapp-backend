@@ -10,6 +10,9 @@ orderRouter.post(Paths.Orders.Get, OrderController.getAll);
 // Get all orders
 orderRouter.post(Paths.Orders.GetCustomerOrder, OrderController.getAllCustomerOrder);
 
+// Get all Practitioners Commission
+orderRouter.get(Paths.Orders.GetPractitionersCommission, OrderController.getPractitionersCommission);
+
 // Get all outstanding credit orders
 orderRouter.get(Paths.Orders.GetOutstanding, OrderController.getOutstandingCreditOrders);
 
@@ -47,10 +50,17 @@ orderRouter.delete(
 );
 
 // Mark payment as paid
+orderRouter.put(
+  Paths.Orders.MarkPaidPractitionersCommission,
+  OrderController.markPaidPractitionersCommission
+);
+
+// Mark payment as paid
 orderRouter.post(
   Paths.Orders.MarkPaid,
   OrderController.markPaid
 );
+
 // Credit Checkout
 orderRouter.post(
   Paths.Orders.CreditCheckout,

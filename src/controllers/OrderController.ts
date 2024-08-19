@@ -82,6 +82,48 @@ async function getAllCustomerOrder(req: IReq<IGetOrdersReqBody>, res: IRes) {
 }
 
 /**
+ * INFO: Get customer orders by customer Id.
+ * @param req 
+ * @param res 
+ * @returns 
+ */
+interface IGetPractitionersCommissionReqBody {
+  paid_status?: string;
+  search?: string;
+  page?: number;
+}
+async function getPractitionersCommission(req: IReq<IGetPractitionersCommissionReqBody>, res: IRes) {
+  try {
+    const { paid_status = "", search } = req.query;
+    let page = parseInt(req.query.page as string);
+    if (isNaN(page)) page = 1;
+    const { data, total } = await OrderService.getPractitionersCommission(
+      page,
+      paid_status as string,
+      search as string,
+    );
+    return res.status(HttpStatusCodes.OK).json({ commissions: data, total });
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
+/**
  * Get order by Id.
  */
 async function getById(req: IReq, res: IRes) {
@@ -234,6 +276,7 @@ async function getOutstandingCreditOrders(req: IReq, res: IRes) {
   const { data, total } = await OrderService.getOutstandingCreditOrders(page);
   return res.status(HttpStatusCodes.OK).json({ orders: data, total });
 }
+
 /**
  * Get all outstanding credit orders.
  */
@@ -241,6 +284,34 @@ async function markPaid(req: IReq<{ order_ids: number[] }>, res: IRes) {
   try {
     const order_ids = req.body.order_ids;
     const success = await OrderService.markPaid(order_ids);
+    return res.status(HttpStatusCodes.OK).json({ success });
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
+/**
+ * INFO: Marked paid as practitioners commission.
+ */
+async function markPaidPractitionersCommission(req: IReq<{ commission_ids: number[] }>, res: IRes) {
+  try {
+    const commission_ids = req.body.commission_ids;
+    const success = await OrderService.markPaidPractitionersCommission(commission_ids);
     return res.status(HttpStatusCodes.OK).json({ success });
   } catch (error) {
     if (error instanceof RouteError)
@@ -714,6 +785,7 @@ async function getSripeCards(stripe_cust_id: string) {
 export default {
   getAll,
   getAllCustomerOrder,
+  getPractitionersCommission,
   getOutstandingCreditOrders,
   getById,
   add,
@@ -721,6 +793,7 @@ export default {
   updateStatus,
   delete: delete_,
   markPaid,
+  markPaidPractitionersCommission,
   creditCheckout,
   stripeCheckout,
   getPaymentMethods,

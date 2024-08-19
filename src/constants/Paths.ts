@@ -100,6 +100,7 @@ export default {
   Orders: {
     Base: "/orders",
     Get: "/all",
+    GetPractitionersCommission: "/practitioners_commission",
     GetOutstanding: "/outstanding_credit",
     GetCustomerOrder: "/customer/:customer_id",
     GetById: "/:id",
@@ -108,6 +109,7 @@ export default {
     UpdateStatus: "/update_status/:id",
     Delete: "/delete/:id",
     MarkPaid: "/mark_paid",
+    MarkPaidPractitionersCommission: "/mark_commission_paid",
     CreditCheckout: "/credit_checkout",
     StripeCheckout: "/stripe_checkout",
     PaymentMethods: "/stripe/payment_methods",

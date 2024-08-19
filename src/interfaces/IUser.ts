@@ -33,4 +33,5 @@ export interface IUser {
   allow_explanations_reports: string;
   notification_types: string;
   stripe_id: string;
+  role_id: string;
 }

@@ -252,5 +252,13 @@ CREATE TABLE role_permissions (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE practitioner_commission (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  practitioner_id INT NOT NULL,
+  order_id INT NOT NULL,
+  commission_amount varchar(10) NOT NULL,
+  is_paid TINYINT NOT NULL DEFAULT '0',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+)
 
 

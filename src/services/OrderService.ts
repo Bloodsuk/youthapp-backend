@@ -10,10 +10,12 @@ import { empty, getTotalCount } from "@src/util/misc";
 import { ICustomer } from "@src/interfaces/ICustomer";
 import MailService from "./MailService";
 import { LIMIT } from "@src/constants/pagination";
+import { IPractitionerCommission } from "@src/interfaces/IPractitionerCommission";
 
 // **** Variables **** //
 
 export const USER_NOT_FOUND_ERR = "Order not found";
+export const INVALID_PAID_STATUS = "Invalid request, Commission paid status should be only paid or unpaid";
 
 // **** Functions **** //
 
@@ -244,6 +246,11 @@ async function getAllCustomerOrder(
   };
 }
 
+/**
+ * INFO: Get outstanding credit orders
+ * @param page 
+ * @returns 
+ */
 async function getOutstandingCreditOrders(
   page: number = 1
 ): Promise<IGetResponse<IOrder>> {
@@ -281,6 +288,63 @@ async function getOutstandingCreditOrders(
     pool,
     "orders",
     "WHERE payment_status = 'Pending' AND checkout_type='Credit'"
+  );
+  return {
+    data: allOrders,
+    total,
+  };
+}
+
+/**
+ * INFO: Get order for Practitioner so that they can see that from which order they got the commission and from which order commission is pending
+ * @param page 
+ * @returns 
+ */
+async function getPractitionersCommission(
+  page: number = 1,
+  paid_status: string = "",
+  search: string = "",
+): Promise<IGetResponse<IPractitionerCommission>> {
+  if (paid_status && !["unpaid", "paid"].includes(paid_status?.toLowerCase())) {
+    throw new RouteError(HttpStatusCodes.CONFLICT, INVALID_PAID_STATUS);
+  }
+  let where = " 1 "
+  if (paid_status?.toLowerCase() == "paid") {
+    where = ` is_paid = 1 `
+  }
+  if (paid_status?.toLowerCase() == "unpaid") {
+    where = ` is_paid = 0 `
+  }
+  // if (search && !empty(search)) {
+  //   if (search.split(" ").length >= 2) {
+  //     const [first_name, last_name] = search.split(" ");
+  //     where += ` AND (first_name LIKE '%${first_name}%' AND last_name LIKE '%${last_name}%')`;
+  //   } else
+  //     where += ` AND (email LIKE '%${search}%' OR username LIKE '%${search}%' OR first_name LIKE '%${search}%' OR last_name LIKE '%${search}%')`;
+  // }
+  const sql = `
+  SELECT 
+    practitioner_commission.*, 
+    users.id AS practitioner_id,
+    users.first_name AS practitioner_first_name,
+    users.last_name AS practitioner_last_name,
+    users.email AS practitioner_email
+  FROM practitioner_commission 
+  LEFT JOIN users ON practitioner_commission.practitioner_id = users.id
+  WHERE ${where}
+  ORDER BY practitioner_commission.created_at DESC 
+  LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}
+`;
+  const [rows] = await pool.query<RowDataPacket[]>(sql);
+  const allOrders = rows.map((order) => {
+    return {
+      ...order
+    } as IPractitionerCommission;
+  });
+  const total = await getTotalCount(
+    pool,
+    "practitioner_commission",
+    `WHERE ${where}`
   );
   return {
     data: allOrders,
@@ -390,6 +454,7 @@ async function updateStatus(id: number, status: string): Promise<boolean> {
   }
   return true;
 }
+
 /**
  * Delete a order by their id.
  */
@@ -405,6 +470,7 @@ async function _delete(orderId: number): Promise<void> {
     );
   }
 }
+
 /**
  * Update payment_status to 'Paid'.
  */
@@ -431,16 +497,36 @@ async function markPaid(order_ids: number[]): Promise<boolean> {
   return true;
 }
 
+/**
+ * INFO: marked as Paid for Practitioners Commission
+ * @param order_ids 
+ * @returns 
+ */
+async function markPaidPractitionersCommission(commission_ids: number[]): Promise<boolean> {
+  let where = "";
+  if (commission_ids.length === 1) where = `where id = ${commission_ids[0]}`;
+  else where = `where id IN (${mysql.format(commission_ids.join(","))})`;
+  const sql = `UPDATE practitioner_commission set is_paid = 1 ${where}`;
+
+  const [result] = await pool.query<ResultSetHeader>(sql);
+  if (result.affectedRows === 0) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, USER_NOT_FOUND_ERR);
+  }
+  return true;
+}
+
 // **** Export default **** //
 
 export default {
   getAll,
   getAllCustomerOrder,
   getOutstandingCreditOrders,
+  getPractitionersCommission,
   getOne,
   addOne,
   updateStatus,
   updateOne,
   delete: _delete,
   markPaid,
+  markPaidPractitionersCommission,
 } as const;
