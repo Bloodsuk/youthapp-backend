@@ -749,6 +749,219 @@
 			]
 		},
 		{
+			"name": "Clinics",
+			"item": [
+				{
+					"name": "Add clinic",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "authorization",
+								"value": "Bearer {{authorization}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"clinic\": {\n        \"first_name\": \"Vishal\",\n        \"last_name\": \"Chaubey\",\n        \"username\": \"vishal13\",\n        \"email\": \"vishal13@gmaail.com\",\n        \"phone\": \"+918171720797\",\n        \"password\": \"SecureP@ssw0rd\",\n        \"confirm_password\": \"SecureP@ssw0rd\",\n        \"user_level\": \"Moderator\",\n        \"practitioner_id\": 341\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/clinics/add",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"clinics",
+								"add"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update clinic",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "authorization",
+								"value": "Bearer {{authorization}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"clinic\": {\n        \"first_name\": \"Vishal\",\n        \"last_name\": \"Chaubey\",\n        \"phone\": \"+918171720797\",\n        \"password\": \"SecureP@ssw0rd\",\n        \"practitioner_id\": 341\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/clinics/update/{{clinic_id}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"clinics",
+								"update",
+								"{{clinic_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Mark active-inactive of clinic",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "authorization",
+								"value": "Bearer {{authorization}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"is_active\": 1,\n    \"clinic_id\": 360\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/clinics/change_active_status",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"clinics",
+								"change_active_status"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List all the clinics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "authorization",
+								"value": "Bearer {{authorization}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/clinics/all",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"clinics",
+								"all"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List all the practitioner clinics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "authorization",
+								"value": "Bearer {{authorization}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/clinics/practitioner/{{practitioner_id}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"clinics",
+								"practitioner",
+								"{{practitioner_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get the clinic by id",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "authorization",
+								"value": "Bearer {{authorization}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/clinics/{{clinic_id}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"clinics",
+								"{{clinic_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete the clinic by id",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "authorization",
+								"value": "Bearer {{authorization}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/clinics/delete/{{clinic_id}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"clinics",
+								"delete",
+								"{{clinic_id}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
 			"name": "Roles Permission",
 			"item": [
 				{

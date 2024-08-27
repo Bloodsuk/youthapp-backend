@@ -27,6 +27,16 @@ export default {
     UpdatePass: "/update_password",
     Delete: "/delete/:id",
   },
+  Clinics: {
+    Base: "/clinics",
+    Get: "/all",
+    GetPractitionerClinic: "/practitioner/:practitioner_id",
+    GetById: "/:id",
+    Add: "/add",
+    Activate: "/change_active_status",
+    Update: "/update/:id",
+    Delete: "/delete/:id",
+  },
   Messages: {
     Base: "/messages",
     Get: "/all",

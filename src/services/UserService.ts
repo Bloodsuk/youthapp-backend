@@ -95,8 +95,10 @@ async function getAllClinics(
   const pagination = `LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`;
 
   // Prepare the base SQL query
-  let sql = `SELECT * FROM users WHERE user_level = 'Moderator' AND practitioner_id = ${user_id}`;
-
+  let sql = `SELECT * FROM users WHERE user_level = 'Moderator'`;
+  if (user_id) {
+    sql += ` AND practitioner_id = ${user_id}`
+  }
   // If there's a search term, add the search condition
   if (search && search.length > 0) {
     sql += ` AND (email LIKE '%${search}%' OR username LIKE '%${search}%' OR first_name LIKE '%${search}%' OR last_name LIKE '%${search}%')`;
@@ -151,6 +153,7 @@ async function addOne(
     last_name,
     username,
     email,
+    phone,
     password,
     confirm_password,
     notification_types,
@@ -196,6 +199,7 @@ async function addOne(
     last_name,
     username,
     email,
+    phone,
     password: hash,
     user_level: userLevel,
     notification_types: notifTypes,
