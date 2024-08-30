@@ -77,7 +77,7 @@ async function add(req: IReq<{ clinic: Record<string, any> }>, res: IRes) {
   const id = await ClinicService.addOne(
     clinic,
     isAdmin,
-    res.locals.sessionUser?.id || clinic.practitioner_id
+    clinic.practitioner_id
   );
   if (id)
     return res
