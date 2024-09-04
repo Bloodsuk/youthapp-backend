@@ -214,6 +214,22 @@ async function updateCustomerPrice(
 }
 
 /**
+ * Update one test.
+ */
+async function activateDeactivate(
+  test_id: number,
+  is_active: number,
+): Promise<boolean> {
+  const sql = `UPDATE tests set status = ? where id = ?`;
+  const status = is_active == 1 ? "Active" : "Inactive"
+  const [result] = await pool.query<ResultSetHeader>(sql, [status, test_id]);
+  if (result.affectedRows === 0) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, NOT_FOUND_ERR);
+  }
+  return true;
+}
+
+/**
  * Delete a test by their id.
  */
 async function _delete(testId: number): Promise<void> {
@@ -234,5 +250,6 @@ export default {
   addOne,
   updateOne,
   updateCustomerPrice,
+  activateDeactivate,
   delete: _delete,
 } as const;

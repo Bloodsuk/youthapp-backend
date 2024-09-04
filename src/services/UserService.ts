@@ -273,6 +273,7 @@ async function updateStatus(
   }
   return true;
 }
+
 /**
  * Update user's email.
  */

@@ -36,6 +36,12 @@ testRouter.patch(
   TestController.updateCustomerPrice
 );
 
+// Update test status
+testRouter.put(
+  Paths.Tests.Activate,
+  TestController.activateDeactivate
+);
+
 // Delete one test
 testRouter.delete(
   Paths.Tests.Delete,

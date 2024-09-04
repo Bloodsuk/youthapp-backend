@@ -428,6 +428,40 @@
 					"response": []
 				},
 				{
+					"name": "Mark active-inactive of test",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "authorization",
+								"value": "Bearer {{authorization}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"test_id\": 334,\n    \"is_active\": 0\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/tests/change_active_status",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"tests",
+								"change_active_status"
+							]
+						}
+					},
+					"response": []
+				},
+				{
 					"name": "List all the tests",
 					"request": {
 						"method": "GET",

@@ -132,6 +132,7 @@ export default {
     GetById: "/:id",
     Add: "/add",
     Update: "/update/:id",
+    Activate: "/change_active_status",
     UpdateCustomerPrice: "/set_customer_price/:id",
     Delete: "/delete/:id",
   },
