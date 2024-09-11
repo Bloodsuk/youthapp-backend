@@ -299,6 +299,12 @@ async function updatePassword(
 ) {
   const { email, password } = req.body;
   try {
+    if (!password) {
+      throw new RouteError(
+        HttpStatusCodes.BAD_REQUEST,
+        "Password can't be empty!"
+      );
+    }
     const updated = await UserService.updatePassword(email, password);
     if (!updated) {
       throw new RouteError(

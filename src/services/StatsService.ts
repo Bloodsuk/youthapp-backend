@@ -15,6 +15,7 @@ async function getAll(sessionUser: ISessionUser) {
   const isAdmin = sessionUser.user_level === UserLevels.Admin;
   const isModerator = sessionUser.user_level === UserLevels.Moderator;
   const isCustomer = sessionUser.user_level === UserLevels.Customer;
+  const isPractitioner = sessionUser.user_level === UserLevels.Practitioner;
 
   let where = '';
   // let clinic_where = '';
@@ -39,7 +40,11 @@ async function getAll(sessionUser: ISessionUser) {
   const [pending_users_result] = await pool.query<RowDataPacket[]>("SELECT COUNT(id) as pending_users FROM users WHERE status = 0");
   const pending_users =  pending_users_result[0]['pending_users'] || 0;
 
-  const [total_customers] = await pool.query<RowDataPacket[]>("SELECT COUNT(id) as total_customers from customers Where 1")
+  let total_customers_sql = "SELECT COUNT(id) as total_customers from customers Where 1"
+  if (isPractitioner) {
+    total_customers_sql += " And created_by = " + practitioner_id
+  }
+  const [total_customers] = await pool.query<RowDataPacket[]>(total_customers_sql)
   const customers = total_customers[0]['total_customers'] || 0;
 
   const [total_tests] = await pool.query<RowDataPacket[]>("SELECT COUNT(id) as total_tests from tests Where 1");
@@ -149,6 +154,11 @@ async function getAll(sessionUser: ISessionUser) {
     customers,
     tests,
     orders: {
+      pending: up_orders,
+      completed: uc_orders,
+      total: orders
+    },
+    results: {
       pending: up_orders,
       completed: uc_orders,
       total: orders

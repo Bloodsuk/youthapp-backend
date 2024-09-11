@@ -108,8 +108,10 @@ async function getAll(
     SELECT 
       orders.*, 
       CONCAT(users.first_name, ' ', users.last_name) AS practitioner_name,
+      users.email AS practitioner_email,
       GROUP_CONCAT(tests.test_name SEPARATOR ', ') AS tests,
-      customers.date_of_birth
+      customers.date_of_birth,
+      customers.email AS customer_email
     FROM orders 
     LEFT JOIN users ON orders.created_by = users.id
     LEFT JOIN tests ON FIND_IN_SET(tests.id, orders.test_ids)

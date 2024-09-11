@@ -158,6 +158,7 @@ async function addOne(
     confirm_password,
     notification_types,
     user_level,
+    role_id
   } = user;
 
   // Check if email already exists
@@ -174,7 +175,7 @@ async function addOne(
     throw new RouteError(HttpStatusCodes.CONFLICT, Errors.AlreadyExists);
   }
 
-  if (password != confirm_password) {
+  if (!password || password != confirm_password) {
     throw new RouteError(HttpStatusCodes.BAD_REQUEST, "Password not matched!!");
   }
   if (!(await AuthService.usernameAvailable(username as string))) {
@@ -194,7 +195,7 @@ async function addOne(
   ) {
     notifTypes = notification_types.join(",");
   }
-  const data = {
+  let data: any = {
     first_name,
     last_name,
     username,
@@ -207,6 +208,9 @@ async function addOne(
     is_verified: 1,
     practitioner_id: user_id,
   };
+  if (role_id) {
+    data = { ...data, role_id }
+  }
   const [result3] = await pool.query<ResultSetHeader>(
     "INSERT INTO users SET ?",
     data
@@ -226,16 +230,19 @@ async function updateOne(
   for (const key in user) {
     let value = user[key];
     if (key === "password") {
-      if (typeof value === "string" && value.length > 0) {
+      if (typeof value === "string" && value?.length) {
         value = AuthService.generateHash(value);
         sql += ` ${key}=?,`;
         values.push(value);
       }
-    }
-    if (key === "notification_types")
+    } else if (key === "notification_types") {
       value = Array.isArray(value) ? value.join(",") : "";
-    sql += ` ${key}=?,`;
-    values.push(value);
+      sql += ` ${key}=?,`;
+      values.push(value);
+    } else if (value) {
+      sql += ` ${key}=?,`;
+      values.push(value);
+    }
   }
   sql = sql.slice(0, -1);
   sql += " WHERE id = ?";

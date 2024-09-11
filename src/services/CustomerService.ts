@@ -240,11 +240,16 @@ async function updateOne(
   const values = [];
   for (const key in customer) {
     let value = customer[key];
+    // Not update password and email
     if (key === "password" || key === "email") continue;
-    if (key === "notification_types")
+    else if (key === "notification_types") {
       value = Array.isArray(value) ? value.join(",") : "";
-    sql += ` ${key}=?,`;
-    values.push(value);
+      sql += ` ${key}=?,`;
+      values.push(value);
+    } else if (value) {
+      sql += ` ${key}=?,`;
+      values.push(value);
+    } 
   }
   sql = sql.slice(0, -1);
   sql += " WHERE id = ?";

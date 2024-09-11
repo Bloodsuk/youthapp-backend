@@ -247,7 +247,7 @@ interface IResetPasswordReq {
 async function resetPassword(req: IReq<IResetPasswordReq>, res: IRes) {
   const { email, password, con_pass } = req.body;
   try {
-    if (password != con_pass) {
+    if (!(password && con_pass) || password != con_pass) {
       throw new RouteError(
         HttpStatusCodes.BAD_REQUEST,
         "Password not matched!!"
