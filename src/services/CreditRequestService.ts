@@ -164,7 +164,9 @@ async function getPractitionerCredits(practitioner_id: number | undefined): Prom
     `SELECT * from users WHERE id = ${practitioner_id}`
   );
   const user = rows?.length ? rows[0] as IUser : null;
-  if (user && user.id) {
+  console.log("practitioner_id, user?.id ========= ", practitioner_id, user?.id);
+  
+  if (user && user?.id) {
     const [totalcr_rows] = await pool.query<RowDataPacket[]>(
       "SELECT SUM(credit_amount) AS total_credit from credit_requests WHERE user_id = ?",
       [user.id]
