@@ -11,12 +11,11 @@ import { RowDataPacket } from "mysql2";
  */
 async function getAll(sessionUser: ISessionUser) {
   const user_id = sessionUser.id;
-  const practitioner_id = sessionUser.practitioner_id;
   const isAdmin = sessionUser.user_level === UserLevels.Admin;
   const isModerator = sessionUser.user_level === UserLevels.Moderator;
   const isCustomer = sessionUser.user_level === UserLevels.Customer;
   const isPractitioner = sessionUser.user_level === UserLevels.Practitioner;
-
+  const practitioner_id = isPractitioner ? sessionUser.id : sessionUser.practitioner_id;
   let where = '';
   // let clinic_where = '';
   const pending_check = " AND status NOT IN ('Complete', 'Results Published', 'Explanation Published', 'Failed')";
@@ -41,7 +40,7 @@ async function getAll(sessionUser: ISessionUser) {
   const pending_users =  pending_users_result[0]['pending_users'] || 0;
 
   let total_customers_sql = "SELECT COUNT(id) as total_customers from customers Where 1"
-  if (isPractitioner) {
+  if (isPractitioner && practitioner_id) {
     total_customers_sql += " And created_by = " + practitioner_id
   }
   const [total_customers] = await pool.query<RowDataPacket[]>(total_customers_sql)
