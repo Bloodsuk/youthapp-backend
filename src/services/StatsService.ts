@@ -43,6 +43,11 @@ async function getAll(sessionUser: ISessionUser) {
   if (isPractitioner && practitioner_id) {
     total_customers_sql += " And created_by = " + practitioner_id
   }
+  if (isModerator && user_id) {
+    const [clinic] = await pool.query<RowDataPacket[]>("SELECT practitioner_id from users Where id = " + user_id)
+    const clinic_practitioner_id = clinic?.length ? clinic[0]?.practitioner_id :  0;
+    if (clinic_practitioner_id) total_customers_sql += " And created_by = " + clinic_practitioner_id
+  }
   const [total_customers] = await pool.query<RowDataPacket[]>(total_customers_sql)
   const customers = total_customers[0]['total_customers'] || 0;
 

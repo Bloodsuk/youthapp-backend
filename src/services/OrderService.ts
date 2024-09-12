@@ -29,12 +29,14 @@ interface IGetResponse<T> {
 
 async function getAll(
   sessionUser: ISessionUser | undefined,
+  client_name?: string,
   search?: string,
   status?: string,
   shipping_type?: string,
   service?: string,
   page: number = 1
 ): Promise<IGetResponse<IOrder>> {
+  page = page ? page : 1
   const user_id = sessionUser?.id;
   const user_level = sessionUser?.user_level;
   const practitioner_id = sessionUser?.practitioner_id;
@@ -96,8 +98,14 @@ async function getAll(
   // }
 
   if (search && !empty(search)) {
-    whereClauses.push("client_name LIKE ?");
+    whereClauses.push("(orders.client_name LIKE ? OR orders.client_id LIKE ?)");
     params.push(`%${search}%`);
+    params.push(`%${search}%`);
+  }
+  if (client_name && !empty(client_name)) {
+    whereClauses.push("(orders.client_name LIKE ? OR orders.client_id LIKE ?)");
+    params.push(`%${client_name}%`);
+    params.push(`%${client_name}%`);
   }
 
   const pagination = `LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`;

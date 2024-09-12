@@ -167,6 +167,7 @@ export default {
     Pending: "/pending",
     Approved: "/approved",
     GetUserBalances: "/user_balances",
+    GetPractitionerCredits: "/practitioner_credit",
     GetById: "/:id",
     GetByUserId: "/user/:user_id",
     Add: "/add",

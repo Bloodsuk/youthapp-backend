@@ -1659,6 +1659,40 @@
 					"response": []
 				},
 				{
+					"name": "LIst Orders",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "authorization",
+								"value": "Bearer {{authorization}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"\",\n    \"shipping_type\": \"\",\n    \"service\": \"\",\n    \"client_name\": \"\",\n    \"page\": \"\",\n    \"search\": \"\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/orders/all",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"orders",
+								"all"
+							]
+						}
+					},
+					"response": []
+				},
+				{
 					"name": "get outstanding credit orders",
 					"request": {
 						"method": "GET",
@@ -1678,6 +1712,85 @@
 								"api",
 								"orders",
 								"outstanding_credit"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Dashboard",
+			"item": [
+				{
+					"name": "{{baseUrl}}/api/stats/all",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/stats/all",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"stats",
+								"all"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Practitionar",
+			"item": [
+				{
+					"name": "Get all user credit score",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "authorization",
+								"value": "Bearer {{authorization}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/credit_requests/user_balances",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"credit_requests",
+								"user_balances"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get my credit score as practitioner login",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "authorization",
+								"value": "Bearer {{authorization}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/credit_requests/practitioner_credit",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"credit_requests",
+								"practitioner_credit"
 							]
 						}
 					},

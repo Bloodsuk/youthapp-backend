@@ -20,7 +20,7 @@ async function getAll(req: IReq, res: IRes) {
 /**
  * Get creditRequests by user_id.
  */
-async function getByUserId(req: IReq, res: IRes) { 
+async function getByUserId(req: IReq, res: IRes) {
   const id = parseInt(req.params.user_id);
   let page = parseInt(req.query.page as string);
   if (isNaN(page)) page = 1;
@@ -54,9 +54,37 @@ async function getApproved(req: IReq, res: IRes) {
 async function getUsersBalance(req: IReq, res: IRes) {
   let page = parseInt(req.query.page as string);
   if (isNaN(page)) page = 1;
-  console.log("page",page);
+  console.log("page", page);
   const { data, total } = await CreditRequestsService.getUsersBalances(page);
   return res.status(HttpStatusCodes.OK).json({ userBalances: data, total });
+}
+
+/**
+ * Get practitioner credit score by practitioner id
+ */
+async function getPractitionerCredits(req: IReq, res: IRes) {
+  try {
+    const practitioner_id = res.locals.sessionUser?.id;
+    const data = await CreditRequestsService.getPractitionerCredits(practitioner_id);
+    return res.status(HttpStatusCodes.OK).json({ credits: data });
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
 }
 
 /**
@@ -215,6 +243,7 @@ export default {
   getPending,
   getApproved,
   getUsersBalance,
+  getPractitionerCredits,
   add,
   update,
   updateStatus,

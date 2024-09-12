@@ -27,13 +27,15 @@ interface IGetOrdersReqBody {
   shipping_type?: string;
   service?: string;
   client_name?: string;
+  search?: string;
   page?: number;
 }
 async function getAll(req: IReq<IGetOrdersReqBody>, res: IRes) {
-  const { status, shipping_type, service, client_name, page } = req.body;
+  const { status, shipping_type, service, client_name, page, search } = req.body;
   const { data, total } = await OrderService.getAll(
     res.locals.sessionUser,
     client_name,
+    search,
     status,
     shipping_type,
     service,

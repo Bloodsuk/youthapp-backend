@@ -152,6 +152,45 @@ async function getUsersBalances(page = 1): Promise<IGetResponse<IUserBalance>> {
 }
 
 /**
+ * INFO: Get practitioner credit score by practitioner id
+ * @param practitioner_id 
+ * @returns 
+ */
+async function getPractitionerCredits(practitioner_id: number | undefined): Promise<IUserBalance> {
+  if (!practitioner_id) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, NOT_FOUND_ERR);
+  }
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT * from users WHERE id = ${practitioner_id}`
+  );
+  const user = rows?.length ? rows[0] as IUser : null;
+  if (user && user.id) {
+    const [totalcr_rows] = await pool.query<RowDataPacket[]>(
+      "SELECT SUM(credit_amount) AS total_credit from credit_requests WHERE user_id = ?",
+      [user.id]
+    );
+    const [total_paid_rows] = await pool.query<RowDataPacket[]>(
+      "SELECT SUM(total_val) AS total_paid from orders WHERE created_by = ? AND payment_status = 'Paid'",
+      [user.id]
+    );
+    const [total_pending_rows] = await pool.query<RowDataPacket[]>(
+      "SELECT SUM(total_val) AS pending_paid from orders WHERE created_by = ? AND payment_status = 'Pending'",
+      [user.id]
+    );
+    return {
+      user_id: user.id,
+      name: `${user.first_name} ${user.last_name}`,
+      total_credit: totalcr_rows[0].total_credit || 0,
+      total_paid: total_paid_rows[0].total_paid || 0,
+      total_pending: total_pending_rows[0].pending_paid || 0,
+      balance: (totalcr_rows[0].total_credit || 0) - (total_pending_rows[0].pending_paid || 0)
+    };
+  } else {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, NOT_FOUND_ERR);
+  }
+}
+
+/**
  * Get one creditRequest.
  */
 async function getOne(id: number): Promise<ICreditRequest> {
@@ -244,6 +283,7 @@ export default {
   getPending,
   getApproved,
   getUsersBalances,
+  getPractitionerCredits,
   getOne,
   addOne,
   updateOne,

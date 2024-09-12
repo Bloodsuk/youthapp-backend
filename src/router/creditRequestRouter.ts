@@ -23,6 +23,12 @@ creditRequestRouter.get(
   CreditRequestController.getUsersBalance
 );
 
+// Get practitioner credit score by practitioner id
+creditRequestRouter.get(
+  Paths.CreditRequests.GetPractitionerCredits,
+  CreditRequestController.getPractitionerCredits
+);
+
 // Get By Id
 creditRequestRouter.get(Paths.CreditRequests.GetById, CreditRequestController.getById);
 
