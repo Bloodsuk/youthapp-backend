@@ -111,6 +111,7 @@ export default {
     Base: "/orders",
     Get: "/all",
     GetPractitionersCommission: "/practitioners_commission",
+    GetPractitionerOutstandingCredits: "/practitioner_outstanding_credits",
     GetOutstanding: "/outstanding_credit",
     GetCustomerOrder: "/customer/:customer_id",
     GetById: "/:id",

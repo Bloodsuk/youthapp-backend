@@ -62,14 +62,16 @@ async function getAll(
   }
 
   if (status && !empty(status)) {
-    if (status === "Pending Validation") {
-      whereClauses.push("orders.status IN ('Pending Validation', 'Complete')");
-    } else if (status === "Received at the Lab") {
-      whereClauses.push("orders.status IN ('Ready', 'Received at the Lab')");
-    } else {
-      whereClauses.push("orders.status = ?");
-      params.push(status);
-    }
+    whereClauses.push("orders.status = ?");
+    params.push(status);
+    // if (status === "Pending Validation") {
+    //   whereClauses.push("orders.status IN ('Pending Validation', 'Complete')");
+    // } else if (status === "Received at the Lab") {
+    //   whereClauses.push("orders.status IN ('Ready', 'Received at the Lab')");
+    // } else {
+    //   whereClauses.push("orders.status = ?");
+    //   params.push(status);
+    // }
   } else {
     whereClauses.push("orders.status != 'Failed'");
   }
@@ -177,14 +179,16 @@ async function getAllCustomerOrder(
   params.push(customer_id);
 
   if (status && !empty(status)) {
-    if (status === "Pending Validation") {
-      whereClauses.push("orders.status IN ('Pending Validation', 'Complete')");
-    } else if (status === "Received at the Lab") {
-      whereClauses.push("orders.status IN ('Ready', 'Received at the Lab')");
-    } else {
-      whereClauses.push("orders.status = ?");
-      params.push(status);
-    }
+    whereClauses.push("orders.status = ?");
+    params.push(status);
+    // if (status === "Pending Validation") {
+    //   whereClauses.push("orders.status IN ('Pending Validation', 'Complete')");
+    // } else if (status === "Received at the Lab") {
+    //   whereClauses.push("orders.status IN ('Ready', 'Received at the Lab')");
+    // } else {
+    //   whereClauses.push("orders.status = ?");
+    //   params.push(status);
+    // }
   } else {
     whereClauses.push("orders.status != 'Failed'");
   }
@@ -339,6 +343,67 @@ async function getPractitionersCommission(
     users.email AS practitioner_email
   FROM practitioner_commission 
   LEFT JOIN users ON practitioner_commission.practitioner_id = users.id
+  WHERE ${where}
+  ORDER BY practitioner_commission.created_at DESC 
+  LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}
+`;
+  const [rows] = await pool.query<RowDataPacket[]>(sql);
+  const allOrders = rows.map((order) => {
+    return {
+      ...order
+    } as IPractitionerCommission;
+  });
+  const total = await getTotalCount(
+    pool,
+    "practitioner_commission",
+    `WHERE ${where}`
+  );
+  return {
+    data: allOrders,
+    total,
+  };
+}
+
+/**
+ * INFO: Get loggedin Practitioners Commission
+ * @param page 
+ * @returns 
+ */
+async function getPractitionerOutstandingCredits(
+  page: number = 1,
+  paid_status: string = "",
+  search: string = "",
+  practitioner_id: number
+): Promise<IGetResponse<IPractitionerCommission>> {
+  if (paid_status && !["unpaid", "paid"].includes(paid_status?.toLowerCase())) {
+    throw new RouteError(HttpStatusCodes.CONFLICT, INVALID_PAID_STATUS);
+  }
+  let where = ` practitioner_commission.practitioner_id = ${practitioner_id} `
+  if (paid_status?.toLowerCase() == "paid") {
+    where += ` And is_paid = 1 `
+  }
+  if (paid_status?.toLowerCase() == "unpaid") {
+    where += ` And is_paid = 0 `
+  }
+  if (search && !empty(search)) {
+    where += ` AND (tests.test_name LIKE '%${search}%' OR orders.client_name LIKE '%${search}%' OR practitioner_commission.order_id LIKE '%${search}%')`;  
+  }
+  const sql = `
+  SELECT 
+    practitioner_commission.*, 
+    users.id AS practitioner_id,
+    users.first_name AS practitioner_first_name,
+    users.last_name AS practitioner_last_name,
+    users.email AS practitioner_email,
+    orders.client_id,
+    orders.client_name,
+    orders.created_at as order_date,
+    tests.test_name,
+    tests.test_sku
+  FROM practitioner_commission 
+  LEFT JOIN users ON practitioner_commission.practitioner_id = users.id
+  LEFT JOIN orders ON practitioner_commission.order_id = orders.id
+  LEFT JOIN tests ON FIND_IN_SET(tests.id, orders.test_ids)
   WHERE ${where}
   ORDER BY practitioner_commission.created_at DESC 
   LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}
@@ -529,6 +594,7 @@ export default {
   getAll,
   getAllCustomerOrder,
   getOutstandingCreditOrders,
+  getPractitionerOutstandingCredits,
   getPractitionersCommission,
   getOne,
   addOne,

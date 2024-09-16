@@ -59,14 +59,16 @@ async function getAll(
   }
 
   if (status && !empty(status)) {
-    if (status === "Pending Validation") {
-      whereClauses.push("orders.status IN ('Pending Validation', 'Complete')");
-    } else if (status === "Received at the Lab") {
-      whereClauses.push("orders.status IN ('Ready', 'Received at the Lab')");
-    } else {
-      whereClauses.push("orders.status = ?");
-      params.push(status);
-    }
+    whereClauses.push("orders.status = ?");
+    params.push(status);
+    // if (status === "Pending Validation") {
+    //   whereClauses.push("orders.status IN ('Pending Validation', 'Complete')");
+    // } else if (status === "Received at the Lab") {
+    //   whereClauses.push("orders.status IN ('Ready', 'Received at the Lab')");
+    // } else {
+    //   whereClauses.push("orders.status = ?");
+    //   params.push(status);
+    // }
   } else {
     whereClauses.push("orders.status != 'Failed'");
   }

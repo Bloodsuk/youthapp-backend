@@ -126,6 +126,56 @@ async function getPractitionersCommission(req: IReq<IGetPractitionersCommissionR
 }
 
 /**
+ * INFO: Get loggedin Practitioners Commission
+ * @param req 
+ * @param res 
+ * @returns 
+ */
+async function getPractitionerOutstandingCredits(req: IReq<IGetPractitionersCommissionReqBody>, res: IRes) {
+  try {
+    const { paid_status = "", search } = req.query;
+    let page = parseInt(req.query.page as string);
+    if (isNaN(page)) page = 1;
+    let practitioner_id: number | undefined = undefined;
+    if (res.locals.sessionUser?.user_level === UserLevels.Practitioner)
+      practitioner_id = res.locals.sessionUser?.id;
+    if (!practitioner_id) {
+      return res
+      .status(HttpStatusCodes.FORBIDDEN)
+      .json({
+        success: false,
+        error: "You are not authorized to perform this operation",
+      })
+      .end();
+    }
+    const { data, total } = await OrderService.getPractitionerOutstandingCredits(
+      page,
+      paid_status as string,
+      search as string,
+      practitioner_id,
+    );
+    return res.status(HttpStatusCodes.OK).json({ commissions: data, total });
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
+/**
  * Get order by Id.
  */
 async function getById(req: IReq, res: IRes) {
@@ -788,6 +838,7 @@ export default {
   getAll,
   getAllCustomerOrder,
   getPractitionersCommission,
+  getPractitionerOutstandingCredits,
   getOutstandingCreditOrders,
   getById,
   add,

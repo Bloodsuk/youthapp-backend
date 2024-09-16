@@ -13,6 +13,9 @@ orderRouter.post(Paths.Orders.GetCustomerOrder, OrderController.getAllCustomerOr
 // Get all Practitioners Commission
 orderRouter.get(Paths.Orders.GetPractitionersCommission, OrderController.getPractitionersCommission);
 
+// Get loggedin Practitioners Commission
+orderRouter.get(Paths.Orders.GetPractitionerOutstandingCredits, OrderController.getPractitionerOutstandingCredits);
+
 // Get all outstanding credit orders
 orderRouter.get(Paths.Orders.GetOutstanding, OrderController.getOutstandingCreditOrders);
 
