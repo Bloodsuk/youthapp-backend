@@ -99,10 +99,14 @@ async function getPractitionersCommission(req: IReq<IGetPractitionersCommissionR
     const { paid_status = "", search } = req.query;
     let page = parseInt(req.query.page as string);
     if (isNaN(page)) page = 1;
+    let practitioner_id: number | undefined = undefined;
+    if (res.locals.sessionUser?.user_level === UserLevels.Practitioner)
+      practitioner_id = res.locals.sessionUser?.id;
     const { data, total } = await OrderService.getPractitionersCommission(
       page,
       paid_status as string,
       search as string,
+      practitioner_id
     );
     return res.status(HttpStatusCodes.OK).json({ commissions: data, total });
   } catch (error) {

@@ -316,16 +316,21 @@ async function getPractitionersCommission(
   page: number = 1,
   paid_status: string = "",
   search: string = "",
+  practitioner_id: number | undefined
 ): Promise<IGetResponse<IPractitionerCommission>> {
   if (paid_status && !["unpaid", "paid"].includes(paid_status?.toLowerCase())) {
     throw new RouteError(HttpStatusCodes.CONFLICT, INVALID_PAID_STATUS);
   }
   let where = " 1 "
+  if (practitioner_id) {
+    where += ` AND practitioner_commission.practitioner_id = ${practitioner_id} `
+  }
+  
   if (paid_status?.toLowerCase() == "paid") {
-    where = ` is_paid = 1 `
+    where += ` AND is_paid = 1 `
   }
   if (paid_status?.toLowerCase() == "unpaid") {
-    where = ` is_paid = 0 `
+    where += ` AND is_paid = 0 `
   }
   // if (search && !empty(search)) {
   //   if (search.split(" ").length >= 2) {

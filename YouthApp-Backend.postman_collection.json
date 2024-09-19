@@ -1594,6 +1594,31 @@
 					"response": []
 				},
 				{
+					"name": "Get all user credit score",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "authorization",
+								"value": "Bearer {{authorization}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/credit_requests/user_balances",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"credit_requests",
+								"user_balances"
+							]
+						}
+					},
+					"response": []
+				},
+				{
 					"name": "Mark paid for practitioner unpaid commissions for admin",
 					"request": {
 						"method": "PUT",
@@ -1747,31 +1772,6 @@
 			"name": "Practitionar",
 			"item": [
 				{
-					"name": "Get all user credit score",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "authorization",
-								"value": "Bearer {{authorization}}",
-								"type": "text"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/api/credit_requests/user_balances",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"credit_requests",
-								"user_balances"
-							]
-						}
-					},
-					"response": []
-				},
-				{
 					"name": "Get my credit score as practitioner login",
 					"request": {
 						"method": "GET",
@@ -1797,7 +1797,7 @@
 					"response": []
 				},
 				{
-					"name": "list practitioner paid commissions",
+					"name": "list practitioner paid credit",
 					"request": {
 						"method": "GET",
 						"header": [
@@ -1837,7 +1837,7 @@
 					"response": []
 				},
 				{
-					"name": "list practitioner unpaid commissions",
+					"name": "list practitioner unpaid credit",
 					"request": {
 						"method": "GET",
 						"header": [
@@ -1856,6 +1856,86 @@
 								"api",
 								"orders",
 								"practitioner_outstanding_credits"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "paid_status",
+									"value": "unpaid"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "list practitioner paid commissions",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "authorization",
+								"value": "Bearer {{authorization}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/orders/practitioners_commission?page=1&paid_status=paid",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"orders",
+								"practitioners_commission"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "paid_status",
+									"value": "paid"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "list practitioner unpaid commissions",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "authorization",
+								"value": "Bearer {{authorization}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/orders/practitioners_commission?page=1&paid_status=unpaid",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"orders",
+								"practitioners_commission"
 							],
 							"query": [
 								{
