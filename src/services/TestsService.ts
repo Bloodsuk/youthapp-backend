@@ -63,12 +63,32 @@ async function getPractitionerTest(practitioner_id: number, page: number = 1, se
   const joinColumns =
     ", CONCAT(u1.first_name, ' ', u1.last_name) as practitioner_name, tc.customer_cost as practitioner_customer_cost";
   const join = ` LEFT JOIN users u1 ON (u1.id = tests.practitioner_id)
-                 LEFT JOIN tests_cost_by_practitioner tc ON (tc.tests_id = tests.id And tc.practitioner_id = tests.practitioner_id)`;
+                 LEFT JOIN tests_cost_by_practitioner tc ON (tc.tests_id = tests.id And tc.practitioner_id = tests.practitioner_id)
+                 LEFT JOIN tests_active_deactive tad ON (tad.test_id = tests.id And tad.practitioner_id = tests.practitioner_id)
+                 `;
 
   const pagination = `LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`;
 
-  let sql = `SELECT tests.* ${joinColumns} from tests ${join} WHERE 
-  (tests.practitioner_id IS NULL OR tests.practitioner_id = 0 OR tests.practitioner_id = ${practitioner_id})`;
+  let sql = `
+  SELECT tests.id, tests.test_name, tests.cate_id, tests.product_model, tests.test_sku, 
+  tests.test_biomarker, tests.product_description, tests.description, tests.procedure, 
+  tests.side_effects, tests.price, tests.cost, tests.customer_cost, tests.discount_type, 
+  tests.is_featured, tests.product_unit, tests.weights, tests.brand_id, tests.sort_id, 
+  (CASE When tad.is_active_for_clinic IS NULL then 'Active' When tad.is_active_for_clinic = 1
+  then 'Active' Else tests.status end) as status, 
+  tests.template_type, tests.meta_title, tests.meta_keyword, tests.meta_description, 
+  tests.added_on, tests.last_updatedon, tests.added_by, tests.image_url, tests.image_banner, 
+  tests.banner_link, tests.prd_type, tests.is_reorder, tests.product_code, tests.add_on_products, 
+  tests.is_addon, tests.created_at, tests.practitioner_id,
+  CONCAT(u1.first_name, ' ', u1.last_name) as practitioner_name, 
+  (CASE When tc.customer_cost IS Not NULL then tc.customer_cost When tc.customer_cost = 0
+  then tests.cost Else tests.cost end) as practitioner_customer_cost
+  FROM tests 
+  LEFT JOIN users u1 ON (u1.id = tests.practitioner_id)
+  LEFT JOIN tests_cost_by_practitioner tc ON (tc.tests_id = tests.id And tc.practitioner_id = tests.practitioner_id)
+  LEFT JOIN tests_active_deactive tad ON (tad.test_id = tests.id And tad.practitioner_id = tests.practitioner_id) 
+  WHERE (tests.practitioner_id = ${practitioner_id} OR tests.practitioner_id IS NULL OR tests.practitioner_id = 0)
+`;
   // If there's a search term, add the search condition
   let searchSql = "";
   if (search && !empty(search)) {
@@ -104,11 +124,27 @@ async function getCustomerTest(customer_id: number, page: number = 1, search: st
     ", CONCAT(u1.first_name, ' ', u1.last_name) as practitioner_name, tc.customer_cost as practitioner_customer_cost";
   const join = ` LEFT JOIN users u1 ON (u1.id = tests.practitioner_id)
                  LEFT JOIN tests_cost_by_practitioner tc ON (tc.tests_id = tests.id And tc.practitioner_id = tests.practitioner_id)
+                 LEFT JOIN tests_active_deactive tad ON (tad.test_id = tests.id And tad.practitioner_id = tests.practitioner_id) 
                  LEFT JOIN customers c ON (c.created_by = tests.practitioner_id)`;
 
   const pagination = `LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`;
 
-  let sql = `SELECT tests.* ${joinColumns} from tests ${join} WHERE 
+  let sql = `
+  SELECT tests.id, tests.test_name, tests.cate_id, tests.product_model, tests.test_sku, 
+  tests.test_biomarker, tests.product_description, tests.description, tests.procedure, 
+  tests.side_effects, tests.price, tests.cost, tests.customer_cost, tests.discount_type, 
+  tests.is_featured, tests.product_unit, tests.weights, tests.brand_id, tests.sort_id, 
+  (CASE When tad.is_active_for_clinic IS NULL then 'Active' When tad.is_active_for_clinic = 1
+  then 'Active' Else tests.status end) as status, 
+  tests.template_type, tests.meta_title, tests.meta_keyword, tests.meta_description, 
+  tests.added_on, tests.last_updatedon, tests.added_by, tests.image_url, tests.image_banner, 
+  tests.banner_link, tests.prd_type, tests.is_reorder, tests.product_code, tests.add_on_products, 
+  tests.is_addon, tests.created_at, tests.practitioner_id,
+  CONCAT(u1.first_name, ' ', u1.last_name) as practitioner_name, 
+  (CASE When tc.customer_cost IS Not NULL then tc.customer_cost When tc.customer_cost = 0
+  then tests.cost Else tests.cost end) as practitioner_customer_cost
+  FROM tests
+  ${join} WHERE 
   (tests.practitioner_id IS NULL OR tests.practitioner_id = 0 OR c.id = ${customer_id})`;
   // If there's a search term, add the search condition
   let searchSql = "";

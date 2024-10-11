@@ -51,25 +51,23 @@ async function getAll(
 async function getAssignedRolePermission(
   role_id: number
 ): Promise<IGetResponse<IRolePermission>> {
-  const [rows] = await pool.query<RowDataPacket[]>("SELECT * FROM permissions WHERE 1");
+  const [rows] = await pool.query<RowDataPacket[]>("SELECT * FROM permissions WHERE is_active = 1");
   let allPermissions = rows.map((permission) => {
     return permission as IRolePermission;
   }) as any;
   if (role_id) {
     const [rolesPermission] = await pool.query<RowDataPacket[]>(`SELECT * FROM role_permissions WHERE role_id = ${role_id}`);
-    allPermissions = allPermissions.map((el: IRolePermission) => {
+    allPermissions = allPermissions.filter((el: IRolePermission) => {
       const isExist = rolesPermission.find(x => x.permission_id?.includes(el.id))
       if (isExist) {
         el['is_assigned'] = 1 
         el['role_id'] = isExist.role_id
-      } else {
-        el['is_assigned'] = 0
       }
       return el;
     });
   }
   
-  const total = await getTotalCount(pool, 'permissions', `WHERE 1`);
+  const total = await getTotalCount(pool, 'permissions', `WHERE is_active = 1`);
   return { data: allPermissions, total };
 }
 
