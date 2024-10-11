@@ -26,7 +26,7 @@ async function getAll(
   search?: string
 ): Promise<IGetResponse<IPermission>> {
   const pagination = `LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`;
-  let sql = `SELECT * FROM permissions WHERE 1`;
+  let sql = `SELECT * FROM permissions WHERE is_active = 1 `;
   let searchSql = "";
   if (search && !empty(search)) {
     searchSql += ` AND permission_name LIKE '%${search}%'`;
@@ -38,7 +38,7 @@ async function getAll(
   const allPermissions = rows.map((permission) => {
     return permission as IPermission;
   });
-  const total = await getTotalCount(pool, 'permissions', `WHERE 1 ${searchSql}`);
+  const total = await getTotalCount(pool, 'permissions', `WHERE is_active = 1 ${searchSql}`);
   return { data: allPermissions, total };
 }
 

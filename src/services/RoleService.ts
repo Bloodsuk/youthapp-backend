@@ -27,7 +27,7 @@ async function getAll(
   search?: string
 ): Promise<IGetResponse<IRole>> {
   const pagination = `LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`;
-  let sql = `SELECT * FROM roles WHERE 1`;
+  let sql = `SELECT * FROM roles WHERE is_active = 1 `;
   let searchSql = "";
   if (search && !empty(search)) {
     searchSql += ` AND role_name LIKE '%${search}%'`;
@@ -39,7 +39,7 @@ async function getAll(
   const allRoles = rows.map((role) => {
     return role as IRole;
   });
-  const total = await getTotalCount(pool, 'roles', `WHERE 1 ${searchSql}`);
+  const total = await getTotalCount(pool, 'roles', `WHERE is_active = 1 ${searchSql}`);
   return { data: allRoles, total };
 }
 

@@ -581,6 +581,14 @@ async function markPaid(order_ids: number[]): Promise<boolean> {
  * @returns 
  */
 async function markPaidPractitionersCommission(commission_ids: number[]): Promise<boolean> {
+  for (let idx of commission_ids) {
+    const [rows] = await pool.query<RowDataPacket[]>(`SELECT * FROM practitioner_commission WHERE id = ?`, [idx]);
+    if (rows.length > 0) {
+      const commission_data = rows[0]
+      const sql = `UPDATE users set total_credit_balance = total_credit_balance + ${commission_data.commission_amount} where id = ${commission_data.practitioner_id}`;
+      const [result] = await pool.query<ResultSetHeader>(sql);
+    }
+  }
   let where = "";
   if (commission_ids.length === 1) where = `where id = ${commission_ids[0]}`;
   else where = `where id IN (${mysql.format(commission_ids.join(","))})`;
