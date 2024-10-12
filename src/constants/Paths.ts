@@ -129,7 +129,7 @@ export default {
     Base: "/tests",
     Get: "/all",
     GetPractitionerTest: "/practitioner/all/:practitioner_id",
-    GetCustomerTest: "/customer/all/:customer_id",
+    GetCustomerTest: "/customer/all/:customer_id/:practitioner_id",
     GetById: "/:id",
     Add: "/add",
     Update: "/update/:id",
