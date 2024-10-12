@@ -335,8 +335,8 @@ async function activateDeactivate(
   if (practitioner_id) {
     const sql = `INSERT INTO tests_active_deactive (is_active_for_clinic, test_id, practitioner_id)
       VALUES (?, ?, ?)
-      ON DUPLICATE KEY UPDATE
-      test_id = VALUES(test_id) And practitioner_id = VALUES(practitioner_id);`
+      ON DUPLICATE KEY UPDATE 
+        is_active_for_clinic = VALUES(is_active_for_clinic);`
     const [result] = await pool.query<ResultSetHeader>(sql, [is_active, test_id, practitioner_id]);
     
     if (result.affectedRows === 0) {
