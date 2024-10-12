@@ -330,13 +330,23 @@ async function updateCustomerPrice(
 async function activateDeactivate(
   test_id: number,
   is_active: number,
+  practitioner_id: number,
 ): Promise<boolean> {
-  const sql = `UPDATE tests set status = ? where id = ?`;
-  const status = is_active == 1 ? "Active" : "Inactive"
-  const [result] = await pool.query<ResultSetHeader>(sql, [status, test_id]);
-  if (result.affectedRows === 0) {
-    throw new RouteError(HttpStatusCodes.NOT_FOUND, NOT_FOUND_ERR);
+  if (practitioner_id) {
+    const sql = `UPDATE tests_active_deactive set is_active_for_clinic = ? where test_id = ? And practitioner_id = ?`;
+    const [result] = await pool.query<ResultSetHeader>(sql, [is_active, test_id, practitioner_id]);
+    if (result.affectedRows === 0) {
+      throw new RouteError(HttpStatusCodes.NOT_FOUND, NOT_FOUND_ERR);
+    }
+  } else {
+    const sql = `UPDATE tests set status = ? where id = ?`;
+    const status = is_active == 1 ? "Active" : "Inactive"
+    const [result] = await pool.query<ResultSetHeader>(sql, [status, test_id]);
+    if (result.affectedRows === 0) {
+      throw new RouteError(HttpStatusCodes.NOT_FOUND, NOT_FOUND_ERR);
+    }
   }
+  
   return true;
 }
 

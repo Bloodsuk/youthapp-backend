@@ -162,8 +162,8 @@ async function updateCustomerPrice(req: IReq<{ practitioner_id: number, customer
 /**
  * Activate/Deactivate one test.
  */
-async function activateDeactivate(req: IReq<{ test_id: number, is_active: number }>, res: IRes) {
-  const { test_id, is_active } = req.body;
+async function activateDeactivate(req: IReq<{ test_id: number, is_active: number, practitioner_id: number }>, res: IRes) {
+  const { test_id, is_active, practitioner_id = 0 } = req.body;
   const user_level = res.locals.sessionUser?.user_level;
   if (
     user_level !== UserLevels.Admin &&
@@ -177,12 +177,9 @@ async function activateDeactivate(req: IReq<{ test_id: number, is_active: number
       })
       .end();
   }
-  let practitioner_id: number | undefined = undefined;
-  if (res.locals.sessionUser?.user_level === UserLevels.Practitioner)
-    practitioner_id = res.locals.sessionUser?.id;
 
   try {
-    await TestService.activateDeactivate(test_id, is_active);
+    await TestService.activateDeactivate(test_id, is_active, practitioner_id);
     return res.status(HttpStatusCodes.OK).json({ success: true }).end();
   } catch (error) {
     if (error instanceof RouteError)
