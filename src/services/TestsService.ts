@@ -333,8 +333,12 @@ async function activateDeactivate(
   practitioner_id: number,
 ): Promise<boolean> {
   if (practitioner_id) {
-    const sql = `UPDATE tests_active_deactive set is_active_for_clinic = ? where test_id = ? And practitioner_id = ?`;
+    const sql = `INSERT INTO tests_active_deactive (is_active_for_clinic, test_id, practitioner_id)
+      VALUES (?, ?, ?)
+      ON DUPLICATE KEY UPDATE
+      test_id = VALUES(test_id) And practitioner_id = VALUES(practitioner_id);`
     const [result] = await pool.query<ResultSetHeader>(sql, [is_active, test_id, practitioner_id]);
+    
     if (result.affectedRows === 0) {
       throw new RouteError(HttpStatusCodes.NOT_FOUND, NOT_FOUND_ERR);
     }
