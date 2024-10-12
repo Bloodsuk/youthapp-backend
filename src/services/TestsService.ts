@@ -5,6 +5,7 @@ import { pool } from "@src/server";
 import { ResultSetHeader, RowDataPacket } from "mysql2";
 import { LIMIT } from "@src/constants/pagination";
 import { empty, getTotalCount } from "@src/util/misc";
+import { UserLevels } from "@src/constants/enums";
 
 // **** Variables **** //
 
@@ -20,7 +21,7 @@ interface IGetResponse<T> {
   total: number;
 }
 
-async function getAll(page: number = 1, search: string = "", cate_id: string = ""): Promise<IGetResponse<ITest>> {
+async function getAll(page: number = 1, search: string = "", cate_id: string = "", practitioner_id: string = "", user_level: string = ""): Promise<IGetResponse<ITest>> {
   const joinColumns =
     ", CONCAT(u1.first_name, ' ', u1.last_name) as practitioner_name, tc.customer_cost as practitioner_customer_cost";
   const join = ` LEFT JOIN users u1 ON (u1.id = tests.practitioner_id)
@@ -37,6 +38,11 @@ async function getAll(page: number = 1, search: string = "", cate_id: string = "
   }
   if (cate_id && !empty(cate_id)) {
     searchSql += ` AND cate_id = ${cate_id}`;
+    sql += searchSql;
+  }
+
+  if (practitioner_id && !empty(practitioner_id) && user_level == UserLevels.Moderator) {
+    searchSql += ` AND tests.practitioner_id = ${practitioner_id}`;
     sql += searchSql;
   }
 
