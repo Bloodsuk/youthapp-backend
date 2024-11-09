@@ -119,6 +119,7 @@ async function getAll(
       customers.fore_name AS customer_fore_name,
       customers.sur_name AS customer_sur_name,
       customers.email AS customer_email, 
+      customers.date_of_birth AS customer_date_of_birth, 
       users.id AS practitioner_id,
       users.first_name AS practitioner_first_name,
       users.last_name AS practitioner_last_name,
