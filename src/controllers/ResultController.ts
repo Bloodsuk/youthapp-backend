@@ -67,9 +67,41 @@ async function getById(req: IReq, res: IRes) {
   }
 }
 
+/**
+ * Delete one Result.
+ */
+async function delete_(req: IReq, res: IRes) {
+  const id = req.params.id;
+  const uid = parseInt(id);
+  try {
+    await ResultService.delete(uid);
+    return res.status(HttpStatusCodes.OK).json({
+      success: true
+    }).end();
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
 // **** Export default **** //
 
 export default {
   getAll,
   getById,
+  delete: delete_,
 } as const;

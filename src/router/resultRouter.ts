@@ -13,4 +13,7 @@ resultRouter.get(Paths.Results.Get, ResultController.getAll);
 // Get By Id
 resultRouter.get(Paths.Results.GetById, ResultController.getById);
 
+// Delete By Id
+resultRouter.delete(Paths.Results.Delete, ResultController.delete);
+
 export default resultRouter;

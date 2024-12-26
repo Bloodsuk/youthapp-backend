@@ -20,19 +20,27 @@ interface IGetResponse<T> {
 /**
  * Get all creditRequests.
  */
-async function getAll(page = 1): Promise<IGetResponse<ICreditRequest>> {
+async function getAll(page = 1, search: string = ''): Promise<IGetResponse<ICreditRequest>> {
 
   const pagination = `LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`;
+  const searchCondition = search ? `AND CONCAT(users.first_name, ' ', users.last_name) LIKE '%${search}%'` : '';
+
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT credit_requests.*, CONCAT(users.first_name,' ',users.last_name) as practitioner_name 
     FROM credit_requests 
-    LEFT JOIN users ON credit_requests.user_id = users.id 
+    Inner JOIN users ON credit_requests.user_id = users.id 
+    Where 1 ${searchCondition}
     ORDER BY id DESC ${pagination}`
   );
   const allCreditRequests = rows.map((creditRequest) => {
     return creditRequest as ICreditRequest;
   });
-  const total = await getTotalCount(pool, "credit_requests", '');
+  const [total_rows] = await pool.query<RowDataPacket[]>(
+    `SELECT COUNT(*) as total FROM credit_requests 
+    INNER JOIN users ON credit_requests.user_id = users.id 
+    WHERE 1 ${searchCondition}`
+  );
+  const total = total_rows[0].total as number;
   return { data: allCreditRequests, total };
 }
 
@@ -45,7 +53,7 @@ async function getByUserId(user_id: number, page=1): Promise<IGetResponse<ICredi
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT credit_requests.*, CONCAT(users.first_name,' ',users.last_name) as practitioner_name 
     FROM credit_requests 
-    LEFT JOIN users ON credit_requests.user_id = users.id 
+    Inner JOIN users ON credit_requests.user_id = users.id 
     WHERE credit_requests.user_id = ?
     ORDER BY id DESC ${pagination}`, [user_id]
   );
@@ -62,42 +70,56 @@ async function getByUserId(user_id: number, page=1): Promise<IGetResponse<ICredi
 /**
  * Get pending creditRequests
  */
-async function getPending(page = 1): Promise<IGetResponse<ICreditRequest>> {
+async function getPending(page = 1, search: string = ''): Promise<IGetResponse<ICreditRequest>> {
   const pagination = `LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`;
+  const searchCondition = search ? `AND CONCAT(users.first_name, ' ', users.last_name) LIKE '%${search}%'` : '';
 
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT credit_requests.*, CONCAT(users.first_name,' ',users.last_name) as practitioner_name 
     FROM credit_requests 
-    LEFT JOIN users ON credit_requests.user_id = users.id 
-    WHERE credit_requests.status = ?
+    INNER JOIN users ON credit_requests.user_id = users.id 
+    WHERE credit_requests.status = ? ${searchCondition}
     ORDER BY id DESC ${pagination}`,
     ["Pending"]
   );
   const allCreditRequests = rows.map((creditRequest) => {
     return creditRequest as ICreditRequest;
   });
-  const total = await getTotalCount(pool, "credit_requests", "WHERE status = 'Pending'");
+  const [total_rows] = await pool.query<RowDataPacket[]>(
+    `SELECT COUNT(*) as total FROM credit_requests 
+    INNER JOIN users ON credit_requests.user_id = users.id 
+    WHERE credit_requests.status = ? ${searchCondition}`,
+    ["Pending"]
+  );
+  const total = total_rows[0].total as number;
   return { data: allCreditRequests, total };
 }
 
 /**
  * Get approved creditRequests
  */
-async function getApproved(page = 1): Promise<IGetResponse<ICreditRequest>> {
+async function getApproved(page = 1, search: string = ''): Promise<IGetResponse<ICreditRequest>> {
   const pagination = `LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`;
+  const searchCondition = search ? `AND CONCAT(users.first_name, ' ', users.last_name) LIKE '%${search}%'` : '';
 
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT credit_requests.*, CONCAT(users.first_name,' ',users.last_name) as practitioner_name 
     FROM credit_requests 
-    LEFT JOIN users ON credit_requests.user_id = users.id 
-    WHERE credit_requests.status = ?
+    Inner JOIN users ON credit_requests.user_id = users.id 
+    WHERE credit_requests.status = ? ${searchCondition}
     ORDER BY id DESC ${pagination}`,
     ["Approved"]
   );
   const allCreditRequests = rows.map((creditRequest) => {
     return creditRequest as ICreditRequest;
   });
-  const total = await getTotalCount(pool, "credit_requests", "WHERE status = 'Approved'");
+  const [total_rows] = await pool.query<RowDataPacket[]>(
+    `SELECT COUNT(*) as total FROM credit_requests 
+    INNER JOIN users ON credit_requests.user_id = users.id 
+    WHERE credit_requests.status = ? ${searchCondition}`,
+    ["Approved"]
+  );
+  const total = total_rows[0].total as number;
   return { data: allCreditRequests, total };
 }
 

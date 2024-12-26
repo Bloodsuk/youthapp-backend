@@ -2,7 +2,7 @@ import { RouteError } from "@src/other/classes";
 import HttpStatusCodes from "@src/constants/HttpStatusCodes";
 import { IResult } from "@src/interfaces/IResult";
 import { pool } from "@src/server";
-import { RowDataPacket } from "mysql2";
+import { ResultSetHeader, RowDataPacket } from "mysql2";
 import { empty } from "@src/util/misc";
 import { UserLevels } from "@src/constants/enums";
 import { ISessionUser } from "@src/interfaces/ISessionUser";
@@ -97,7 +97,7 @@ async function getAll(
   }
 
   const last_week = moment().subtract(7, 'days').format('YYYY-MM-DD HH:mm:ss');
-  if(reportThisWeek){
+  if (reportThisWeek) {
     whereClauses.push("orders.created_at >= ?");
     params.push(last_week);
   }
@@ -167,9 +167,24 @@ async function getOne(id: number): Promise<IResult> {
   return result;
 }
 
+/**
+ * Delete a order by their id.
+ */
+async function _delete(id: number): Promise<void> {
+  try {
+    await pool.query<ResultSetHeader>(
+      "DELETE FROM orders WHERE id = ?",
+      [id]
+    );
+  } catch (error) {
+    throw new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error deleting order: " + error);
+  }
+}
+
 // **** Export default **** //
 
 export default {
   getAll,
   getOne,
+  delete: _delete,
 } as const;

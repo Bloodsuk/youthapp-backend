@@ -14,7 +14,9 @@ import { CreditRequestStatus } from "@src/constants/enums";
 async function getAll(req: IReq, res: IRes) {
   let page = parseInt(req.query.page as string);
   if (isNaN(page)) page = 1;
-  const { data, total } = await CreditRequestsService.getAll(page);
+  let search = req.query.search as string
+
+  const { data, total } = await CreditRequestsService.getAll(page, search);
   return res.status(HttpStatusCodes.OK).json({ creditRequests: data, total });
 }
 /**
@@ -34,8 +36,9 @@ async function getByUserId(req: IReq, res: IRes) {
 async function getPending(req: IReq, res: IRes) {
   let page = parseInt(req.query.page as string);
   if (isNaN(page)) page = 1;
+  let search = req.query.search as string
 
-  const { data, total } = await CreditRequestsService.getPending(page);
+  const { data, total } = await CreditRequestsService.getPending(page, search);
   return res.status(HttpStatusCodes.OK).json({ creditRequests: data, total });
 }
 /**
@@ -44,7 +47,9 @@ async function getPending(req: IReq, res: IRes) {
 async function getApproved(req: IReq, res: IRes) {
   let page = parseInt(req.query.page as string);
   if (isNaN(page)) page = 1;
-  const { data, total } = await CreditRequestsService.getApproved(page);
+  let search = req.query.search as string
+
+  const { data, total } = await CreditRequestsService.getApproved(page, search);
   return res.status(HttpStatusCodes.OK).json({ creditRequests: data, total });
 }
 
