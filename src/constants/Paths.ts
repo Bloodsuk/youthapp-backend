@@ -84,7 +84,7 @@ export default {
     Base: "/results",
     Get: "/all",
     GetById: "/:id",
-    Delete: "/delete/:id",
+    Delete: "/delete/:id/:type",
   },
   Customers: {
     Base: "/customers",

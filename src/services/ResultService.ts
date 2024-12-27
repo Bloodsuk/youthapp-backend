@@ -170,10 +170,10 @@ async function getOne(id: number): Promise<IResult> {
 /**
  * Delete a order by their id.
  */
-async function _delete(id: number): Promise<void> {
+async function _delete(id: number, type: string): Promise<void> {
   try {
     await pool.query<ResultSetHeader>(
-      "DELETE FROM orders WHERE id = ?",
+      `UPDATE orders set ${type}=null WHERE id = ?`,
       [id]
     );
   } catch (error) {

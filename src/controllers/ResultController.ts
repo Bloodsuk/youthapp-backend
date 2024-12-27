@@ -72,9 +72,19 @@ async function getById(req: IReq, res: IRes) {
  */
 async function delete_(req: IReq, res: IRes) {
   const id = req.params.id;
+  const type = req.params.type as string;
+  if (!["basic_explain", "attachment"].includes(type)) {
+    return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Invalid type!",
+        })
+        .end();
+  }
   const uid = parseInt(id);
   try {
-    await ResultService.delete(uid);
+    await ResultService.delete(uid, type);
     return res.status(HttpStatusCodes.OK).json({
       success: true
     }).end();
