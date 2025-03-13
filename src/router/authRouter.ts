@@ -32,6 +32,11 @@ authRouter.post(
   AuthController.resetPassword
 );
 
+authRouter.post(
+  Paths.Auth.ResetForgotPassword,
+  AuthController.resetPassword
+);
+
 // Logout user
 authRouter.post(Paths.Auth.Logout, AuthController.logout);
 

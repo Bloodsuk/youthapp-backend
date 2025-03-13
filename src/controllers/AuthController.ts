@@ -207,7 +207,7 @@ interface IForgetPasswordReq {
 async function forgetPassword(req: IReq<IForgetPasswordReq>, res: IRes) {
   const { email } = req.body;
   try {
-    if(await AuthService.forgetPassword(email))
+    if(await UserService.updateForgotCode(email))
       return res
         .status(HttpStatusCodes.OK)
         .json({
@@ -215,6 +215,63 @@ async function forgetPassword(req: IReq<IForgetPasswordReq>, res: IRes) {
           message: "Please enter the new password to continue!!!",
         })
         .end();
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          message: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          message: "Forget Password Error: " + JSON.stringify(error),
+        })
+        .end();
+  }
+}
+
+/**
+ *  Reset Forgot Password
+ */
+interface IResetForgotPasswordReq {
+  password: string;
+  forgot_code: string;
+}
+
+async function resetForgotPassword(req: IReq<IResetForgotPasswordReq>, res: IRes) {
+  const { password, forgot_code } = req.body;
+  try {
+    if (!(password && forgot_code)) {
+      throw new RouteError(
+        HttpStatusCodes.BAD_REQUEST,
+        "Password not matched!!"
+      );
+    }
+    const email = await UserService.getEmailFromForgotCode(forgot_code)
+    if(email)
+      if(await UserService.updatePassword(email, password))
+        return res
+          .status(HttpStatusCodes.OK)
+          .json({
+            success: true,
+            message: "Please click login to continue!!!",
+          })
+          .end();
+      else 
+        throw new RouteError(
+          HttpStatusCodes.CONFLICT,
+          "Oops! An error occurred, please contact admin."
+        );
+    else 
+      throw new RouteError(
+        HttpStatusCodes.CONFLICT,
+        "Oops! please pass correct forgot code."
+      );
   } catch (error) {
     if (error instanceof RouteError)
       return res
@@ -301,5 +358,6 @@ export default {
   register,
   forgetPassword,
   resetPassword,
+  resetForgotPassword,
   logout,
 } as const;

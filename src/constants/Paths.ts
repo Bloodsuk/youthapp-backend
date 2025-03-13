@@ -10,6 +10,7 @@ export default {
     Register: "/register",
     ForgotPassword: "/forgot_password",
     ResetPassword: "/reset_password",
+    ResetForgotPassword: "/reset_forgot_password",
     Logout: "/logout",
   },
   Users: {

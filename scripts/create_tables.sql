@@ -217,6 +217,7 @@ CREATE TABLE `users` (
   `allow_explanations_reports` enum('Yes','No') DEFAULT 'No',
   `notification_types` varchar(55) DEFAULT '',
   `stripe_id` varchar(255) DEFAULT ''
+  `forgot_code` varchar(4) DEFAULT NULL,
 );
 
 CREATE TABLE messages (

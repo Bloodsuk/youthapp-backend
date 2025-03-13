@@ -9,6 +9,7 @@ import { ResultSetHeader, RowDataPacket } from "mysql2";
 import { UserLevels } from "@src/constants/enums";
 import { empty, getTotalCount } from "@src/util/misc";
 import { LIMIT } from "@src/constants/pagination";
+import MailService from "./MailService";
 
 // **** Variables **** //
 
@@ -317,6 +318,36 @@ async function updatePassword(
   return true;
 }
 
+async function getEmailFromForgotCode(code: string): Promise<string> { 
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT email FROM users WHERE forgot_code = ?",
+    [code]
+  );
+
+  if (rows.length === 0) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, USER_NOT_FOUND_ERR);
+  }
+
+  return rows[0].email;
+}
+
+async function updateForgotCode(email: string): Promise<boolean> { 
+  // generate code of 4 digit from 0-9
+  const code = Math.floor(1000 + Math.random() * 9000).toString();
+  const [result] = await pool.query<ResultSetHeader>(
+    "UPDATE users SET forgot_code = ? WHERE email = ?",
+    [code, email]
+  );
+
+  if (result.affectedRows === 0) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, USER_NOT_FOUND_ERR);
+  }
+  
+  await MailService.sendUserForgotCodeEmail(email, code);
+
+  return true;
+}
+
 /**
  * Update many users.
  */
@@ -362,12 +393,14 @@ export default {
   getAll,
   getAllPractitioners,
   getAllClinics,
+  updateForgotCode,
   getOne,
   addOne,
   updateOne,
   updateStatus,
   updateEmail,
   updatePassword,
+  getEmailFromForgotCode,
   // updateMany,
   delete: _delete,
 } as const;
