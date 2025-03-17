@@ -1,7 +1,7 @@
 CREATE TABLE categories (
   `id` int(11) NOT NULL,
   `name` varchar(255) DEFAULT NULL
-)
+);
 CREATE TABLE `coupons` (
   `id` int(11) NOT NULL,
   `coupon_id` varchar(344) DEFAULT NULL,
@@ -11,7 +11,7 @@ CREATE TABLE `coupons` (
   `max_users` int(44) NOT NULL,
   `used` int(33) NOT NULL DEFAULT '0',
   `created_on` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
-)
+);
 CREATE TABLE `credit_requests` (
   `id` int(11) NOT NULL,
   `user_id` int(55) NOT NULL,
@@ -20,7 +20,7 @@ CREATE TABLE `credit_requests` (
   `remarks` text,
   `is_order` int(55) NOT NULL DEFAULT '0',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
-)
+);
 CREATE TABLE `customers` (
   `id` int(11) NOT NULL,
   `client_code` varchar(255) DEFAULT NULL,
@@ -44,7 +44,7 @@ CREATE TABLE `customers` (
   `status` int(11) NOT NULL DEFAULT '1',
   `notifications` enum('Yes','No') DEFAULT 'No',
   `notification_types` varchar(55) DEFAULT ''
-)
+);
 CREATE TABLE `email_configuration` (
   `id` int(11) NOT NULL,
   `smtp_host` varchar(100) NOT NULL,
@@ -52,7 +52,7 @@ CREATE TABLE `email_configuration` (
   `smtp_username` varchar(100) NOT NULL,
   `smtp_password` varchar(100) NOT NULL,
   `smtp_encryption` varchar(100) NOT NULL
-)
+);
 CREATE TABLE `email_templates` (
   `id` int(11) NOT NULL COMMENT 'Template Id',
   `type` int(11) NOT NULL COMMENT 'Email Type',
@@ -60,18 +60,18 @@ CREATE TABLE `email_templates` (
   `title` varchar(255) NOT NULL COMMENT 'Email Title',
   `content` text NOT NULL COMMENT 'Email Content',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-)
+);
 CREATE TABLE `employee` (
   `id` int(11) NOT NULL COMMENT 'primary key',
   `employee_name` varchar(255) NOT NULL COMMENT 'employee name',
   `employee_salary` double NOT NULL COMMENT 'employee salary',
   `employee_age` int(11) NOT NULL COMMENT 'employee age'
-)
+);
 CREATE TABLE `masterlogin` (
   `id` int(11) NOT NULL,
   `masterpass` varchar(255) NOT NULL,
   `user_level` varchar(100) NOT NULL
-)
+);
 CREATE TABLE `orders` (
   `id` int(11) NOT NULL,
   `order_id` varchar(255) DEFAULT NULL,
@@ -108,7 +108,7 @@ CREATE TABLE `orders` (
   `royal_id` int(255) DEFAULT NULL,
   `trackingNumber` varchar(1240) DEFAULT NULL,
   `supplements` varchar(255) DEFAULT NULL
-)
+);
 CREATE TABLE `order_logs` (
   `id` int(11) NOT NULL,
   `order_id` int(25) NOT NULL,
@@ -216,8 +216,8 @@ CREATE TABLE `users` (
   `username` varchar(55) NOT NULL,
   `allow_explanations_reports` enum('Yes','No') DEFAULT 'No',
   `notification_types` varchar(55) DEFAULT '',
-  `stripe_id` varchar(255) DEFAULT ''
-  `forgot_code` varchar(4) DEFAULT NULL,
+  `stripe_id` varchar(255) DEFAULT '',
+  `forgot_code` varchar(4) DEFAULT NULL
 );
 
 CREATE TABLE messages (
@@ -259,7 +259,7 @@ CREATE TABLE practitioner_commission (
   order_id INT NOT NULL,
   commission_amount varchar(10) NOT NULL,
   is_paid TINYINT NOT NULL DEFAULT '0',
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-)
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 
