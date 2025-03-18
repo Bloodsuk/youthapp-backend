@@ -207,12 +207,14 @@ interface IForgetPasswordReq {
 async function forgetPassword(req: IReq<IForgetPasswordReq>, res: IRes) {
   const { email } = req.body;
   try {
-    if(await UserService.updateForgotCode(email))
+    const code = await UserService.updateForgotCode(email)
+    if(code)
       return res
         .status(HttpStatusCodes.OK)
         .json({
           success: true,
           message: "Please enter the new password to continue!!!",
+          code
         })
         .end();
   } catch (error) {

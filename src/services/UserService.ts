@@ -331,7 +331,7 @@ async function getEmailFromForgotCode(code: string): Promise<string> {
   return rows[0].email;
 }
 
-async function updateForgotCode(email: string): Promise<boolean> { 
+async function updateForgotCode(email: string): Promise<string> { 
   // generate code of 4 digit from 0-9
   const code = Math.floor(1000 + Math.random() * 9000).toString();
   const [result] = await pool.query<ResultSetHeader>(
@@ -345,7 +345,7 @@ async function updateForgotCode(email: string): Promise<boolean> {
   
   await MailService.sendUserForgotCodeEmail(email, code);
 
-  return true;
+  return code;
 }
 
 /**
