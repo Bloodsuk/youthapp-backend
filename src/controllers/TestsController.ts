@@ -30,7 +30,7 @@ async function getPractitionerTest(req: IReq, res: IRes) {
   if (isNaN(page)) page = 1;
   const search = (req.query.search as string) || "";
   const cate_id = (req.query.cate_id as string) || "";
-  const { data, total } = await TestService.getPractitionerTest(practitioner_id, page, search, cate_id);
+  const { data, total } = await TestService.getPractitionerTest(practitioner_id, page, search, cate_id, 'alpha');
   return res.status(HttpStatusCodes.OK).json({ tests: data, total });
 }
 
@@ -44,7 +44,7 @@ async function getCustomerTest(req: IReq, res: IRes) {
   if (isNaN(page)) page = 1;
   const search = (req.query.search as string) || "";
   const cate_id = (req.query.cate_id as string) || "";
-  const { data, total } = await TestService.getCustomerTest(customer_id, page, search, cate_id, practitioner_id);
+  const { data, total } = await TestService.getCustomerTest(customer_id, page, search, cate_id, practitioner_id, 'alpha');
   return res.status(HttpStatusCodes.OK).json({ tests: data, total });
 }
 

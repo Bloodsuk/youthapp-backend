@@ -63,9 +63,11 @@ async function getAll(page: number = 1, search: string = "", cate_id: string = "
  * @param practitioner_id 
  * @param page 
  * @param search 
+ * @param cate_id
+ * @param sort - sorting option ('alpha' for alphabetical, default is by ID)
  * @returns 
  */
-async function getPractitionerTest(practitioner_id: number, page: number = 1, search: string = "", cate_id: string = ""): Promise<IGetResponse<ITest>> {
+async function getPractitionerTest(practitioner_id: number, page: number = 1, search: string = "", cate_id: string = "", sort: string = ""): Promise<IGetResponse<ITest>> {
   const joinColumns =
     ", CONCAT(u1.first_name, ' ', u1.last_name) as practitioner_name, tc.customer_cost as practitioner_customer_cost";
   const join = ` LEFT JOIN users u1 ON (u1.id = tests.practitioner_id)
@@ -140,8 +142,11 @@ WHERE
     sql += searchSql;
   }
 
-  sql += ` group by tests.id ORDER BY id DESC ${pagination}`;
-console.log("sql ----------- ", sql);
+  // Determine sorting order - alphabetical or default by ID
+  const sortOrder = sort === 'alpha' ? 'ORDER BY tests.test_name ASC' : 'ORDER BY id DESC';
+  
+  sql += ` group by tests.id ${sortOrder} ${pagination}`;
+  console.log("sql ----------- ", sql);
 
   const [rows] = await pool.query<RowDataPacket[]>(sql);
   const allTests = rows.map((test) => {
@@ -160,7 +165,7 @@ console.log("sql ----------- ", sql);
  * @param search 
  * @returns 
  */
-async function getCustomerTest(customer_id: number, page: number = 1, search: string = "", cate_id: string = "", practitioner_id: number = 0): Promise<IGetResponse<ITest>> {
+async function getCustomerTest(customer_id: number, page: number = 1, search: string = "", cate_id: string = "", practitioner_id: number = 0, sort: string = ""): Promise<IGetResponse<ITest>> {
   const joinColumns =
     ", CONCAT(u1.first_name, ' ', u1.last_name) as practitioner_name, tc.customer_cost as practitioner_customer_cost";
   const join = ` LEFT JOIN users u1 ON (u1.id = tests.practitioner_id)
@@ -238,7 +243,8 @@ WHERE
     sql += searchSql;
   }
 
-  sql += ` group by tests.id ORDER BY id DESC ${pagination}`;
+  const sortOrder = sort === 'alpha' ? 'ORDER BY tests.test_name ASC' : 'ORDER BY id DESC';
+  sql += ` group by tests.id ${sortOrder} ${pagination}`;
 
   const [rows] = await pool.query<RowDataPacket[]>(sql);
   const allTests = rows.map((test) => {
