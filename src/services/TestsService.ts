@@ -19,25 +19,17 @@ export const NOT_FOUND_ERR = "Test not found";
 interface IGetResponse<T> {
   data: T[];
   total: number;
+  prices?: any
 }
 
 async function getAll(page: number = 1, search: string = "", cate_id: string = "", practitioner_id: string = "", user_level: string = ""): Promise<IGetResponse<ITest>> {
   const joinColumns =
     `,
     CONCAT(u1.first_name, ' ', u1.last_name) as practitioner_name,
-    tc.customer_cost as practitioner_customer_cost,
-    COALESCE(JSON_ARRAYAGG(
-      JSON_OBJECT(
-        'id', ptp.id,
-        'practitioner_id', ptp.practitioner_id,
-        'test_id', ptp.test_id,
-        'price', ptp.price
-      )
-    ), '[]') AS practitioner_prices
+    tc.customer_cost as practitioner_customer_cost
   `;
   const join = ` LEFT JOIN users u1 ON (u1.id = tests.practitioner_id)
-                 LEFT JOIN tests_cost_by_practitioner tc ON (tc.tests_id = tests.id And tc.practitioner_id = tests.practitioner_id)
-                 LEFT JOIN practitioner_test_price ptp ON (ptp.test_id = tests.id)`;
+                 LEFT JOIN tests_cost_by_practitioner tc ON (tc.tests_id = tests.id And tc.practitioner_id = tests.practitioner_id)`;
 
   const pagination = `LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`;
 
@@ -66,8 +58,14 @@ async function getAll(page: number = 1, search: string = "", cate_id: string = "
   });
 
   const total = await getTotalCount(pool, 'tests', `WHERE 1 ${searchSql}`);
+  const allTestId = [];
+  for (const test of allTests) {
+    allTestId.push(test.id);
+  }
+  const sqlForGetPractitionerPrice = `SELECT * FROM practitioner_test_price where test_id in (${allTestId.join(",")})`;
+  const [rowsForGetPractitionerPrice] = await pool.query<RowDataPacket[]>(sqlForGetPractitionerPrice);
 
-  return { data: allTests, total };
+  return { data: allTests, total, prices: rowsForGetPractitionerPrice };
 }
 
 /**
