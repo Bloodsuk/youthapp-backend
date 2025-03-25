@@ -23,9 +23,21 @@ interface IGetResponse<T> {
 
 async function getAll(page: number = 1, search: string = "", cate_id: string = "", practitioner_id: string = "", user_level: string = ""): Promise<IGetResponse<ITest>> {
   const joinColumns =
-    ", CONCAT(u1.first_name, ' ', u1.last_name) as practitioner_name, tc.customer_cost as practitioner_customer_cost";
+    `,
+    CONCAT(u1.first_name, ' ', u1.last_name) as practitioner_name,
+    tc.customer_cost as practitioner_customer_cost,
+    COALESCE(JSON_ARRAYAGG(
+      JSON_OBJECT(
+        'id', ptp.id,
+        'practitioner_id', ptp.practitioner_id,
+        'test_id', ptp.test_id,
+        'price', ptp.price
+      )
+    ), '[]') AS practitioner_prices
+  `;
   const join = ` LEFT JOIN users u1 ON (u1.id = tests.practitioner_id)
-                 LEFT JOIN tests_cost_by_practitioner tc ON (tc.tests_id = tests.id And tc.practitioner_id = tests.practitioner_id)`;
+                 LEFT JOIN tests_cost_by_practitioner tc ON (tc.tests_id = tests.id And tc.practitioner_id = tests.practitioner_id)
+                 LEFT JOIN practitioner_test_price ptp ON (ptp.test_id = tests.id)`;
 
   const pagination = `LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`;
 
@@ -76,7 +88,7 @@ async function getPractitionerTest(practitioner_id: number, page: number = 1, se
                  `;
 
   const pagination = `LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`;
- 
+
   let sql = `
   SELECT 
   tests.id, 
@@ -144,7 +156,7 @@ WHERE
 
   // Determine sorting order - alphabetical or default by ID
   const sortOrder = sort === 'alpha' ? 'ORDER BY tests.test_name ASC' : 'ORDER BY id DESC';
-  
+
   sql += ` group by tests.id ${sortOrder} ${pagination}`;
   console.log("sql ----------- ", sql);
 
@@ -177,7 +189,7 @@ async function getCustomerTest(customer_id: number, page: number = 1, search: st
   // (CASE When tc.customer_cost IS Not NULL then tc.customer_cost When tc.customer_cost = 0
   //   then tests.cost Else tests.cost end) as practitioner_customer_cost
   console.log("practitioner_id ---------- ", practitioner_id);
-  
+
   let sql = `
   SELECT 
   tests.id, 
@@ -260,6 +272,7 @@ WHERE
  * Get one test.
  */
 async function getOne(id: number): Promise<ITest> {
+  // Get the test details
   const [rows] = await pool.query<RowDataPacket[]>(
     "SELECT * FROM tests WHERE id = ?",
     [id]
@@ -288,6 +301,20 @@ async function addOne(test: Partial<ITest>): Promise<number> {
     customer_cost: test.customer_cost || '',
   };
   const [result3] = await pool.query<ResultSetHeader>("INSERT INTO tests SET ?", data);
+  const test_id = result3.insertId;
+
+  if (test_id && test.practitioner_prices && test.practitioner_prices.length > 0) {
+    for (const item of test.practitioner_prices) {
+      // insert data into practitioner_test_price table
+      const data = {
+        practitioner_id: item.practitioner_id,
+        price: item.price,
+        test_id: test_id
+      };
+
+      await pool.query<ResultSetHeader>("INSERT INTO practitioner_test_price SET ?", data);
+    }
+  }
   return result3.insertId;
 }
 
@@ -313,6 +340,19 @@ async function updateOne(
   if (result.affectedRows === 0) {
     throw new RouteError(HttpStatusCodes.NOT_FOUND, NOT_FOUND_ERR);
   }
+
+  // now update practitioner test prices, so first delete all existing prices and create the new one
+  await pool.query<ResultSetHeader>("DELETE FROM practitioner_test_price WHERE test_id = ?", [id]);
+  for (const item of test.practitioner_prices) {
+    const data = {
+      practitioner_id: item.practitioner_id,
+      price: item.price,
+      test_id: id
+    };
+
+    await pool.query<ResultSetHeader>("INSERT INTO practitioner_test_price SET ?", data);
+  }
+
   return true;
 }
 
@@ -350,7 +390,7 @@ async function activateDeactivate(
       ON DUPLICATE KEY UPDATE 
         is_active_for_clinic = VALUES(is_active_for_clinic);`
     const [result] = await pool.query<ResultSetHeader>(sql, [is_active, test_id, practitioner_id]);
-    
+
     if (result.affectedRows === 0) {
       throw new RouteError(HttpStatusCodes.NOT_FOUND, NOT_FOUND_ERR);
     }
@@ -362,7 +402,7 @@ async function activateDeactivate(
       throw new RouteError(HttpStatusCodes.NOT_FOUND, NOT_FOUND_ERR);
     }
   }
-  
+
   return true;
 }
 
