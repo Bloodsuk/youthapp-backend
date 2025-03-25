@@ -17,8 +17,8 @@ async function getAll(req: IReq, res: IRes) {
   const search = (req.query.search as string) || "";
   const cate_id = (req.query.cate_id as string) || "";
   const practitioner_id = (req.query.practitioner_id as string) || "";
-  const { data, total } = await TestService.getAll(page, search, cate_id, practitioner_id, res.locals.sessionUser?.user_level);
-  return res.status(HttpStatusCodes.OK).json({ tests: data, total });
+  const { data, total, prices } = await TestService.getAll(page, search, cate_id, practitioner_id, res.locals.sessionUser?.user_level);
+  return res.status(HttpStatusCodes.OK).json({ tests: data, total, prices });
 }
 
 /**
