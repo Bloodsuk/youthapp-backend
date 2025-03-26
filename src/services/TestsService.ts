@@ -164,9 +164,20 @@ WHERE
     return test as ITest;
   });
 
+  let prices = [];
+  if(practitioner_id) {
+    const sqlForGetPractitionerPrice = `SELECT * FROM practitioner_test_price where practitioner_id = ${practitioner_id}`;
+    const [rowsForGetPractitionerPrice] = await pool.query<RowDataPacket[]>(sqlForGetPractitionerPrice);
+    prices = rowsForGetPractitionerPrice;
+  } else {
+    const sqlForGetPractitionerPrice = `SELECT * FROM practitioner_test_price`;
+    const [rowsForGetPractitionerPrice] = await pool.query<RowDataPacket[]>(sqlForGetPractitionerPrice);
+    prices = rowsForGetPractitionerPrice;
+  }
+
   const total = await getTotalCount(pool, 'tests', `WHERE (tests.practitioner_id IS NULL OR tests.practitioner_id = 0 OR tests.practitioner_id = ${practitioner_id}) ${searchSql}`);
 
-  return { data: allTests, total };
+  return { data: allTests, total, prices };
 }
 
 /**

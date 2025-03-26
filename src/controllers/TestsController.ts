@@ -31,8 +31,8 @@ async function getPractitionerTest(req: IReq, res: IRes) {
   if (isNaN(page)) page = 1;
   const search = (req.query.search as string) || "";
   const cate_id = (req.query.cate_id as string) || "";
-  const { data, total } = await TestService.getPractitionerTest(practitioner_id, page, search, cate_id, 'alpha');
-  return res.status(HttpStatusCodes.OK).json({ tests: data, total });
+  const { data, total, prices } = await TestService.getPractitionerTest(practitioner_id, page, search, cate_id, 'alpha');
+  return res.status(HttpStatusCodes.OK).json({ tests: data, total, prices });
 }
 
 /**
