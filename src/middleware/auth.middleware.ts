@@ -44,6 +44,7 @@ async function authorization(
   // Set user data to locals
   if(typeof userData === 'object' && userData.id) {
     res.locals.sessionUser = userData;
+    req.body = { ...req.body, userData: userData };
     return next();
   }
   // Return an unauth error if token is not valid

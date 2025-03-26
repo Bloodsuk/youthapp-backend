@@ -6,6 +6,7 @@ import { ResultSetHeader, RowDataPacket } from "mysql2";
 import { LIMIT } from "@src/constants/pagination";
 import { empty, getTotalCount } from "@src/util/misc";
 import { UserLevels } from "@src/constants/enums";
+import { ISessionUser } from "@src/interfaces/ISessionUser";
 
 // **** Variables **** //
 
@@ -285,7 +286,7 @@ async function getOne(id: number): Promise<ITest> {
 /**
  * Add one test.
  */
-async function addOne(test: Partial<ITest>): Promise<number> {
+async function addOne(test: Partial<ITest>, userData: ISessionUser): Promise<number> {
   const data = {
     test_name: test.test_name || '',
     cate_id: test.cate_id || '',
@@ -297,6 +298,24 @@ async function addOne(test: Partial<ITest>): Promise<number> {
     discount_type: test.discount_type || '',
     cost: test.cost || '',
     customer_cost: test.customer_cost || '',
+    //
+    product_model: test.product_model || '',
+    procedure: test.procedure || '',
+    product_description: test.product_description || '',
+    side_effects: test.side_effects || '',
+    weights: test.weights || '',
+    brand_id: test.brand_id || 0,
+    sort_id: test.sort_id || 0,
+    meta_title: test.meta_title || '',
+    meta_keyword: test.meta_keyword || '',
+    meta_description: test.meta_description || '',
+    added_on: test.added_on || '',
+    last_updatedon: test.last_updatedon || '',
+    added_by: test.added_by || userData.id || 0,
+    image_url: test.image_url || '',
+    image_banner: test.image_banner || '',
+    banner_link: test.banner_link || '',
+    prd_type: test.prd_type || '',
   };
   const [result3] = await pool.query<ResultSetHeader>("INSERT INTO tests SET ?", data);
   const test_id = result3.insertId;

@@ -5,6 +5,7 @@ import { IReq, IRes } from "@src/types/express/misc";
 import { RouteError } from "@src/other/classes";
 import { ITest } from "@src/interfaces/ITest";
 import { UserLevels } from "@src/constants/enums";
+import { ISessionUser } from "@src/interfaces/ISessionUser";
 
 // **** Functions **** //
 
@@ -85,10 +86,9 @@ async function getById(req: IReq, res: IRes) {
 /**
  * Add one test.
  */
-async function add(req: IReq<{ test: Partial<ITest> }>, res: IRes) {
-  const { test } = req.body;
-
-  const id = await TestService.addOne(test);
+async function add(req: IReq<{ test: Partial<ITest>, userData: ISessionUser }>, res: IRes) {
+  const { test, userData } = req.body;
+  const id = await TestService.addOne(test, userData);
   if (id)
     return res
       .status(HttpStatusCodes.CREATED)
