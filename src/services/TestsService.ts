@@ -23,7 +23,7 @@ interface IGetResponse<T> {
   prices?: any
 }
 
-async function getAll(page: number = 1, search: string = "", cate_id: string = "", practitioner_id: string = "", user_level: string = ""): Promise<IGetResponse<ITest>> {
+async function getAll(page: number = 1, search: string = "", cate_id: string = "", practitioner_id: string = "", user_level: string = "", sort: string = ""): Promise<IGetResponse<ITest>> {
   const joinColumns =
     `,
     CONCAT(u1.first_name, ' ', u1.last_name) as practitioner_name,
@@ -51,7 +51,10 @@ async function getAll(page: number = 1, search: string = "", cate_id: string = "
     sql += searchSql;
   }
 
-  sql += ` ORDER BY id DESC ${pagination}`;
+  // Determine sorting order - alphabetical or default by ID
+  const sortOrder = sort === 'alpha' ? 'ORDER BY tests.test_name ASC' : 'ORDER BY id DESC';
+
+  sql += ` ${sortOrder} ${pagination}`;
 
   const [rows] = await pool.query<RowDataPacket[]>(sql);
   const allTests = rows.map((test) => {
