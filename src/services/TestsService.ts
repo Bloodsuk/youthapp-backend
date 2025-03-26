@@ -345,6 +345,7 @@ async function updateOne(
   let sql = "UPDATE tests SET ";
   const values = [];
   for (const key in test) {
+    if(key === 'practitioner_prices') continue;
     const value = test[key];
     sql += ` ${key}=?,`;
     values.push(value);
