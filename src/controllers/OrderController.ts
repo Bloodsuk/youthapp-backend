@@ -843,7 +843,7 @@ async function getSripeCards(stripe_cust_id: string) {
   return cards;
 }
 
-async function getBookedTimeSlots(req: IReq<{ booking_date: string }>, res: IRes) {
+async function getBookedTimeSlots(req: IReq, res: IRes) {
   try {
     const booking_date = req.query.booking_date as string;
     const { data, total } = await OrderService.getBookedTimeSlots(booking_date);
