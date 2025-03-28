@@ -126,6 +126,8 @@ export default {
     CreditCheckout: "/credit_checkout",
     StripeCheckout: "/stripe_checkout",
     PaymentMethods: "/stripe/payment_methods",
+    BookedTimeSlots: "/booked_time_slots",
+    BookingDetails: "/booking_details",
   },
   Tests: {
     Base: "/tests",

@@ -145,12 +145,12 @@ async function getPractitionerOutstandingCredits(req: IReq<IGetPractitionersComm
       practitioner_id = res.locals.sessionUser?.id;
     if (!practitioner_id) {
       return res
-      .status(HttpStatusCodes.FORBIDDEN)
-      .json({
-        success: false,
-        error: "You are not authorized to perform this operation",
-      })
-      .end();
+        .status(HttpStatusCodes.FORBIDDEN)
+        .json({
+          success: false,
+          error: "You are not authorized to perform this operation",
+        })
+        .end();
     }
     const { data, total } = await OrderService.getPractitionerOutstandingCredits(
       page,
@@ -216,11 +216,11 @@ async function getById(req: IReq, res: IRes) {
 /**
  * Add one order.
  */
-async function add(req: IReq<{ order: Record<string, any> }>, res: IRes) {
-  const { order } = req.body;
+async function add(req: IReq<{ order: Record<string, any>, booking: Record<string, any> }>, res: IRes) {
+  const { order, booking } = req.body;
 
-  const id = await OrderService.addOne(order);
-  if (id)
+  const id = await OrderService.addOne(order, booking);
+  if (id) {
     return res
       .status(HttpStatusCodes.CREATED)
       .json({
@@ -228,7 +228,10 @@ async function add(req: IReq<{ order: Record<string, any> }>, res: IRes) {
         id: id,
       })
       .end();
-  else return res.status(HttpStatusCodes.BAD_REQUEST).end();
+  }
+  else {
+    return res.status(HttpStatusCodes.BAD_REQUEST).end();
+  }
 }
 
 /**
@@ -406,6 +409,7 @@ interface ICreditCheckoutReqBody {
   drugs_taken: string;
   supplements: string;
   enhancing_drugs: string;
+  booking: Record<string, any>;
 }
 
 async function creditCheckout(req: IReq<ICreditCheckoutReqBody>, res: IRes) {
@@ -428,6 +432,7 @@ async function creditCheckout(req: IReq<ICreditCheckoutReqBody>, res: IRes) {
     drugs_taken,
     supplements,
     enhancing_drugs,
+    booking,
   } = req.body;
   try {
     const customer = await CustomerService.getOne(customer_id);
@@ -505,7 +510,7 @@ async function creditCheckout(req: IReq<ICreditCheckoutReqBody>, res: IRes) {
       enhancing_drugs,
       api_royal,
     };
-    const id = await OrderService.addOne(order);
+    const id = await OrderService.addOne(order, booking);
     return res.status(HttpStatusCodes.OK).json({ success: true, order_id: id });
   } catch (error) {
     if (error instanceof RouteError)
@@ -547,6 +552,7 @@ interface IStripeCheckoutReqBody {
   drugs_taken: string;
   supplements: string;
   enhancing_drugs: string;
+  booking: Record<string, any>;
 }
 
 async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
@@ -569,6 +575,7 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
     drugs_taken,
     supplements,
     enhancing_drugs,
+    booking,
   } = req.body;
   try {
     const customer = await CustomerService.getOne(customer_id);
@@ -646,7 +653,7 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
       enhancing_drugs,
     };
     // Add Order in DB
-    const id = await OrderService.addOne(order);
+    const id = await OrderService.addOne(order, booking);
     const order_number = `#YRV-${order_id}`;
 
     if (id)
@@ -836,6 +843,56 @@ async function getSripeCards(stripe_cust_id: string) {
   return cards;
 }
 
+async function getBookedTimeSlots(req: IReq<{ booking_date: string }>, res: IRes) {
+  try {
+    const booking_date = req.query.booking_date as string;
+    const { data, total } = await OrderService.getBookedTimeSlots(booking_date);
+    return res.status(HttpStatusCodes.OK).json({ data: data, total });
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
+async function getBookingDetails(req: IReq<{ order_id: string }>, res: IRes) {
+  try {
+    const order_id = req.query.order_id as string;
+    const { data } = await OrderService.getBookingDetails(order_id);
+    return res.status(HttpStatusCodes.OK).json({ data: data });
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
 // **** Export default **** //
 
 export default {
@@ -855,4 +912,6 @@ export default {
   stripeCheckout,
   getPaymentMethods,
   addPaymentMethod,
+  getBookedTimeSlots,
+  getBookingDetails,
 } as const;

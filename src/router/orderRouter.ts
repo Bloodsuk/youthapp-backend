@@ -80,5 +80,14 @@ orderRouter.post(
   OrderController.stripeCheckout
 );
 
+orderRouter.get(
+  Paths.Orders.BookedTimeSlots,
+  OrderController.getBookedTimeSlots
+);
+
+orderRouter.get(
+  Paths.Orders.BookingDetails,
+  OrderController.getBookingDetails
+);
 
 export default orderRouter;
