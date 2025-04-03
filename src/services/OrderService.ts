@@ -63,16 +63,14 @@ async function getAll(
   }
 
   if (status && !empty(status)) {
-    whereClauses.push("orders.status = ?");
-    params.push(status);
-    // if (status === "Pending Validation") {
-    //   whereClauses.push("orders.status IN ('Pending Validation', 'Complete')");
-    // } else if (status === "Received at the Lab") {
-    //   whereClauses.push("orders.status IN ('Ready', 'Received at the Lab')");
-    // } else {
-    //   whereClauses.push("orders.status = ?");
-    //   params.push(status);
-    // }
+    if (status === "Results Published" || status === "Result Published") {
+      whereClauses.push("orders.status IN ('Results Published', 'Result Published')");
+    } else if (status === "Received at the Lab" || status === "Received at Lab") {
+      whereClauses.push("orders.status IN ('Received at Lab', 'Received at the Lab')");
+    } else {
+      whereClauses.push("orders.status = ?");
+      params.push(status);
+    }
   } else {
     whereClauses.push("orders.status != 'Failed'");
   }
@@ -181,16 +179,14 @@ async function getAllCustomerOrder(
   params.push(customer_id);
 
   if (status && !empty(status)) {
-    whereClauses.push("orders.status = ?");
-    params.push(status);
-    // if (status === "Pending Validation") {
-    //   whereClauses.push("orders.status IN ('Pending Validation', 'Complete')");
-    // } else if (status === "Received at the Lab") {
-    //   whereClauses.push("orders.status IN ('Ready', 'Received at the Lab')");
-    // } else {
-    //   whereClauses.push("orders.status = ?");
-    //   params.push(status);
-    // }
+    if (status === "Results Published" || status === "Result Published") {
+      whereClauses.push("orders.status IN ('Results Published', 'Result Published')");
+    } else if (status === "Received at the Lab" || status === "Received at Lab") {
+      whereClauses.push("orders.status IN ('Received at Lab', 'Received at the Lab')");
+    } else {
+      whereClauses.push("orders.status = ?");
+      params.push(status);
+    }
   } else {
     whereClauses.push("orders.status != 'Failed'");
   }
