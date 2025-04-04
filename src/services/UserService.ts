@@ -308,27 +308,53 @@ async function updatePassword(
   // Hash password
   const hash = AuthService.generateHash(password);
 
-  const [result] = await pool.query<ResultSetHeader>(
+  // Update password in the users table
+  const [userResult] = await pool.query<ResultSetHeader>(
     "UPDATE users SET password = ? WHERE email = ?",
     [hash, email]
   );
-  if (result.affectedRows === 0) {
-    throw new RouteError(HttpStatusCodes.NOT_FOUND, USER_NOT_FOUND_ERR);
+
+  if (userResult.affectedRows > 0) {
+    return true;
   }
-  return true;
+
+  // Update password in the customers table
+  const [customerResult] = await pool.query<ResultSetHeader>(
+    "UPDATE customers SET password = ? WHERE email = ?",
+    [hash, email]
+  );
+
+  if (customerResult.affectedRows > 0) {
+    return true;
+  }
+
+  // If email is not found in either table, throw an error
+  throw new RouteError(HttpStatusCodes.NOT_FOUND, USER_NOT_FOUND_ERR);
 }
 
 async function getEmailFromForgotCode(code: string): Promise<string> {
-  const [rows] = await pool.query<RowDataPacket[]>(
+  // Check in the users table
+  const [userRows] = await pool.query<RowDataPacket[]>(
     "SELECT email FROM users WHERE forgot_code = ?",
     [code]
   );
 
-  if (rows.length === 0) {
-    throw new RouteError(HttpStatusCodes.NOT_FOUND, USER_NOT_FOUND_ERR);
+  if (userRows.length > 0) {
+    return userRows[0].email;
   }
 
-  return rows[0].email;
+  // Check in the customers table
+  const [customerRows] = await pool.query<RowDataPacket[]>(
+    "SELECT email FROM customers WHERE forgot_code = ?",
+    [code]
+  );
+
+  if (customerRows.length > 0) {
+    return customerRows[0].email;
+  }
+
+  // If not found in either table, throw an error
+  throw new RouteError(HttpStatusCodes.NOT_FOUND, USER_NOT_FOUND_ERR);
 }
 
 async function updateForgotCode(email: string): Promise<string> {
