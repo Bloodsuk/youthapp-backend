@@ -318,7 +318,7 @@ async function updatePassword(
   return true;
 }
 
-async function getEmailFromForgotCode(code: string): Promise<string> { 
+async function getEmailFromForgotCode(code: string): Promise<string> {
   const [rows] = await pool.query<RowDataPacket[]>(
     "SELECT email FROM users WHERE forgot_code = ?",
     [code]
@@ -331,21 +331,54 @@ async function getEmailFromForgotCode(code: string): Promise<string> {
   return rows[0].email;
 }
 
-async function updateForgotCode(email: string): Promise<string> { 
-  // generate code of 4 digit from 0-9
+async function updateForgotCode(email: string): Promise<string> {
+  // Generate a 4-digit code from 0-9
   const code = Math.floor(1000 + Math.random() * 9000).toString();
-  const [result] = await pool.query<ResultSetHeader>(
-    "UPDATE users SET forgot_code = ? WHERE email = ?",
-    [code, email]
+
+  // Check if the email exists in the users table
+  const [userResult] = await pool.query<RowDataPacket[]>(
+    "SELECT email FROM users WHERE email = ?",
+    [email]
   );
 
-  if (result.affectedRows === 0) {
-    throw new RouteError(HttpStatusCodes.NOT_FOUND, USER_NOT_FOUND_ERR);
-  }
-  
-  await MailService.sendUserForgotCodeEmail(email, code);
+  if (userResult.length > 0) {
+    // Update forgot code in the users table
+    const [result] = await pool.query<ResultSetHeader>(
+      "UPDATE users SET forgot_code = ? WHERE email = ?",
+      [code, email]
+    );
 
-  return code;
+    if (result.affectedRows === 0) {
+      throw new RouteError(HttpStatusCodes.NOT_FOUND, USER_NOT_FOUND_ERR);
+    }
+
+    await MailService.sendUserForgotCodeEmail(email, code);
+    return code;
+  }
+
+  // Check if the email exists in the customers table
+  const [customerResult] = await pool.query<RowDataPacket[]>(
+    "SELECT email FROM customers WHERE email = ?",
+    [email]
+  );
+
+  if (customerResult.length > 0) {
+    // Update forgot code in the customers table
+    const [result] = await pool.query<ResultSetHeader>(
+      "UPDATE customers SET forgot_code = ? WHERE email = ?",
+      [code, email]
+    );
+
+    if (result.affectedRows === 0) {
+      throw new RouteError(HttpStatusCodes.NOT_FOUND, USER_NOT_FOUND_ERR);
+    }
+
+    await MailService.sendUserForgotCodeEmail(email, code);
+    return code;
+  }
+
+  // If email is not found in either table, throw an error
+  throw new RouteError(HttpStatusCodes.NOT_FOUND, USER_NOT_FOUND_ERR);
 }
 
 /**
