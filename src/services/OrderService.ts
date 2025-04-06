@@ -129,7 +129,15 @@ async function getAll(
     FROM orders 
     LEFT JOIN customers ON orders.customer_id = customers.id 
     LEFT JOIN users ON orders.created_by = users.id
-    LEFT JOIN tests ON FIND_IN_SET(tests.id, orders.test_ids)
+    LEFT JOIN (
+      SELECT 
+        orders.id AS order_id, 
+        tests.id AS test_id, 
+        tests.test_name, 
+        tests.description 
+      FROM orders 
+      JOIN tests ON FIND_IN_SET(tests.id, orders.test_ids)
+    ) AS order_tests ON orders.id = order_tests.order_id
     WHERE ${whereClauses.join(" AND ")} 
     ORDER BY orders.id DESC 
     ${pagination}
