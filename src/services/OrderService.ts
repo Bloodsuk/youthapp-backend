@@ -478,7 +478,7 @@ async function addOne(order: Record<string, any>, booking: Record<string, any>):
       const bookingData = {
         booking_date: booking.booking_date,
         booking_time: booking.booking_time,
-        order_id: result.insertId,
+        order_id: order.order_id,
         user_id: order.customer_id,
       }
 
