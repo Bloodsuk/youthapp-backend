@@ -49,7 +49,7 @@ async function getAll(
       params.push(user_id);
     } else if (user_level === UserLevels.Practitioner) {
       whereClauses.push(
-        "(orders.created_by = ? OR (orders.created_by = 1 AND orders.practitioner_id = ?))"
+        "(orders.created_by = ? OR orders.practitioner_id = ?)"
       );
       params.push(user_id, user_id);
     } else {
