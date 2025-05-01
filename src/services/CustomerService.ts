@@ -97,7 +97,7 @@ async function getOne(id: number): Promise<ICustomer> {
   const [rows] = await pool.query<RowDataPacket[]>(
     // get customer details with practitioner name
     `SELECT customers.id, customers.client_code, customers.fore_name, customers.sur_name, customers.date_of_birth, customers.created_at, customers.created_by, customers.gender, customers.address, customers.town, customers.country, customers.postal_code, customers.email, customers.telephone, customers.comments, customers.current_medication, customers.username, customers.password, customers.user_level, customers.status, customers.notifications, customers.notification_types,
-    CONCAT(users.first_name, ' ', users.last_name) AS practitioner_name, users.logo as practitioner_logo
+    CONCAT(users.first_name, ' ', users.last_name) AS practitioner_name, users.logo as practitioner_logo, users.color as practitioner_color
     FROM customers
     LEFT JOIN users ON users.id = customers.created_by
     WHERE customers.id = ?`,
