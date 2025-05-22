@@ -5,6 +5,7 @@ import { IReq, IRes } from "@src/types/express/misc";
 import { RouteError } from "@src/other/classes";
 import { ITest } from "@src/interfaces/ITest";
 import { UserLevels } from "@src/constants/enums";
+import { ISessionUser } from "@src/interfaces/ISessionUser";
 
 // **** Functions **** //
 
@@ -17,8 +18,8 @@ async function getAll(req: IReq, res: IRes) {
   const search = (req.query.search as string) || "";
   const cate_id = (req.query.cate_id as string) || "";
   const practitioner_id = (req.query.practitioner_id as string) || "";
-  const { data, total } = await TestService.getAll(page, search, cate_id, practitioner_id, res.locals.sessionUser?.user_level);
-  return res.status(HttpStatusCodes.OK).json({ tests: data, total });
+  const { data, total, prices } = await TestService.getAll(page, search, cate_id, practitioner_id, res.locals.sessionUser?.user_level, 'alpha');
+  return res.status(HttpStatusCodes.OK).json({ tests: data, total, prices });
 }
 
 /**
@@ -30,8 +31,8 @@ async function getPractitionerTest(req: IReq, res: IRes) {
   if (isNaN(page)) page = 1;
   const search = (req.query.search as string) || "";
   const cate_id = (req.query.cate_id as string) || "";
-  const { data, total } = await TestService.getPractitionerTest(practitioner_id, page, search, cate_id);
-  return res.status(HttpStatusCodes.OK).json({ tests: data, total });
+  const { data, total, prices } = await TestService.getPractitionerTest(practitioner_id, page, search, cate_id, 'alpha');
+  return res.status(HttpStatusCodes.OK).json({ tests: data, total, prices });
 }
 
 /**
@@ -44,7 +45,7 @@ async function getCustomerTest(req: IReq, res: IRes) {
   if (isNaN(page)) page = 1;
   const search = (req.query.search as string) || "";
   const cate_id = (req.query.cate_id as string) || "";
-  const { data, total } = await TestService.getCustomerTest(customer_id, page, search, cate_id, practitioner_id);
+  const { data, total } = await TestService.getCustomerTest(customer_id, page, search, cate_id, practitioner_id, 'alpha');
   return res.status(HttpStatusCodes.OK).json({ tests: data, total });
 }
 
@@ -85,10 +86,9 @@ async function getById(req: IReq, res: IRes) {
 /**
  * Add one test.
  */
-async function add(req: IReq<{ test: Partial<ITest> }>, res: IRes) {
-  const { test } = req.body;
-
-  const id = await TestService.addOne(test);
+async function add(req: IReq<{ test: Partial<ITest>, userData: ISessionUser }>, res: IRes) {
+  const { test, userData } = req.body;
+  const id = await TestService.addOne(test, userData);
   if (id)
     return res
       .status(HttpStatusCodes.CREATED)

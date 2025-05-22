@@ -9,6 +9,7 @@ import { ResultSetHeader, RowDataPacket } from "mysql2";
 import { UserLevels } from "@src/constants/enums";
 import { empty, getTotalCount } from "@src/util/misc";
 import { LIMIT } from "@src/constants/pagination";
+import MailService from "./MailService";
 
 // **** Variables **** //
 
@@ -307,14 +308,103 @@ async function updatePassword(
   // Hash password
   const hash = AuthService.generateHash(password);
 
-  const [result] = await pool.query<ResultSetHeader>(
+  // Update password in the users table
+  const [userResult] = await pool.query<ResultSetHeader>(
     "UPDATE users SET password = ? WHERE email = ?",
     [hash, email]
   );
-  if (result.affectedRows === 0) {
-    throw new RouteError(HttpStatusCodes.NOT_FOUND, USER_NOT_FOUND_ERR);
+
+  if (userResult.affectedRows > 0) {
+    return true;
   }
-  return true;
+
+  // Update password in the customers table
+  const [customerResult] = await pool.query<ResultSetHeader>(
+    "UPDATE customers SET password = ? WHERE email = ?",
+    [hash, email]
+  );
+
+  if (customerResult.affectedRows > 0) {
+    return true;
+  }
+
+  // If email is not found in either table, throw an error
+  throw new RouteError(HttpStatusCodes.NOT_FOUND, USER_NOT_FOUND_ERR);
+}
+
+async function getEmailFromForgotCode(code: string): Promise<string> {
+  // Check in the users table
+  const [userRows] = await pool.query<RowDataPacket[]>(
+    "SELECT email FROM users WHERE forgot_code = ?",
+    [code]
+  );
+
+  if (userRows.length > 0) {
+    return userRows[0].email;
+  }
+
+  // Check in the customers table
+  const [customerRows] = await pool.query<RowDataPacket[]>(
+    "SELECT email FROM customers WHERE forgot_code = ?",
+    [code]
+  );
+
+  if (customerRows.length > 0) {
+    return customerRows[0].email;
+  }
+
+  // If not found in either table, throw an error
+  throw new RouteError(HttpStatusCodes.NOT_FOUND, USER_NOT_FOUND_ERR);
+}
+
+async function updateForgotCode(email: string): Promise<string> {
+  // Generate a 4-digit code from 0-9
+  const code = Math.floor(1000 + Math.random() * 9000).toString();
+
+  // Check if the email exists in the users table
+  const [userResult] = await pool.query<RowDataPacket[]>(
+    "SELECT email FROM users WHERE email = ?",
+    [email]
+  );
+
+  if (userResult.length > 0) {
+    // Update forgot code in the users table
+    const [result] = await pool.query<ResultSetHeader>(
+      "UPDATE users SET forgot_code = ? WHERE email = ?",
+      [code, email]
+    );
+
+    if (result.affectedRows === 0) {
+      throw new RouteError(HttpStatusCodes.NOT_FOUND, USER_NOT_FOUND_ERR);
+    }
+
+    await MailService.sendUserForgotCodeEmail(email, code);
+    return code;
+  }
+
+  // Check if the email exists in the customers table
+  const [customerResult] = await pool.query<RowDataPacket[]>(
+    "SELECT email FROM customers WHERE email = ?",
+    [email]
+  );
+
+  if (customerResult.length > 0) {
+    // Update forgot code in the customers table
+    const [result] = await pool.query<ResultSetHeader>(
+      "UPDATE customers SET forgot_code = ? WHERE email = ?",
+      [code, email]
+    );
+
+    if (result.affectedRows === 0) {
+      throw new RouteError(HttpStatusCodes.NOT_FOUND, USER_NOT_FOUND_ERR);
+    }
+
+    await MailService.sendUserForgotCodeEmail(email, code);
+    return code;
+  }
+
+  // If email is not found in either table, throw an error
+  throw new RouteError(HttpStatusCodes.NOT_FOUND, USER_NOT_FOUND_ERR);
 }
 
 /**
@@ -362,12 +452,14 @@ export default {
   getAll,
   getAllPractitioners,
   getAllClinics,
+  updateForgotCode,
   getOne,
   addOne,
   updateOne,
   updateStatus,
   updateEmail,
   updatePassword,
+  getEmailFromForgotCode,
   // updateMany,
   delete: _delete,
 } as const;

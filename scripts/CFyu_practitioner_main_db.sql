@@ -12656,7 +12656,9 @@ CREATE TABLE `users` (
   `username` varchar(55) NOT NULL,
   `allow_explanations_reports` enum('Yes','No') DEFAULT 'No',
   `notification_types` varchar(55) DEFAULT '',
-  `stripe_id` varchar(255) DEFAULT ''
+  `stripe_id` varchar(255) DEFAULT '',
+  `forgot_code` varchar(4) DEFAULT NULL,
+  `color` varchar(10) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 --

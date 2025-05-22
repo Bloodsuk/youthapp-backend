@@ -354,6 +354,53 @@ const sendUserOrderStatusEmail = async (email: string, username: string) => {
     }
   );
 };
+const sendUserForgotCodeEmail = async (email: string, code: string) => { 
+  const subject = "Forgot Password Code";
+  const title = "Forgot Password Code";
+  const content = `Your forgot password code is ${code}`;
+
+  const config = await getMailConfig();
+  if(!config) throw new Error("Mail configuration not found");
+  const mailerConfig = {
+    host: config.smtp_host,
+    secureConnection: true,
+    port: Number(config.smtp_port),
+    auth: {
+      user: config.smtp_username,
+      pass: config.smtp_password,
+    },
+    tls: {
+      rejectUnauthorized: false,
+    },
+  };
+  const transporter = nodemailer.createTransport(mailerConfig);
+
+  renderFile(
+    __dirname + "/mail_templates/forgot_code.ejs",
+    { title, content },
+    (err, data) => {
+      if (err) {
+        console.log(err);
+        throw new Error("Error rendering email template");
+      } else {
+        const mailOptions = {
+          from: from,
+          to: email,
+          cc: cc,
+          subject: subject,
+          html: data,
+        };
+
+        transporter.sendMail(mailOptions, (error, info) => {
+          if (error) {
+            return console.log(error);
+          }
+          console.log("Message sent: %s", info.messageId);
+        });
+      }
+    }
+  );
+}
 export default {
   getMailConfig,
   addMailConfig,
@@ -366,4 +413,5 @@ export default {
   sendCustomerLoginsMail,
   sendProfileUpdateEmail,
   sendUserOrderStatusEmail,
+  sendUserForgotCodeEmail
 } as const;

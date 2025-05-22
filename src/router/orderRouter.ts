@@ -4,6 +4,16 @@ import { Router } from "express";
 
 const orderRouter = Router();
 
+orderRouter.get(
+  Paths.Orders.BookedTimeSlots,
+  OrderController.getBookedTimeSlots
+);
+
+orderRouter.get(
+  Paths.Orders.BookingDetails,
+  OrderController.getBookingDetails
+);
+
 // Get all orders
 orderRouter.post(Paths.Orders.Get, OrderController.getAll);
 
@@ -79,6 +89,5 @@ orderRouter.post(
   Paths.Orders.StripeCheckout,
   OrderController.stripeCheckout
 );
-
 
 export default orderRouter;

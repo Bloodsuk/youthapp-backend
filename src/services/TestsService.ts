@@ -6,6 +6,7 @@ import { ResultSetHeader, RowDataPacket } from "mysql2";
 import { LIMIT } from "@src/constants/pagination";
 import { empty, getTotalCount } from "@src/util/misc";
 import { UserLevels } from "@src/constants/enums";
+import { ISessionUser } from "@src/interfaces/ISessionUser";
 
 // **** Variables **** //
 
@@ -19,11 +20,15 @@ export const NOT_FOUND_ERR = "Test not found";
 interface IGetResponse<T> {
   data: T[];
   total: number;
+  prices?: any
 }
 
-async function getAll(page: number = 1, search: string = "", cate_id: string = "", practitioner_id: string = "", user_level: string = ""): Promise<IGetResponse<ITest>> {
+async function getAll(page: number = 1, search: string = "", cate_id: string = "", practitioner_id: string = "", user_level: string = "", sort: string = ""): Promise<IGetResponse<ITest>> {
   const joinColumns =
-    ", CONCAT(u1.first_name, ' ', u1.last_name) as practitioner_name, tc.customer_cost as practitioner_customer_cost";
+    `,
+    CONCAT(u1.first_name, ' ', u1.last_name) as practitioner_name,
+    tc.customer_cost as practitioner_customer_cost
+  `;
   const join = ` LEFT JOIN users u1 ON (u1.id = tests.practitioner_id)
                  LEFT JOIN tests_cost_by_practitioner tc ON (tc.tests_id = tests.id And tc.practitioner_id = tests.practitioner_id)`;
 
@@ -46,7 +51,10 @@ async function getAll(page: number = 1, search: string = "", cate_id: string = "
     sql += searchSql;
   }
 
-  sql += ` ORDER BY id DESC ${pagination}`;
+  // Determine sorting order - alphabetical or default by ID
+  const sortOrder = sort === 'alpha' ? 'ORDER BY tests.test_name ASC' : 'ORDER BY id DESC';
+
+  sql += ` ${sortOrder} ${pagination}`;
 
   const [rows] = await pool.query<RowDataPacket[]>(sql);
   const allTests = rows.map((test) => {
@@ -54,8 +62,14 @@ async function getAll(page: number = 1, search: string = "", cate_id: string = "
   });
 
   const total = await getTotalCount(pool, 'tests', `WHERE 1 ${searchSql}`);
+  const allTestId = [];
+  for (const test of allTests) {
+    allTestId.push(test.id);
+  }
+  const sqlForGetPractitionerPrice = `SELECT * FROM practitioner_test_price where test_id in (${allTestId.join(",")})`;
+  const [rowsForGetPractitionerPrice] = await pool.query<RowDataPacket[]>(sqlForGetPractitionerPrice);
 
-  return { data: allTests, total };
+  return { data: allTests, total, prices: rowsForGetPractitionerPrice };
 }
 
 /**
@@ -63,9 +77,11 @@ async function getAll(page: number = 1, search: string = "", cate_id: string = "
  * @param practitioner_id 
  * @param page 
  * @param search 
+ * @param cate_id
+ * @param sort - sorting option ('alpha' for alphabetical, default is by ID)
  * @returns 
  */
-async function getPractitionerTest(practitioner_id: number, page: number = 1, search: string = "", cate_id: string = ""): Promise<IGetResponse<ITest>> {
+async function getPractitionerTest(practitioner_id: number, page: number = 1, search: string = "", cate_id: string = "", sort: string = ""): Promise<IGetResponse<ITest>> {
   const joinColumns =
     ", CONCAT(u1.first_name, ' ', u1.last_name) as practitioner_name, tc.customer_cost as practitioner_customer_cost";
   const join = ` LEFT JOIN users u1 ON (u1.id = tests.practitioner_id)
@@ -74,7 +90,7 @@ async function getPractitionerTest(practitioner_id: number, page: number = 1, se
                  `;
 
   const pagination = `LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}`;
- 
+
   let sql = `
   SELECT 
   tests.id, 
@@ -140,17 +156,31 @@ WHERE
     sql += searchSql;
   }
 
-  sql += ` group by tests.id ORDER BY id DESC ${pagination}`;
-console.log("sql ----------- ", sql);
+  // Determine sorting order - alphabetical or default by ID
+  const sortOrder = sort === 'alpha' ? 'ORDER BY tests.test_name ASC' : 'ORDER BY id DESC';
+
+  sql += ` group by tests.id ${sortOrder} ${pagination}`;
+  console.log("sql ----------- ", sql);
 
   const [rows] = await pool.query<RowDataPacket[]>(sql);
   const allTests = rows.map((test) => {
     return test as ITest;
   });
 
+  let prices = [];
+  if(practitioner_id) {
+    const sqlForGetPractitionerPrice = `SELECT * FROM practitioner_test_price where practitioner_id = ${practitioner_id}`;
+    const [rowsForGetPractitionerPrice] = await pool.query<RowDataPacket[]>(sqlForGetPractitionerPrice);
+    prices = rowsForGetPractitionerPrice;
+  } else {
+    const sqlForGetPractitionerPrice = `SELECT * FROM practitioner_test_price`;
+    const [rowsForGetPractitionerPrice] = await pool.query<RowDataPacket[]>(sqlForGetPractitionerPrice);
+    prices = rowsForGetPractitionerPrice;
+  }
+
   const total = await getTotalCount(pool, 'tests', `WHERE (tests.practitioner_id IS NULL OR tests.practitioner_id = 0 OR tests.practitioner_id = ${practitioner_id}) ${searchSql}`);
 
-  return { data: allTests, total };
+  return { data: allTests, total, prices };
 }
 
 /**
@@ -160,7 +190,7 @@ console.log("sql ----------- ", sql);
  * @param search 
  * @returns 
  */
-async function getCustomerTest(customer_id: number, page: number = 1, search: string = "", cate_id: string = "", practitioner_id: number = 0): Promise<IGetResponse<ITest>> {
+async function getCustomerTest(customer_id: number, page: number = 1, search: string = "", cate_id: string = "", practitioner_id: number = 0, sort: string = ""): Promise<IGetResponse<ITest>> {
   const joinColumns =
     ", CONCAT(u1.first_name, ' ', u1.last_name) as practitioner_name, tc.customer_cost as practitioner_customer_cost";
   const join = ` LEFT JOIN users u1 ON (u1.id = tests.practitioner_id)
@@ -172,7 +202,7 @@ async function getCustomerTest(customer_id: number, page: number = 1, search: st
   // (CASE When tc.customer_cost IS Not NULL then tc.customer_cost When tc.customer_cost = 0
   //   then tests.cost Else tests.cost end) as practitioner_customer_cost
   console.log("practitioner_id ---------- ", practitioner_id);
-  
+
   let sql = `
   SELECT 
   tests.id, 
@@ -238,7 +268,8 @@ WHERE
     sql += searchSql;
   }
 
-  sql += ` group by tests.id ORDER BY id DESC ${pagination}`;
+  const sortOrder = sort === 'alpha' ? 'ORDER BY tests.test_name ASC' : 'ORDER BY id DESC';
+  sql += ` group by tests.id ${sortOrder} ${pagination}`;
 
   const [rows] = await pool.query<RowDataPacket[]>(sql);
   const allTests = rows.map((test) => {
@@ -254,6 +285,7 @@ WHERE
  * Get one test.
  */
 async function getOne(id: number): Promise<ITest> {
+  // Get the test details
   const [rows] = await pool.query<RowDataPacket[]>(
     "SELECT * FROM tests WHERE id = ?",
     [id]
@@ -268,7 +300,7 @@ async function getOne(id: number): Promise<ITest> {
 /**
  * Add one test.
  */
-async function addOne(test: Partial<ITest>): Promise<number> {
+async function addOne(test: Partial<ITest>, userData: ISessionUser): Promise<number> {
   const data = {
     test_name: test.test_name || '',
     cate_id: test.cate_id || '',
@@ -280,8 +312,40 @@ async function addOne(test: Partial<ITest>): Promise<number> {
     discount_type: test.discount_type || '',
     cost: test.cost || '',
     customer_cost: test.customer_cost || '',
+    //
+    product_model: test.product_model || '',
+    procedure: test.procedure || '',
+    product_description: test.product_description || '',
+    side_effects: test.side_effects || '',
+    weights: test.weights || '',
+    brand_id: test.brand_id || 0,
+    sort_id: test.sort_id || 0,
+    meta_title: test.meta_title || '',
+    meta_keyword: test.meta_keyword || '',
+    meta_description: test.meta_description || '',
+    added_on: test.added_on || '',
+    last_updatedon: test.last_updatedon || '',
+    added_by: test.added_by || userData.id || 0,
+    image_url: test.image_url || '',
+    image_banner: test.image_banner || '',
+    banner_link: test.banner_link || '',
+    prd_type: test.prd_type || '',
   };
   const [result3] = await pool.query<ResultSetHeader>("INSERT INTO tests SET ?", data);
+  const test_id = result3.insertId;
+
+  if (test_id && test.practitioner_prices && test.practitioner_prices.length > 0) {
+    for (const item of test.practitioner_prices) {
+      // insert data into practitioner_test_price table
+      const data = {
+        practitioner_id: item.practitioner_id,
+        price: item.price,
+        test_id: test_id
+      };
+
+      await pool.query<ResultSetHeader>("INSERT INTO practitioner_test_price SET ?", data);
+    }
+  }
   return result3.insertId;
 }
 
@@ -295,6 +359,7 @@ async function updateOne(
   let sql = "UPDATE tests SET ";
   const values = [];
   for (const key in test) {
+    if(key === 'practitioner_prices') continue;
     const value = test[key];
     sql += ` ${key}=?,`;
     values.push(value);
@@ -307,6 +372,19 @@ async function updateOne(
   if (result.affectedRows === 0) {
     throw new RouteError(HttpStatusCodes.NOT_FOUND, NOT_FOUND_ERR);
   }
+
+  // now update practitioner test prices, so first delete all existing prices and create the new one
+  await pool.query<ResultSetHeader>("DELETE FROM practitioner_test_price WHERE test_id = ?", [id]);
+  for (const item of test.practitioner_prices) {
+    const data = {
+      practitioner_id: item.practitioner_id,
+      price: item.price,
+      test_id: id
+    };
+
+    await pool.query<ResultSetHeader>("INSERT INTO practitioner_test_price SET ?", data);
+  }
+
   return true;
 }
 
@@ -344,7 +422,7 @@ async function activateDeactivate(
       ON DUPLICATE KEY UPDATE 
         is_active_for_clinic = VALUES(is_active_for_clinic);`
     const [result] = await pool.query<ResultSetHeader>(sql, [is_active, test_id, practitioner_id]);
-    
+
     if (result.affectedRows === 0) {
       throw new RouteError(HttpStatusCodes.NOT_FOUND, NOT_FOUND_ERR);
     }
@@ -356,7 +434,7 @@ async function activateDeactivate(
       throw new RouteError(HttpStatusCodes.NOT_FOUND, NOT_FOUND_ERR);
     }
   }
-  
+
   return true;
 }
 

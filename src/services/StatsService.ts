@@ -18,8 +18,8 @@ async function getAll(sessionUser: ISessionUser) {
   const practitioner_id = isPractitioner ? sessionUser.id : sessionUser.practitioner_id;
   let where = '';
   // let clinic_where = '';
-  const pending_check = " AND status NOT IN ('Complete', 'Results Published', 'Explanation Published', 'Failed')";
-  const complete_check = " AND status IN ('Complete', 'Results Published', 'Explanation Published')";
+  const pending_check = " AND status NOT IN ('Complete', 'Results Published', 'Result Published', 'Explanation Published', 'Failed')";
+  const complete_check = " AND status IN ('Complete', 'Results Published', 'Result Published', 'Explanation Published')";
   const failed_ignore = " AND status !='Failed'";
 
   if (user_id > 1 && !isAdmin) {
@@ -37,7 +37,7 @@ async function getAll(sessionUser: ISessionUser) {
 
   // Get pending users (status = 0)
   const [pending_users_result] = await pool.query<RowDataPacket[]>("SELECT COUNT(id) as pending_users FROM users WHERE status = 0");
-  const pending_users =  pending_users_result[0]['pending_users'] || 0;
+  const pending_users = pending_users_result[0]['pending_users'] || 0;
 
   let total_customers_sql = "SELECT COUNT(id) as total_customers from customers Where 1"
   if (isPractitioner && practitioner_id) {
@@ -45,7 +45,7 @@ async function getAll(sessionUser: ISessionUser) {
   }
   if (isModerator && user_id) {
     const [clinic] = await pool.query<RowDataPacket[]>("SELECT practitioner_id from users Where id = " + user_id)
-    const clinic_practitioner_id = clinic?.length ? clinic[0]?.practitioner_id :  0;
+    const clinic_practitioner_id = clinic?.length ? clinic[0]?.practitioner_id : 0;
     if (clinic_practitioner_id) total_customers_sql += " And created_by = " + clinic_practitioner_id
   }
   const [total_customers] = await pool.query<RowDataPacket[]>(total_customers_sql)
@@ -55,7 +55,7 @@ async function getAll(sessionUser: ISessionUser) {
   const tests = total_tests[0]['total_tests'] || 0;
   const total_orders_q = "SELECT COUNT(id) as total_orders from orders Where 1" + where + failed_ignore;
   const [total_orders] = await pool.query<RowDataPacket[]>(total_orders_q);
-  const orders =  total_orders[0]['total_orders'] || 0;
+  const orders = total_orders[0]['total_orders'] || 0;
 
   let u_pending_q = "";
   let user_pending_orders: RowDataPacket[];
@@ -66,19 +66,19 @@ async function getAll(sessionUser: ISessionUser) {
   if (!isCustomer) {
     u_pending_q = "SELECT COUNT(id) as total_pending from orders Where 1" + where + pending_check;
     [user_pending_orders] = await pool.query<RowDataPacket[]>(u_pending_q);
-    up_orders =  user_pending_orders[0]['total_pending'] || 0;
+    up_orders = user_pending_orders[0]['total_pending'] || 0;
 
     u_complete_q = "SELECT COUNT(id) as total_complete from orders Where 1" + where + complete_check;
     [user_complete_orders] = await pool.query<RowDataPacket[]>(u_complete_q);
-    uc_orders =  user_complete_orders[0]['total_complete'] || 0;
+    uc_orders = user_complete_orders[0]['total_complete'] || 0;
   } else {
     u_pending_q = "SELECT COUNT(id) as total_pending from orders Where customer_id = " + user_id + pending_check;
     [user_pending_orders] = await pool.query<RowDataPacket[]>(u_pending_q);
-    up_orders =  user_pending_orders[0]['total_pending'] || 0;
+    up_orders = user_pending_orders[0]['total_pending'] || 0;
 
     u_complete_q = "SELECT COUNT(id) as total_complete from orders Where customer_id = " + user_id + complete_check;
     [user_complete_orders] = await pool.query<RowDataPacket[]>(u_complete_q);
-    uc_orders =  user_complete_orders[0]['total_complete'] || 0;
+    uc_orders = user_complete_orders[0]['total_complete'] || 0;
   }
 
   let cus_active_orders: RowDataPacket[] = [];
@@ -89,13 +89,13 @@ async function getAll(sessionUser: ISessionUser) {
 
   if (isCustomer) {
     [cus_active_orders] = await pool.query<RowDataPacket[]>(
-      "SELECT order_id,status from orders where customer_id = " + user_id + " AND status NOT IN ('Pending Validation', 'Complete', 'Ready', 'Received at the Lab', 'Shipped', 'Results Published', 'Explanation Published', 'Failed')"
+      "SELECT order_id,status from orders where customer_id = " + user_id + " AND status NOT IN ('Pending Validation', 'Complete', 'Ready', 'Received at the Lab', 'Received at Lab', 'Shipped', 'Results Published', 'Result Published', 'Explanation Published', 'Failed')"
     );
     [shipped_active_orders] = await pool.query<RowDataPacket[]>(
-      "SELECT order_id,status from orders where customer_id = " + user_id + " AND status NOT IN ('Pending Validation', 'Complete', 'Ready', 'Received at the Lab', 'Started', 'Results Published', 'Explanation Published', 'Failed')"
+      "SELECT order_id,status from orders where customer_id = " + user_id + " AND status NOT IN ('Pending Validation', 'Complete', 'Ready', 'Received at the Lab', 'Received at Lab', 'Started', 'Results Published', 'Result Published', 'Explanation Published', 'Failed')"
     );
     [lab_active_orders] = await pool.query<RowDataPacket[]>(
-      "SELECT order_id,status from orders where customer_id = " + user_id + " AND status IN ('Received at the Lab')"
+      "SELECT order_id,status from orders where customer_id = " + user_id + " AND status IN ('Received at the Lab', 'Received at Lab')"
     );
     [val_active_orders] = await pool.query<RowDataPacket[]>(
       "SELECT order_id,status from orders where customer_id = " + user_id + " AND status IN ('Pending Validation')"
@@ -106,17 +106,17 @@ async function getAll(sessionUser: ISessionUser) {
     const thisWeek = "SELECT order_id, status FROM orders WHERE customer_id = " + user_id + " AND created_at >= '" + last_week + "'";
 
     // Execute the query
-    [thisWeek_active_orders]  = await pool.query<RowDataPacket[]>(thisWeek);
+    [thisWeek_active_orders] = await pool.query<RowDataPacket[]>(thisWeek);
   }
   if (!isModerator && !isCustomer && !isAdmin) {
     [cus_active_orders] = await pool.query<RowDataPacket[]>(
-      "SELECT order_id,status from orders where created_by = " + user_id + " AND status NOT IN ('Pending Validation', 'Complete', 'Ready', 'Received at the Lab', 'Shipped', 'Results Published', 'Explanation Published', 'Failed')"
+      "SELECT order_id,status from orders where created_by = " + user_id + " AND status NOT IN ('Pending Validation', 'Complete', 'Ready', 'Received at the Lab', 'Received at Lab', 'Shipped', 'Results Published', 'Result Published', 'Explanation Published', 'Failed')"
     );
     [shipped_active_orders] = await pool.query<RowDataPacket[]>(
-      "SELECT order_id,status from orders where created_by = " + user_id + " AND status NOT IN ('Pending Validation', 'Complete', 'Ready', 'Received at the Lab', 'Started', 'Results Published', 'Explanation Published', 'Failed')"
+      "SELECT order_id,status from orders where created_by = " + user_id + " AND status NOT IN ('Pending Validation', 'Complete', 'Ready', 'Received at the Lab', 'Received at Lab', 'Started', 'Results Published', 'Result Published', 'Explanation Published', 'Failed')"
     );
     [lab_active_orders] = await pool.query<RowDataPacket[]>(
-      "SELECT order_id,status from orders where created_by = " + user_id + " AND status IN ('Received at the Lab')"
+      "SELECT order_id,status from orders where created_by = " + user_id + " AND status IN ('Received at Lab', 'Received at the Lab')"
     );
     [val_active_orders] = await pool.query<RowDataPacket[]>(
       "SELECT order_id,status from orders where created_by = " + user_id + " AND status IN ('Pending Validation')"
@@ -127,17 +127,17 @@ async function getAll(sessionUser: ISessionUser) {
     const thisWeek = "SELECT order_id, status FROM orders WHERE created_by = " + user_id + " AND created_at >= '" + last_week + "'";
 
     // Execute the query
-    [thisWeek_active_orders]  = await pool.query<RowDataPacket[]>(thisWeek);
+    [thisWeek_active_orders] = await pool.query<RowDataPacket[]>(thisWeek);
   }
   if (isAdmin) {
     [cus_active_orders] = await pool.query<RowDataPacket[]>(
-      "SELECT order_id,status from orders where status NOT IN ('Pending Validation', 'Complete', 'Ready', 'Received at the Lab', 'Shipped', 'Results Published', 'Explanation Published', 'Failed')"
+      "SELECT order_id,status from orders where status NOT IN ('Pending Validation', 'Complete', 'Ready', 'Received at the Lab', 'Received at Lab', 'Shipped', 'Results Published', 'Result Published', 'Explanation Published', 'Failed')"
     );
     [shipped_active_orders] = await pool.query<RowDataPacket[]>(
-      "SELECT order_id,status from orders where status NOT IN ('Pending Validation', 'Complete', 'Ready', 'Received at the Lab', 'Started', 'Results Published', 'Explanation Published', 'Failed')"
+      "SELECT order_id,status from orders where status NOT IN ('Pending Validation', 'Complete', 'Ready', 'Received at the Lab', 'Received at Lab', 'Started', 'Results Published', 'Result Published', 'Explanation Published', 'Failed')"
     );
     [lab_active_orders] = await pool.query<RowDataPacket[]>(
-      "SELECT order_id,status from orders where status IN ('Received at the Lab')"
+      "SELECT order_id,status from orders where status IN ('Received at Lab', 'Received at the Lab')"
     );
     [val_active_orders] = await pool.query<RowDataPacket[]>(
       "SELECT order_id,status from orders where status IN ('Pending Validation')"
@@ -148,10 +148,10 @@ async function getAll(sessionUser: ISessionUser) {
     const thisWeek = "SELECT order_id, status FROM orders WHERE  created_at >= '" + last_week + "'";
 
     // Execute the query
-    [thisWeek_active_orders]  = await pool.query<RowDataPacket[]>(thisWeek);
+    [thisWeek_active_orders] = await pool.query<RowDataPacket[]>(thisWeek);
   }
   return {
-    users: { 
+    users: {
       active_users,
       pending_users
     },

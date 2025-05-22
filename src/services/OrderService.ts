@@ -11,6 +11,7 @@ import { ICustomer } from "@src/interfaces/ICustomer";
 import MailService from "./MailService";
 import { LIMIT } from "@src/constants/pagination";
 import { IPractitionerCommission } from "@src/interfaces/IPractitionerCommission";
+import { IBooking } from "@src/interfaces/IBooking";
 
 // **** Variables **** //
 
@@ -52,7 +53,7 @@ async function getAll(
       params.push(user_id);
     } else if (user_level === UserLevels.Practitioner) {
       whereClauses.push(
-        "(orders.created_by = ? OR (orders.created_by = 1 AND orders.practitioner_id = ?))"
+        "(orders.created_by = ? OR orders.practitioner_id = ?)"
       );
       params.push(user_id, user_id);
     } else {
@@ -62,16 +63,14 @@ async function getAll(
   }
 
   if (status && !empty(status)) {
-    whereClauses.push("orders.status = ?");
-    params.push(status);
-    // if (status === "Pending Validation") {
-    //   whereClauses.push("orders.status IN ('Pending Validation', 'Complete')");
-    // } else if (status === "Received at the Lab") {
-    //   whereClauses.push("orders.status IN ('Ready', 'Received at the Lab')");
-    // } else {
-    //   whereClauses.push("orders.status = ?");
-    //   params.push(status);
-    // }
+    if (status === "Results Published" || status === "Result Published") {
+      whereClauses.push("orders.status IN ('Results Published', 'Result Published')");
+    } else if (status === "Received at the Lab" || status === "Received at Lab") {
+      whereClauses.push("orders.status IN ('Received at Lab', 'Received at the Lab')");
+    } else {
+      whereClauses.push("orders.status = ?");
+      params.push(status);
+    }
   } else {
     whereClauses.push("orders.status != 'Failed'");
   }
@@ -180,16 +179,14 @@ async function getAllCustomerOrder(
   params.push(customer_id);
 
   if (status && !empty(status)) {
-    whereClauses.push("orders.status = ?");
-    params.push(status);
-    // if (status === "Pending Validation") {
-    //   whereClauses.push("orders.status IN ('Pending Validation', 'Complete')");
-    // } else if (status === "Received at the Lab") {
-    //   whereClauses.push("orders.status IN ('Ready', 'Received at the Lab')");
-    // } else {
-    //   whereClauses.push("orders.status = ?");
-    //   params.push(status);
-    // }
+    if (status === "Results Published" || status === "Result Published") {
+      whereClauses.push("orders.status IN ('Results Published', 'Result Published')");
+    } else if (status === "Received at the Lab" || status === "Received at Lab") {
+      whereClauses.push("orders.status IN ('Received at Lab', 'Received at the Lab')");
+    } else {
+      whereClauses.push("orders.status = ?");
+      params.push(status);
+    }
   } else {
     whereClauses.push("orders.status != 'Failed'");
   }
@@ -326,7 +323,7 @@ async function getPractitionersCommission(
   if (practitioner_id) {
     where += ` AND practitioner_commission.practitioner_id = ${practitioner_id} `
   }
-  
+
   if (paid_status?.toLowerCase() == "paid") {
     where += ` AND is_paid = 1 `
   }
@@ -392,7 +389,7 @@ async function getPractitionerOutstandingCredits(
     where += ` And is_paid = 0 `
   }
   if (search && !empty(search)) {
-    where += ` AND (tests.test_name LIKE '%${search}%' OR orders.client_name LIKE '%${search}%' OR practitioner_commission.order_id LIKE '%${search}%')`;  
+    where += ` AND (tests.test_name LIKE '%${search}%' OR orders.client_name LIKE '%${search}%' OR practitioner_commission.order_id LIKE '%${search}%')`;
   }
   const sql = `
   SELECT 
@@ -458,7 +455,7 @@ async function getOne(id: number): Promise<IOrder> {
 /**
  * Add one order.
  */
-async function addOne(order: Record<string, any>): Promise<number> {
+async function addOne(order: Record<string, any>, booking: Record<string, any>): Promise<number> {
   const [result] = await pool.query<ResultSetHeader>(
     "INSERT INTO orders SET ?",
     order
@@ -474,6 +471,20 @@ async function addOne(order: Record<string, any>): Promise<number> {
     await pool.query(
       `UPDATE users SET total_credit_balance = total_credit_balance - ${order.total_val} WHERE id=${order.created_by}`
     );
+
+    if (booking) {
+
+      // booking_date	booking_time	order_id	user_id	date_created
+      const bookingData = {
+        booking_date: booking.booking_date,
+        booking_time: booking.booking_time,
+        order_id: order.order_id,
+        user_id: order.customer_id,
+      }
+
+      await pool.query<ResultSetHeader>("INSERT INTO bookings_listing SET ?", bookingData);
+    }
+
   }
   return result.insertId;
 }
@@ -602,6 +613,32 @@ async function markPaidPractitionersCommission(commission_ids: number[]): Promis
   return true;
 }
 
+async function getBookedTimeSlots(
+  date: string,
+): Promise<IGetResponse<IBooking>> {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT * FROM bookings_listing WHERE booking_date = ?",
+    [date]
+  );
+  return {
+    data: rows.map((row) => row as IBooking),
+    total: rows.length,
+  };
+}
+
+async function getBookingDetails(
+  order_id: string,
+): Promise<IGetResponse<IBooking>> {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT * FROM bookings_listing WHERE order_id = ?",
+    [order_id]
+  );
+  return {
+    data: rows.map((row) => row as IBooking),
+    total: rows.length,
+  };
+}
+
 // **** Export default **** //
 
 export default {
@@ -617,4 +654,6 @@ export default {
   delete: _delete,
   markPaid,
   markPaidPractitionersCommission,
+  getBookedTimeSlots,
+  getBookingDetails,
 } as const;
