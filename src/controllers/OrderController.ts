@@ -13,10 +13,6 @@ import { mt_rand } from "@src/util/misc";
 import moment from "moment";
 import UserService from "@src/services/UserService";
 
-const stripe = new Stripe(
-  "sk_test_51IG3cNJAdLfZdFr6JEamduNF0mCX3TEJLCluriuzCQXOjY2thxyEnSO1b9n47qpqAOY1ZhYiR5dzda127qAUpFAk000U64Js7j"
-);
-
 // **** Functions **** //
 
 /**
