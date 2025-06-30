@@ -94,7 +94,8 @@ async function getPractitionerTest(practitioner_id: number, page: number = 1, se
   let sql = `
   SELECT 
   tests.id, 
-  tests.test_name, 
+  tests.test_name,
+  ANY_VALUE(tad.is_active_for_clinic) as is_active_for_clinic,
   tests.cate_id, 
   tests.product_model, 
   tests.test_sku, 
@@ -168,7 +169,7 @@ WHERE
   });
 
   let prices = [];
-  if(practitioner_id) {
+  if (practitioner_id) {
     const sqlForGetPractitionerPrice = `SELECT * FROM practitioner_test_price where practitioner_id = ${practitioner_id}`;
     const [rowsForGetPractitionerPrice] = await pool.query<RowDataPacket[]>(sqlForGetPractitionerPrice);
     prices = rowsForGetPractitionerPrice;
@@ -206,7 +207,8 @@ async function getCustomerTest(customer_id: number, page: number = 1, search: st
   let sql = `
   SELECT 
   tests.id, 
-  tests.test_name, 
+  tests.test_name,
+  ANY_VALUE(tad.is_active_for_clinic) as is_active_for_clinic,
   tests.cate_id, 
   tests.product_model, 
   tests.test_sku, 
@@ -359,7 +361,7 @@ async function updateOne(
   let sql = "UPDATE tests SET ";
   const values = [];
   for (const key in test) {
-    if(key === 'practitioner_prices') continue;
+    if (key === 'practitioner_prices') continue;
     const value = test[key];
     sql += ` ${key}=?,`;
     values.push(value);
