@@ -30,4 +30,7 @@ export default {
     Host: process.env.DB_HOST ?? "",
     Database: process.env.DATABASE ?? "",
   },
+  Stripe: {
+    Secret: process.env.STRIPE_SECRET_KEY ?? "",
+  },
 } as const;

@@ -94,7 +94,8 @@ async function getPractitionerTest(practitioner_id: number, page: number = 1, se
   let sql = `
   SELECT 
   tests.id, 
-  tests.test_name, 
+  tests.test_name,
+  ANY_VALUE(tad.is_active_for_clinic) as is_active_for_clinic,
   tests.cate_id, 
   tests.product_model, 
   tests.test_sku, 
@@ -106,7 +107,7 @@ async function getPractitionerTest(practitioner_id: number, page: number = 1, se
   tests.price, 
   tests.cost, 
   tests.customer_cost,
-  tc.customer_cost AS practitioner_customer_cost, -- Practitioner cost if available, else default
+  ANY_VALUE(tc.customer_cost) AS practitioner_customer_cost, -- Practitioner cost if available, else default
   tests.discount_type, 
   tests.is_featured, 
   tests.product_unit, 
@@ -114,8 +115,8 @@ async function getPractitionerTest(practitioner_id: number, page: number = 1, se
   tests.brand_id, 
   tests.sort_id, 
   (CASE 
-     WHEN tad.is_active_for_clinic IS NULL THEN tests.status  -- Default test status if not found
-     WHEN tad.is_active_for_clinic = 1 THEN 'Active'
+     WHEN ANY_VALUE(tad.is_active_for_clinic) IS NULL THEN tests.status  -- Default test status if not found
+     WHEN ANY_VALUE(tad.is_active_for_clinic) = 1 THEN 'Active'
      ELSE 'Inactive' 
   END) AS status, 
   tests.template_type, 
@@ -135,8 +136,8 @@ async function getPractitionerTest(practitioner_id: number, page: number = 1, se
   tests.is_addon, 
   tests.created_at, 
   tests.practitioner_id,
-  u1.id AS cost_set_practitioner_id,
-  CONCAT(u1.first_name, ' ', u1.last_name) AS practitioner_name
+  ANY_VALUE(u1.id) AS cost_set_practitioner_id,
+  ANY_VALUE(CONCAT(u1.first_name, ' ', u1.last_name)) AS practitioner_name
 FROM tests
 LEFT JOIN tests_cost_by_practitioner tc ON (tc.tests_id = tests.id AND tc.practitioner_id = ${practitioner_id}) -- Join practitioner test cost
 LEFT JOIN tests_active_deactive tad ON (tad.test_id = tests.id AND tad.practitioner_id = ${practitioner_id}) -- Join active/deactive status
@@ -168,7 +169,7 @@ WHERE
   });
 
   let prices = [];
-  if(practitioner_id) {
+  if (practitioner_id) {
     const sqlForGetPractitionerPrice = `SELECT * FROM practitioner_test_price where practitioner_id = ${practitioner_id}`;
     const [rowsForGetPractitionerPrice] = await pool.query<RowDataPacket[]>(sqlForGetPractitionerPrice);
     prices = rowsForGetPractitionerPrice;
@@ -206,7 +207,8 @@ async function getCustomerTest(customer_id: number, page: number = 1, search: st
   let sql = `
   SELECT 
   tests.id, 
-  tests.test_name, 
+  tests.test_name,
+  ANY_VALUE(tad.is_active_for_clinic) as is_active_for_clinic,
   tests.cate_id, 
   tests.product_model, 
   tests.test_sku, 
@@ -218,7 +220,7 @@ async function getCustomerTest(customer_id: number, page: number = 1, search: st
   tests.price, 
   tests.cost, 
   tests.customer_cost,
-  tc.customer_cost AS practitioner_customer_cost, -- Practitioner cost if available, else default
+  ANY_VALUE(tc.customer_cost) AS practitioner_customer_cost, -- Practitioner cost if available, else default
   tests.discount_type, 
   tests.is_featured, 
   tests.product_unit, 
@@ -226,8 +228,8 @@ async function getCustomerTest(customer_id: number, page: number = 1, search: st
   tests.brand_id, 
   tests.sort_id, 
   (CASE 
-     WHEN tad.is_active_for_clinic IS NULL THEN tests.status  -- Default test status if not found
-     WHEN tad.is_active_for_clinic = 1 THEN 'Active'
+     WHEN ANY_VALUE(tad.is_active_for_clinic) IS NULL THEN tests.status  -- Default test status if not found
+     WHEN ANY_VALUE(tad.is_active_for_clinic) = 1 THEN 'Active'
      ELSE 'Inactive' 
   END) AS status, 
   tests.template_type, 
@@ -247,8 +249,8 @@ async function getCustomerTest(customer_id: number, page: number = 1, search: st
   tests.is_addon, 
   tests.created_at, 
   tests.practitioner_id,
-  u1.id AS cost_set_practitioner_id,
-  CONCAT(u1.first_name, ' ', u1.last_name) AS practitioner_name
+  ANY_VALUE(u1.id) AS cost_set_practitioner_id,
+  ANY_VALUE(CONCAT(u1.first_name, ' ', u1.last_name)) AS practitioner_name
 FROM tests
 LEFT JOIN customers c ON (c.id = ${customer_id})  -- Join customer details
 LEFT JOIN tests_cost_by_practitioner tc ON (tc.tests_id = tests.id AND tc.practitioner_id = ${practitioner_id}) -- Join practitioner test cost
@@ -359,7 +361,7 @@ async function updateOne(
   let sql = "UPDATE tests SET ";
   const values = [];
   for (const key in test) {
-    if(key === 'practitioner_prices') continue;
+    if (key === 'practitioner_prices') continue;
     const value = test[key];
     sql += ` ${key}=?,`;
     values.push(value);

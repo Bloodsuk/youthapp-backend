@@ -12,10 +12,9 @@ import { IReq, IRes } from "@src/types/express/misc";
 import { mt_rand } from "@src/util/misc";
 import moment from "moment";
 import UserService from "@src/services/UserService";
+import EnvVars from '@src/constants/EnvVars';
 
-const stripe = new Stripe(
-  "sk_test_51IG3cNJAdLfZdFr6JEamduNF0mCX3TEJLCluriuzCQXOjY2thxyEnSO1b9n47qpqAOY1ZhYiR5dzda127qAUpFAk000U64Js7j"
-);
+const stripe = new Stripe(EnvVars.Stripe.Secret);
 
 // **** Functions **** //
 
