@@ -13,6 +13,7 @@ import { mt_rand } from "@src/util/misc";
 import moment from "moment";
 import UserService from "@src/services/UserService";
 import EnvVars from '@src/constants/EnvVars';
+import ExtraDiscountService from "@src/services/ExtraDiscountService";
 
 const stripe = new Stripe(EnvVars.Stripe.Secret);
 
@@ -892,6 +893,36 @@ async function getBookingDetails(req: IReq<{ order_id: string }>, res: IRes) {
   }
 }
 
+/**
+ * Get practitioner IDs from extra_discount_to_users table
+ */
+async function getExtraDiscountPractitionerIds(req: IReq, res: IRes) {
+  try {
+    const practitionerIds = await ExtraDiscountService.getPractitionerIds();
+    return res.status(HttpStatusCodes.OK).json({ 
+      success: true,
+      practitioner_ids: practitionerIds 
+    });
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
 // **** Export default **** //
 
 export default {
@@ -913,4 +944,5 @@ export default {
   addPaymentMethod,
   getBookedTimeSlots,
   getBookingDetails,
+  getExtraDiscountPractitionerIds,
 } as const;

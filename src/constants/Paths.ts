@@ -128,6 +128,7 @@ export default {
     PaymentMethods: "/stripe/payment_methods",
     BookedTimeSlots: "/booked_time_slots",
     BookingDetails: "/booking_details",
+    GetExtraDiscountPractitionerIds: "/extra_discount_practitioners",
   },
   Tests: {
     Base: "/tests",

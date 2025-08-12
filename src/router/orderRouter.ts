@@ -14,6 +14,12 @@ orderRouter.get(
   OrderController.getBookingDetails
 );
 
+// Get practitioner IDs from extra_discount_to_users table
+orderRouter.get(
+  Paths.Orders.GetExtraDiscountPractitionerIds,
+  OrderController.getExtraDiscountPractitionerIds
+);
+
 // Get all orders
 orderRouter.post(Paths.Orders.Get, OrderController.getAll);
 
