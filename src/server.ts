@@ -24,6 +24,8 @@ import authorization from "./middleware/auth.middleware";
 
 // **** Variables **** //
 
+
+
 const app = express();
 
 // **** Setup **** //
