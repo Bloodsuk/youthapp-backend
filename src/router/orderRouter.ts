@@ -14,7 +14,7 @@ orderRouter.get(
   OrderController.getBookingDetails
 );
 
-// Get practitioner IDs from extra_discount_to_users table
+// Get practitioner IDs from extra_discount_to_users table (no auth required for testing)
 orderRouter.get(
   Paths.Orders.GetExtraDiscountPractitionerIds,
   OrderController.getExtraDiscountPractitionerIds

@@ -22,7 +22,15 @@ async function getPractitionerIds(): Promise<number[]> {
       "SELECT practitioner_id FROM extra_discount_to_users ORDER BY created_at DESC"
     );
     
-    return rows.map((row) => row.practitioner_id);
+    const practitionerIds = rows.map((row) => {
+      const id = parseInt(row.practitioner_id);
+      if (isNaN(id)) {
+        return null;
+      }
+      return id;
+    }).filter(id => id !== null);
+    
+    return practitionerIds as number[];
   } catch (error) {
     throw new RouteError(
       HttpStatusCodes.INTERNAL_SERVER_ERROR,
@@ -40,11 +48,13 @@ async function getAllExtraDiscountUsers(): Promise<IExtraDiscountUser[]> {
       "SELECT id, practitioner_id, created_at FROM extra_discount_to_users ORDER BY created_at DESC"
     );
     
-    return rows.map((row) => ({
-      id: row.id,
-      practitioner_id: row.practitioner_id,
+    const users = rows.map((row) => ({
+      id: parseInt(row.id),
+      practitioner_id: parseInt(row.practitioner_id),
       created_at: row.created_at,
     })) as IExtraDiscountUser[];
+    
+    return users;
   } catch (error) {
     throw new RouteError(
       HttpStatusCodes.INTERNAL_SERVER_ERROR,
