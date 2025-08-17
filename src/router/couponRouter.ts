@@ -2,6 +2,7 @@ import Paths from "@src/constants/Paths";
 import CouponController from "@src/controllers/CouponController";
 import { Router } from "express";
 import jetValidator from "jet-validator/lib/jet-validator";
+import authorization from "@src/middleware/auth.middleware";
 
 const validate = jetValidator();
 
@@ -33,9 +34,30 @@ couponsRouter.delete(
 // Validate Coupon code and Get Discount rate
 couponsRouter.post(
   Paths.Coupons.GetDiscount,
+  authorization, // Require authentication
   validate(["discount_code", "string", "body"]),
   CouponController.getDiscount
 );
 
+// Get all users who have used a specific coupon
+couponsRouter.get(
+  Paths.Coupons.GetCouponUsers,
+  authorization,
+  CouponController.getCouponUsers
+);
+
+// Get all coupons used by a specific user
+couponsRouter.get(
+  Paths.Coupons.GetUserCoupons,
+  authorization,
+  CouponController.getUserCoupons
+);
+
+// Check if a user has used a specific coupon
+couponsRouter.get(
+  Paths.Coupons.CheckUserUsage,
+  authorization,
+  CouponController.checkUserCouponUsage
+);
 
 export default couponsRouter;

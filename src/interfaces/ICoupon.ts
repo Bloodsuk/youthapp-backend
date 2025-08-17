@@ -8,3 +8,10 @@ export interface ICoupon {
   used: number;
   created_on: string;
 }
+
+export interface IUserCouponUsage {
+  id: number;
+  user_id: number;
+  coupon_id: string;
+  used_at: string;
+}

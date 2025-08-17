@@ -99,29 +99,124 @@ async function _delete(couponId: number): Promise<void> {
 }
 
 /**
- * .
+ * Get coupon discount and record usage in a single atomic operation.
  */
-async function getDiscount(discount_code: string): Promise<{ value: number; type: number }> {
+async function getDiscount(discount_code: string, user_id?: number): Promise<{ value: number; type: number }> {
+  // Start transaction
+  const connection = await pool.getConnection();
+  
+  try {
+    await connection.beginTransaction();
+    
+    // 1. Get coupon details with FOR UPDATE to prevent race conditions
+    const [rows] = await connection.query<RowDataPacket[]>(
+      `SELECT * from coupons where coupon_id = ? FOR UPDATE`,
+      [discount_code]
+    );
+    
+    if (rows.length === 0) {
+      throw new RouteError(HttpStatusCodes.NOT_FOUND, "Wrong coupon code");
+    }
+    
+    const coupon = rows[0] as ICoupon;
+    const today = moment(new Date());
+    const expiry_date = moment(coupon["expiry_date"]);
+    const value = coupon["value"];
+    const type = coupon["type"];
+    const max_users = coupon["max_users"];
+    const used = coupon["used"];
+    
+    // 2. Validate coupon
+    if (today.isAfter(expiry_date, "d")) {
+      throw new RouteError(HttpStatusCodes.NOT_FOUND, "Coupon Expired");
+    }
+    if (max_users <= used) {
+      throw new RouteError(HttpStatusCodes.NOT_FOUND, "Coupon Limit Reached");
+    }
+    
+    // 3. If user is authenticated, try to record usage (atomic operation)
+    if (user_id) {
+      try {
+        // Record usage in tracking table
+        await connection.query<ResultSetHeader>(
+          "INSERT INTO user_coupon_usage (user_id, coupon_id) VALUES (?, ?)",
+          [user_id, discount_code]
+        );
+        
+        // Update usage count in coupons table
+        await connection.query<ResultSetHeader>(
+          "UPDATE coupons SET used = used + 1 WHERE coupon_id = ?",
+          [discount_code]
+        );
+        
+      } catch (error: any) {
+        // Check if it's a duplicate key error (user already used this coupon)
+        if (error.code === 'ER_DUP_ENTRY') {
+          throw new RouteError(HttpStatusCodes.BAD_REQUEST, "You have already used this coupon");
+        }
+        throw error;
+      }
+    }
+    
+    await connection.commit();
+    return { value, type };
+    
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+/**
+ * Record that a user has used a coupon (kept for backward compatibility)
+ */
+async function recordCouponUsage(user_id: number, coupon_id: string): Promise<void> {
+  try {
+    await pool.query<ResultSetHeader>(
+      "INSERT INTO user_coupon_usage (user_id, coupon_id) VALUES (?, ?)",
+      [user_id, coupon_id]
+    );
+  } catch (error: any) {
+    if (error.code === 'ER_DUP_ENTRY') {
+      throw new RouteError(HttpStatusCodes.BAD_REQUEST, "You have already used this coupon");
+    }
+    throw new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error recording coupon usage: " + error);
+  }
+}
+
+/**
+ * Get all users who have used a specific coupon
+ */
+async function getCouponUsers(coupon_id: string): Promise<number[]> {
   const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT * from coupons where coupon_id = '${discount_code}'`
+    "SELECT user_id FROM user_coupon_usage WHERE coupon_id = ?",
+    [coupon_id]
   );
-  if (rows.length === 0) {
-    throw new RouteError(HttpStatusCodes.NOT_FOUND, "Wrong coupon code");
-  }
-  const coupon = rows[0] as ICoupon;
-  const today = moment(new Date());
-  const expiry_date = moment(coupon["expiry_date"]);
-  const value = coupon["value"];
-  const type = coupon["type"];
-  const max_users = coupon["max_users"];
-  const used = coupon["used"];
-  if (today.isAfter(expiry_date, "d")) {
-    throw new RouteError(HttpStatusCodes.NOT_FOUND, "Coupon Expired");
-  }
-  if (max_users <= used) {
-    throw new RouteError(HttpStatusCodes.NOT_FOUND, "Coupon Limit Reached");
-  }
-  return { value, type };
+  return rows.map(row => row.user_id);
+}
+
+/**
+ * Get all coupons used by a specific user
+ */
+async function getUserCoupons(user_id: number): Promise<string[]> {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT coupon_id FROM user_coupon_usage WHERE user_id = ?",
+    [user_id]
+  );
+  return rows.map(row => row.coupon_id);
+}
+
+/**
+ * Check if a user has used a specific coupon
+ */
+async function hasUserUsedCoupon(user_id: number, coupon_id: string): Promise<boolean> {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT 1 FROM user_coupon_usage WHERE user_id = ? AND coupon_id = ? LIMIT 1",
+    [user_id, coupon_id]
+  );
+  return rows.length > 0;
 }
 
 // **** Export default **** //
@@ -133,4 +228,8 @@ export default {
   updateOne,
   delete: _delete,
   getDiscount,
+  recordCouponUsage,
+  getCouponUsers,
+  getUserCoupons,
+  hasUserUsedCoupon,
 } as const;

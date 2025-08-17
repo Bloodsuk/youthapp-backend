@@ -150,6 +150,9 @@ export default {
     Update: "/update/:id",
     Delete: "/delete/:id",
     GetDiscount: "/discount_rate",
+    GetCouponUsers: "/:coupon_id/users",
+    GetUserCoupons: "/user/:user_id/coupons",
+    CheckUserUsage: "/user/:user_id/coupon/:coupon_id/usage",
   },
   Services: {
     Base: "/services",

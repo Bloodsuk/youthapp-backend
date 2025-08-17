@@ -131,15 +131,129 @@ async function delete_(req: IReq, res: IRes) {
 /**
  * Get coupon discount.
  */
-async function getDiscount(req: IReq<{ discount_code: string }>, res: IRes) {
-  const { discount_code } = req.body;
+async function getDiscount(req: IReq<{ discount_code: string; userData?: any }>, res: IRes) {
+  const { discount_code, userData } = req.body;
+  
   try {
-    const { type, value } = await CouponService.getDiscount(discount_code);
+    // Get user ID if user is authenticated
+    const userId = userData?.id;
+    
+    const { type, value } = await CouponService.getDiscount(discount_code, userId);
+    
     return res
       .status(HttpStatusCodes.OK)
       .json({
         type: type === 1 ? "Percent" : "Fixed",
         value: value,
+      })
+      .end();
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
+/**
+ * Get all users who have used a specific coupon
+ */
+async function getCouponUsers(req: IReq, res: IRes) {
+  const coupon_id = req.params.coupon_id;
+  try {
+    const users = await CouponService.getCouponUsers(coupon_id);
+    return res
+      .status(HttpStatusCodes.OK)
+      .json({
+        success: true,
+        coupon_id,
+        users,
+        count: users.length
+      })
+      .end();
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
+/**
+ * Get all coupons used by a specific user
+ */
+async function getUserCoupons(req: IReq, res: IRes) {
+  const user_id = parseInt(req.params.user_id);
+  try {
+    const coupons = await CouponService.getUserCoupons(user_id);
+    return res
+      .status(HttpStatusCodes.OK)
+      .json({
+        success: true,
+        user_id,
+        coupons,
+        count: coupons.length
+      })
+      .end();
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
+/**
+ * Check if a user has used a specific coupon
+ */
+async function checkUserCouponUsage(req: IReq, res: IRes) {
+  const user_id = parseInt(req.params.user_id);
+  const coupon_id = req.params.coupon_id;
+  try {
+    const hasUsed = await CouponService.hasUserUsedCoupon(user_id, coupon_id);
+    return res
+      .status(HttpStatusCodes.OK)
+      .json({
+        success: true,
+        user_id,
+        coupon_id,
+        has_used: hasUsed
       })
       .end();
   } catch (error) {
@@ -171,4 +285,7 @@ export default {
   update,
   delete: delete_,
   getDiscount,
+  getCouponUsers,
+  getUserCoupons,
+  checkUserCouponUsage,
 } as const;
