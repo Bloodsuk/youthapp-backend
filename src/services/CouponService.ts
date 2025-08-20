@@ -131,31 +131,22 @@ async function getDiscount(discount_code: string, user_id?: number): Promise<{ v
       throw new RouteError(HttpStatusCodes.NOT_FOUND, "Coupon Expired");
     }
     if (max_users <= used) {
-      throw new RouteError(HttpStatusCodes.NOT_FOUND, "Coupon Limit Reached");
+      throw new RouteError(HttpStatusCodes.NOT_FOUND, "Code Usage Limit Reached");
     }
     
-    // 3. If user is authenticated, try to record usage (atomic operation)
+    // 3. If user is authenticated, record usage (allow multiple uses)
     if (user_id) {
-      try {
-        // Record usage in tracking table
-        await connection.query<ResultSetHeader>(
-          "INSERT INTO user_coupon_usage (user_id, coupon_id) VALUES (?, ?)",
-          [user_id, discount_code]
-        );
-        
-        // Update usage count in coupons table
-        await connection.query<ResultSetHeader>(
-          "UPDATE coupons SET used = used + 1 WHERE coupon_id = ?",
-          [discount_code]
-        );
-        
-      } catch (error: any) {
-        // Check if it's a duplicate key error (user already used this coupon)
-        if (error.code === 'ER_DUP_ENTRY') {
-          throw new RouteError(HttpStatusCodes.BAD_REQUEST, "You have already used this coupon");
-        }
-        throw error;
-      }
+      // Record usage in tracking table (allow duplicates)
+      await connection.query<ResultSetHeader>(
+        "INSERT INTO user_coupon_usage (user_id, coupon_id) VALUES (?, ?)",
+        [user_id, discount_code]
+      );
+      
+      // Update usage count in coupons table
+      await connection.query<ResultSetHeader>(
+        "UPDATE coupons SET used = used + 1 WHERE coupon_id = ?",
+        [discount_code]
+      );
     }
     
     await connection.commit();
@@ -209,14 +200,14 @@ async function getUserCoupons(user_id: number): Promise<string[]> {
 }
 
 /**
- * Check if a user has used a specific coupon
+ * Check how many times a user has used a specific coupon
  */
-async function hasUserUsedCoupon(user_id: number, coupon_id: string): Promise<boolean> {
+async function getUserCouponUsageCount(user_id: number, coupon_id: string): Promise<number> {
   const [rows] = await pool.query<RowDataPacket[]>(
-    "SELECT 1 FROM user_coupon_usage WHERE user_id = ? AND coupon_id = ? LIMIT 1",
+    "SELECT COUNT(*) as count FROM user_coupon_usage WHERE user_id = ? AND coupon_id = ?",
     [user_id, coupon_id]
   );
-  return rows.length > 0;
+  return rows[0].count;
 }
 
 // **** Export default **** //
@@ -231,5 +222,5 @@ export default {
   recordCouponUsage,
   getCouponUsers,
   getUserCoupons,
-  hasUserUsedCoupon,
+  getUserCouponUsageCount,
 } as const;

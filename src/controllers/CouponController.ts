@@ -240,20 +240,20 @@ async function getUserCoupons(req: IReq, res: IRes) {
 }
 
 /**
- * Check if a user has used a specific coupon
+ * Check how many times a user has used a specific coupon
  */
 async function checkUserCouponUsage(req: IReq, res: IRes) {
   const user_id = parseInt(req.params.user_id);
   const coupon_id = req.params.coupon_id;
   try {
-    const hasUsed = await CouponService.hasUserUsedCoupon(user_id, coupon_id);
+    const usageCount = await CouponService.getUserCouponUsageCount(user_id, coupon_id);
     return res
       .status(HttpStatusCodes.OK)
       .json({
         success: true,
         user_id,
         coupon_id,
-        has_used: hasUsed
+        usage_count: usageCount
       })
       .end();
   } catch (error) {

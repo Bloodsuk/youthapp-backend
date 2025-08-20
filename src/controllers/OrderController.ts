@@ -4,6 +4,7 @@ import Stripe from "stripe";
 import { UserLevels } from "@src/constants/enums";
 import { RouteError } from "@src/other/classes";
 import CustomerService from "@src/services/CustomerService";
+import CouponService from "@src/services/CouponService";
 import OrderService from "@src/services/OrderService";
 import ServicesService from "@src/services/ServicesService";
 import ShippingsService from "@src/services/ShippingsService";
@@ -401,6 +402,7 @@ interface ICreditCheckoutReqBody {
   shipping_type: number;
   service_ids: number[];
   discount: number;
+  coupon_code?: string; // Optional coupon code for additional discount
   current_medication: string;
   last_trained: string;
   fasted: string;
@@ -422,6 +424,7 @@ async function creditCheckout(req: IReq<ICreditCheckoutReqBody>, res: IRes) {
     customer_id,
     test_ids,
     discount,
+    coupon_code,
     shipping_type,
     service_ids,
     current_medication,
@@ -477,8 +480,34 @@ async function creditCheckout(req: IReq<ICreditCheckoutReqBody>, res: IRes) {
       const service = await ServicesService.getOne(service_id);
       other_charges_total += service.value;
     }
+
+    // Calculate coupon discount if coupon_code is provided
+    let coupon_discount = 0;
+    if (coupon_code && coupon_code.trim()) {
+      try {
+        const { value: coupon_value, type: coupon_type } = await CouponService.getDiscount(
+          coupon_code.trim(),
+          res.locals.sessionUser.id
+        );
+        
+        // Calculate coupon discount based on type (1 = percentage, 0 = fixed amount)
+        if (coupon_type === 1) {
+          // Percentage discount
+          const subtotal_before_discount = cart_total + shipping_charges + other_charges_total;
+          coupon_discount = (subtotal_before_discount * coupon_value) / 100;
+        } else {
+          // Fixed amount discount
+          coupon_discount = coupon_value;
+        }
+      } catch (error) {
+        return res
+          .status(HttpStatusCodes.BAD_REQUEST)
+          .json({ success: false, error: error instanceof RouteError ? error.message : "Invalid coupon code" });
+      }
+    }
+
     const total_val =
-      cart_total + shipping_charges + other_charges_total - discount;
+      cart_total + shipping_charges + other_charges_total - discount - coupon_discount;
 
     const order_id = moment().format("YYMM") + `${mt_rand(55, 55555)}`;
     const order = {
@@ -499,6 +528,7 @@ async function creditCheckout(req: IReq<ICreditCheckoutReqBody>, res: IRes) {
       shipping_charges,
       other_charges_total,
       discount,
+      coupon_discount,
       total_val,
       current_medication,
       last_trained,
@@ -544,6 +574,7 @@ interface IStripeCheckoutReqBody {
   shipping_type: number;
   service_ids: number[];
   discount: number;
+  coupon_code?: string; // Optional coupon code for additional discount
   current_medication: string;
   last_trained: string;
   fasted: string;
@@ -565,6 +596,7 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
     customer_id,
     test_ids,
     discount,
+    coupon_code,
     shipping_type,
     service_ids,
     current_medication,
@@ -615,8 +647,34 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
       const service = await ServicesService.getOne(service_id);
       other_charges_total += service.value;
     }
+
+    // Calculate coupon discount if coupon_code is provided
+    let coupon_discount = 0;
+    if (coupon_code && coupon_code.trim()) {
+      try {
+        const { value: coupon_value, type: coupon_type } = await CouponService.getDiscount(
+          coupon_code.trim(),
+          res.locals.sessionUser.id
+        );
+        
+        // Calculate coupon discount based on type (1 = percentage, 0 = fixed amount)
+        if (coupon_type === 1) {
+          // Percentage discount
+          const subtotal_before_discount = cart_total + shipping_charges + other_charges_total;
+          coupon_discount = (subtotal_before_discount * coupon_value) / 100;
+        } else {
+          // Fixed amount discount
+          coupon_discount = coupon_value;
+        }
+      } catch (error) {
+        return res
+          .status(HttpStatusCodes.BAD_REQUEST)
+          .json({ success: false, error: error instanceof RouteError ? error.message : "Invalid coupon code" });
+      }
+    }
+
     const total_val =
-      cart_total + shipping_charges + other_charges_total - discount;
+      cart_total + shipping_charges + other_charges_total - discount - coupon_discount;
 
     console.log("total_val", total_val);
 
@@ -642,6 +700,7 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
       shipping_charges,
       other_charges_total,
       discount,
+      coupon_discount,
       total_val,
       current_medication,
       last_trained,
