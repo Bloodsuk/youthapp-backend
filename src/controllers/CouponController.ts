@@ -128,6 +128,8 @@ async function delete_(req: IReq, res: IRes) {
   }
 }
 
+
+
 /**
  * Get coupon discount.
  */
@@ -135,10 +137,8 @@ async function getDiscount(req: IReq<{ discount_code: string; userData?: any }>,
   const { discount_code, userData } = req.body;
   
   try {
-    // Get user ID if user is authenticated
-    const userId = userData?.id;
-    
-    const { type, value } = await CouponService.getDiscount(discount_code, userId);
+    // Validate coupon without consuming it
+    const { type, value } = await CouponService.validateCoupon(discount_code);
     
     return res
       .status(HttpStatusCodes.OK)

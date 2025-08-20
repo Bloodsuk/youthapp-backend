@@ -99,6 +99,38 @@ async function _delete(couponId: number): Promise<void> {
 }
 
 /**
+ * Validate coupon without consuming it (for discount calculation only).
+ */
+async function validateCoupon(discount_code: string): Promise<{ value: number; type: number }> {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT * from coupons where coupon_id = ?`,
+    [discount_code]
+  );
+  
+  if (rows.length === 0) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, "Wrong coupon code");
+  }
+  
+  const coupon = rows[0] as ICoupon;
+  const today = moment(new Date());
+  const expiry_date = moment(coupon["expiry_date"]);
+  const value = coupon["value"];
+  const type = coupon["type"];
+  const max_users = coupon["max_users"];
+  const used = coupon["used"];
+  
+  // Validate coupon
+  if (today.isAfter(expiry_date, "d")) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, "Coupon Expired");
+  }
+  if (max_users <= used) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, "Code Usage Limit Reached");
+  }
+  
+  return { value, type };
+}
+
+/**
  * Get coupon discount and record usage in a single atomic operation.
  */
 async function getDiscount(discount_code: string, user_id?: number): Promise<{ value: number; type: number }> {
@@ -218,6 +250,7 @@ export default {
   addOne,
   updateOne,
   delete: _delete,
+  validateCoupon,
   getDiscount,
   recordCouponUsage,
   getCouponUsers,
