@@ -592,6 +592,10 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
       .status(HttpStatusCodes.UNAUTHORIZED)
       .json({ success: false, error: "Unauthorized" });
   }
+  
+  console.log("stripeCheckout - userData:", res.locals.sessionUser);
+  console.log("stripeCheckout - request body:", req.body);
+  
   const {
     customer_id,
     test_ids,
@@ -629,7 +633,7 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
       //customer do not has a value for $_SESSION['practitioner_id']
       createdBy = res.locals.sessionUser.practitioner_id || 0; // Clinic's Practitioner
     }
-
+    
     let cart_total = 0;
     const testNames = [];
     const testPrices = [];
@@ -651,11 +655,14 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
     // Calculate coupon discount if coupon_code is provided
     let coupon_discount = 0;
     if (coupon_code && coupon_code.trim()) {
+      console.log("stripeCheckout - processing coupon:", coupon_code);
       try {
         const { value: coupon_value, type: coupon_type } = await CouponService.getDiscount(
           coupon_code.trim(),
           res.locals.sessionUser.id
         );
+        
+        console.log("stripeCheckout - coupon details:", { coupon_value, coupon_type });
         
         // Calculate coupon discount based on type (1 = percentage, 0 = fixed amount)
         if (coupon_type === 1) {
@@ -666,7 +673,10 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
           // Fixed amount discount
           coupon_discount = coupon_value;
         }
+        
+        console.log("stripeCheckout - calculated coupon discount:", coupon_discount);
       } catch (error) {
+        console.log("stripeCheckout - coupon error:", error);
         return res
           .status(HttpStatusCodes.BAD_REQUEST)
           .json({ success: false, error: error instanceof RouteError ? error.message : "Invalid coupon code" });
@@ -676,7 +686,14 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
     const total_val =
       cart_total + shipping_charges + other_charges_total - discount - coupon_discount;
 
-    console.log("total_val", total_val);
+    console.log("stripeCheckout - calculation breakdown:", {
+      cart_total,
+      shipping_charges,
+      other_charges_total,
+      discount,
+      coupon_discount,
+      total_val
+    });
 
     if (total_val <= 0)
       return res.status(HttpStatusCodes.BAD_REQUEST).json({ success: false, error: "Total calculated amount is 0 or less. Please check your order details again. " });
@@ -727,6 +744,7 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
     else return res.status(HttpStatusCodes.BAD_REQUEST).end();
 
   } catch (error) {
+    console.log("stripeCheckout - caught error:", error);
     if (error instanceof RouteError)
       return res
         .status(error.status)
