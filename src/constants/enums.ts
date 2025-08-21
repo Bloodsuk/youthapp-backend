@@ -26,4 +26,9 @@ export enum CustomerTypes {
     east_butler="east_butler",
     slippery_rock="slippery_rock",
 }
+
+export enum CouponTypes {
+    Fixed = 0,
+    Percentage = 1,
+}
   

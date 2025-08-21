@@ -10,7 +10,6 @@ export interface IOrder {
   client_name: string ;
   subtotal: string ;
   discount: string ;
-  coupon_discount: string ;
   shipping_charges: string ;
   other_charges_total: string ;
   total_val: number;
