@@ -138,13 +138,14 @@ async function getDiscount(req: IReq<{ discount_code: string; userData?: any }>,
   
   try {
     // Validate coupon without consuming it
-    const { type, value } = await CouponService.validateCoupon(discount_code);
+    const { type, value, apply_on } = await CouponService.validateCoupon(discount_code);
     
     return res
       .status(HttpStatusCodes.OK)
       .json({
         type: type === 1 ? "Percent" : "Fixed",
         value: value,
+        apply_on: apply_on,
       })
       .end();
   } catch (error) {

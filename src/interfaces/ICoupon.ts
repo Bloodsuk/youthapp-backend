@@ -6,6 +6,7 @@ export interface ICoupon {
   expiry_date: string;
   max_users: number;
   used: number;
+  apply_on: string;
   created_on: string;
 }
 

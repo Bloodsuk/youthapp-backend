@@ -101,7 +101,7 @@ async function _delete(couponId: number): Promise<void> {
 /**
  * Validate coupon without consuming it (for discount calculation only).
  */
-async function validateCoupon(discount_code: string): Promise<{ value: number; type: number }> {
+async function validateCoupon(discount_code: string): Promise<{ value: number; type: number; apply_on: string }> {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT * from coupons where coupon_id = ?`,
     [discount_code]
@@ -118,6 +118,7 @@ async function validateCoupon(discount_code: string): Promise<{ value: number; t
   const type = coupon["type"];
   const max_users = coupon["max_users"];
   const used = coupon["used"];
+  const apply_on = coupon["apply_on"];
   
   // Validate coupon
   if (today.isAfter(expiry_date, "d")) {
@@ -127,13 +128,13 @@ async function validateCoupon(discount_code: string): Promise<{ value: number; t
     throw new RouteError(HttpStatusCodes.NOT_FOUND, "Code Usage Limit Reached");
   }
   
-  return { value, type };
+  return { value, type, apply_on };
 }
 
 /**
  * Get coupon discount and record usage in a single atomic operation.
  */
-async function getDiscount(discount_code: string, user_id?: number): Promise<{ value: number; type: number }> {
+async function getDiscount(discount_code: string, user_id?: number): Promise<{ value: number; type: number; apply_on: string }> {
   // Start transaction
   const connection = await pool.getConnection();
   
@@ -157,6 +158,7 @@ async function getDiscount(discount_code: string, user_id?: number): Promise<{ v
     const type = coupon["type"];
     const max_users = coupon["max_users"];
     const used = coupon["used"];
+    const apply_on = coupon["apply_on"];
     
     // 2. Validate coupon
     if (today.isAfter(expiry_date, "d")) {
@@ -182,7 +184,7 @@ async function getDiscount(discount_code: string, user_id?: number): Promise<{ v
     }
     
     await connection.commit();
-    return { value, type };
+    return { value, type, apply_on };
     
   } catch (error) {
     await connection.rollback();
