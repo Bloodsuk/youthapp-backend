@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.getweys.yr_practitioner",
+    "sha256_cert_fingerprints": ["C4:1F:AB:3D:F3:A6:E7:CD:61:45:D2:B0:1C:24:BE:88:AD:47:F3:48:F2:02:B9:0C:44:E2:99:F9:E3:FE:8A:7C"]
+  }
+}]

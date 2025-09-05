@@ -73,6 +73,16 @@ app.get("/health", (req, res, next) => {
     message: "API is working"
   })
 });
+// Deep link files for Android and iOS
+app.get("/.well-known/assetlinks.json", (req: Request, res: Response) => {
+  res.setHeader("Content-Type", "application/json");
+  res.sendFile(path.join(process.cwd(), "public", "assetlinks.json"));
+});
+
+app.get("/apple-app-site-association", (req: Request, res: Response) => {
+  res.setHeader("Content-Type", "application/json");
+  res.sendFile(path.join(process.cwd(), "public", "apple-app-site-association"));
+});
 // Authorization middleware
 app.use(authorization);
 
