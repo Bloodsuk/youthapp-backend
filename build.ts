@@ -18,6 +18,8 @@ import childProcess from 'child_process';
     await copy('./src/public', './dist/public');
     await copy('./src/views', './dist/views');
     await copy('./src/services/mail_templates', './dist/services/mail_templates');
+    // Copy well-known for Android Digital Asset Links
+    await copy('./.well-known', './dist/.well-known');
 
     // Copy back-end files
     await exec('tsc --build tsconfig.prod.json', './');

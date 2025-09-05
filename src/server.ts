@@ -76,7 +76,7 @@ app.get("/health", (req, res, next) => {
 // Deep link files for Android and iOS
 app.get("/.well-known/assetlinks.json", (req: Request, res: Response) => {
   res.setHeader("Content-Type", "application/json");
-  res.sendFile(path.join(process.cwd(), "public", "assetlinks.json"));
+  res.sendFile(path.join(process.cwd(), ".well-known", "assetlinks.json"));
 });
 
 app.get("/apple-app-site-association", (req: Request, res: Response) => {
