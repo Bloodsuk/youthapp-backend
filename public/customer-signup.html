@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Youth Revisited</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="0; url=https://play.google.com/store/apps/details?id=com.getweys.yr_practitioner">
+</head>
+<body>
+    <script>
+        // Get URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const pid = urlParams.get('pid') || 'unknown';
+        
+        // Create app deep link with user ID
+        const appUrl = `youthapp://customer-signup?pid=${pid}`;
+        
+        // Detect device
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const isAndroid = /Android/.test(navigator.userAgent);
+        
+        // Try to open the app
+        function tryOpenApp() {
+            // Create a hidden iframe to try opening the app
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = appUrl;
+            document.body.appendChild(iframe);
+            
+            // Remove iframe after attempt
+            setTimeout(() => {
+                document.body.removeChild(iframe);
+            }, 1000);
+        }
+        
+        // Redirect to store
+        function redirectToStore() {
+            if (isIOS) {
+                window.location.href = 'https://apps.apple.com/app/youth-revisited/id123456789';
+            } else if (isAndroid) {
+                window.location.href = 'https://play.google.com/store/apps/details?id=com.getweys.yr_practitioner';
+            } else {
+                // Default to Android store
+                window.location.href = 'https://play.google.com/store/apps/details?id=com.getweys.yr_practitioner';
+            }
+        }
+        
+        // Try to open the app immediately
+        tryOpenApp();
+        
+        // If app doesn't open within 1 second, redirect to store
+        setTimeout(redirectToStore, 1000);
+        
+        // Also try on page visibility change (when user comes back from app)
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible') {
+                // User came back, app probably didn't open
+                setTimeout(redirectToStore, 500);
+            }
+        });
+    </script>
+</body>
+</html>

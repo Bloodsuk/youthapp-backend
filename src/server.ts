@@ -83,6 +83,11 @@ app.get("/apple-app-site-association", (req: Request, res: Response) => {
   res.setHeader("Content-Type", "application/json");
   res.sendFile(path.join(process.cwd(), "public", "apple-app-site-association"));
 });
+// Public customer signup page
+app.get("/customer-signup", (req: Request, res: Response) => {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.sendFile(path.join(process.cwd(), "public", "customer-signup.html"));
+});
 // Authorization middleware
 app.use(authorization);
 
