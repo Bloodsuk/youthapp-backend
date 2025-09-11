@@ -33,9 +33,6 @@ routes.use(Paths.Categories.Base, categoryRouter);
 // Add CustomerRouter
 routes.use(Paths.Customers.Base, customerRouter);
 
-// Add OrderRouter
-routes.use(Paths.Orders.Base, orderRouter);
-
 // Add ResultRouter
 routes.use(Paths.Results.Base, resultRouter);
 

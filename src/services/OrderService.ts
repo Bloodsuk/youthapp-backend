@@ -122,14 +122,10 @@ async function getAll(
       users.id AS practitioner_id,
       users.first_name AS practitioner_first_name,
       users.last_name AS practitioner_last_name,
-      users.email AS practitioner_email,
-      tests.id AS test_id,
-      tests.test_name AS test_name,
-      tests.description AS test_description
+      users.email AS practitioner_email
     FROM orders 
     LEFT JOIN customers ON orders.customer_id = customers.id 
     LEFT JOIN users ON orders.created_by = users.id
-    LEFT JOIN tests ON FIND_IN_SET(tests.id, orders.test_ids)
     WHERE ${whereClauses.join(" AND ")} 
     ORDER BY orders.id DESC 
     ${pagination}
@@ -218,14 +214,10 @@ async function getAllCustomerOrder(
       users.id AS practitioner_id,
       users.first_name AS practitioner_first_name,
       users.last_name AS practitioner_last_name,
-      users.email AS practitioner_email,
-      tests.id AS test_id,
-      tests.test_name AS test_name,
-      tests.description AS test_description
+      users.email AS practitioner_email
     FROM orders 
     LEFT JOIN customers ON orders.customer_id = customers.id 
     LEFT JOIN users ON orders.created_by = users.id
-    LEFT JOIN tests ON FIND_IN_SET(tests.id, orders.test_ids)
     WHERE ${whereClauses.join(" AND ")} 
     ORDER BY orders.id DESC 
     ${pagination}
@@ -274,14 +266,10 @@ async function getOutstandingCreditOrders(
     users.id AS practitioner_id,
     users.first_name AS practitioner_first_name,
     users.last_name AS practitioner_last_name,
-    users.email AS practitioner_email,
-    tests.id AS test_id,
-    tests.test_name AS test_name,
-    tests.description AS test_description
+    users.email AS practitioner_email
   FROM orders 
   LEFT JOIN customers ON orders.customer_id = customers.id 
   LEFT JOIN users ON orders.practitioner_id = users.id
-  LEFT JOIN tests ON FIND_IN_SET(tests.id, orders.test_ids)
   WHERE payment_status = 'Pending' AND checkout_type='Credit'
   ORDER BY orders.id DESC 
   LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}
