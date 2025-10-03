@@ -188,4 +188,9 @@ export default {
     Base: "/stats",
     Get: "/all",
   },
+  AppVersions: {
+    Base: "/app-versions",
+    Get: "/all",
+    GetByPlatform: "/platform/:platform",
+  },
 } as const;
