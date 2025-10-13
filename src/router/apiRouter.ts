@@ -18,6 +18,7 @@ import messageRouter from "./messageRouter";
 import roleRouter from "./roleRouter";
 import permissionRouter from "./permissionRouter";
 import clinicRouter from "./clinicRouter";
+import appVersionRouter from "./appVersionRouter";
 
 const routes = Router();
 
@@ -74,5 +75,8 @@ routes.use(Paths.Permissions.Base, permissionRouter);
 
 // Add ClinicRouter
 routes.use(Paths.Clinics.Base, clinicRouter);
+
+// Add AppVersionRouter
+routes.use(Paths.AppVersions.Base, appVersionRouter);
 
 export default routes;

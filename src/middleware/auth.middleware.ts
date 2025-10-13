@@ -22,7 +22,7 @@ async function authorization(
   next: NextFunction,
 ) {
   // Get session data
-  if(req.path.includes("/auth")) return next();
+  if(req.path.includes("/auth") || req.path.includes("/app_versions") || req.path.includes("/app-versions")) return next();
   const authHeader = req.headers.authorization;
   if (!authHeader) {
     return res
