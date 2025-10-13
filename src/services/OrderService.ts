@@ -419,6 +419,30 @@ async function getPractitionerOutstandingCredits(
 /**
  * Get one order.
  */
+async function getOneForTestAndCustomer(customerId: number, testId: number): Promise<IOrder> {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT * FROM orders WHERE customer_id = ? AND FIND_IN_SET(?, test_ids)",
+    [customerId, testId]
+  );
+  if (rows.length === 0) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, USER_NOT_FOUND_ERR);
+  }
+  const order = rows[0] as IOrder;
+  if (order.customer_id) {
+    const [rows2] = await pool.query<RowDataPacket[]>(
+      "SELECT * FROM customers WHERE id = ?",
+      [order.customer_id]
+    );
+    if (rows2.length > 0) {
+      order.customer = rows2[0] as ICustomer;
+    }
+  }
+  return order;
+}
+
+/**
+ * Get one order.
+ */
 async function getOne(id: number): Promise<IOrder> {
   const [rows] = await pool.query<RowDataPacket[]>(
     "SELECT * FROM orders WHERE id = ?",
@@ -644,4 +668,5 @@ export default {
   markPaidPractitionersCommission,
   getBookedTimeSlots,
   getBookingDetails,
+  getOneForTestAndCustomer,
 } as const;

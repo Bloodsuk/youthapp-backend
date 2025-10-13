@@ -7,6 +7,7 @@ import { LIMIT } from "@src/constants/pagination";
 import { empty, getTotalCount } from "@src/util/misc";
 import { UserLevels } from "@src/constants/enums";
 import { ISessionUser } from "@src/interfaces/ISessionUser";
+import OrderService from "./OrderService";
 
 // **** Variables **** //
 
@@ -286,6 +287,29 @@ WHERE
 /**
  * Get one test.
  */
+async function getOneForCustomer(id: number, customerId: number): Promise<ITest> {
+
+  const order = await OrderService.getOneForTestAndCustomer(customerId, id);
+
+  if(!order) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, NOT_FOUND_ERR);
+  }
+
+  // Get the test details
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT * FROM tests WHERE id = ?",
+    [id]
+  );
+  if (rows.length === 0) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, NOT_FOUND_ERR);
+  }
+  const test = rows[0];
+  return test as ITest;
+}
+
+/**
+ * Get one test.
+ */
 async function getOne(id: number): Promise<ITest> {
   // Get the test details
   const [rows] = await pool.query<RowDataPacket[]>(
@@ -463,4 +487,5 @@ export default {
   updateCustomerPrice,
   activateDeactivate,
   delete: _delete,
+  getOneForCustomer,
 } as const;

@@ -3,6 +3,7 @@ import HttpStatusCodes from "@src/constants/HttpStatusCodes";
 import CustomerService from "@src/services/CustomerService";
 import { IReq, IRes } from "@src/types/express/misc";
 import { RouteError } from "@src/other/classes";
+import { ISessionUser } from "@src/interfaces/ISessionUser";
 
 // **** Functions **** //
 
@@ -34,6 +35,83 @@ async function getById(req: IReq, res: IRes) {
   const id = parseInt(req.params.id);
   try {
     const customer = await CustomerService.getOne(id);
+    return res
+      .status(HttpStatusCodes.OK)
+      .json({
+        success: true,
+        customer: customer,
+      })
+      .end();
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
+/**
+ * Get customer by Id.
+ */
+interface GetMyDetailsReqBody {
+  userData: ISessionUser
+}
+
+async function getMyDetails(req: IReq<GetMyDetailsReqBody>, res: IRes) {
+  const { userData } = req.body;
+
+  if(userData.user_level !== "Customer") {
+    return res.status(HttpStatusCodes.FORBIDDEN).json({error: "Unauthorized access. You don't have access to this resource"})
+  }
+
+  try {
+    const customer = await CustomerService.getOne(userData.id);
+    return res
+      .status(HttpStatusCodes.OK)
+      .json({
+        success: true,
+        customer: customer,
+      })
+      .end();
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
+/**
+ * Get customer by Id.
+ */
+async function getByEmail(req: IReq, res: IRes) {
+  const email = req.params.email;
+  try {
+    const customer = await CustomerService.getOneByEmail(email);
     return res
       .status(HttpStatusCodes.OK)
       .json({
@@ -202,5 +280,7 @@ export default {
   add,
   update,
   delete: delete_,
-  sendLogins
+  sendLogins,
+  getByEmail,
+  getMyDetails
 } as const;

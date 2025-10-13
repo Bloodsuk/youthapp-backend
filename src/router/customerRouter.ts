@@ -7,6 +7,10 @@ import { Router } from "express";
 
 const customerRouter = Router();
 
+customerRouter.get(Paths.Customers.GetMyDetails, CustomerController.getMyDetails)
+
+customerRouter.get(Paths.Customers.GetByEmail, CustomerController.getByEmail)
+
 // Get all customers
 customerRouter.get(Paths.Customers.Get, CustomerController.getAll);
 

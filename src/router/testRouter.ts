@@ -7,6 +7,10 @@ import { Router } from "express";
 
 const testRouter = Router();
 
+testRouter.get(Paths.Tests.GetAllMy, TestController.getAllMyTests)
+
+testRouter.get(Paths.Tests.GetMyTest, TestController.getMyTestById)
+
 // Get all tests
 testRouter.get(Paths.Tests.Get, TestController.getAll);
 

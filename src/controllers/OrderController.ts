@@ -15,6 +15,7 @@ import moment from "moment";
 import UserService from "@src/services/UserService";
 import EnvVars from '@src/constants/EnvVars';
 import ExtraDiscountService from "@src/services/ExtraDiscountService";
+import { ISessionUser } from "@src/interfaces/ISessionUser";
 
 const stripe = new Stripe(EnvVars.Stripe.Secret);
 
@@ -63,6 +64,46 @@ async function getAllCustomerOrder(req: IReq<IGetOrdersReqBody>, res: IRes) {
       service,
       page
     );
+    return res.status(HttpStatusCodes.OK).json({ orders: data, total });
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
+/**
+ * INFO: Get my orders.
+ * @param req 
+ * @param res 
+ * @returns 
+ */
+interface IGetAllMyOrdersReqBody {
+  userData: ISessionUser
+}
+
+async function getAllMyOrders(req: IReq<IGetAllMyOrdersReqBody>, res: IRes) {
+  try {
+    const { userData } = req.body;
+
+    if(userData.user_level !== "Customer") {
+      return res.status(HttpStatusCodes.FORBIDDEN).json({error: "Unauthorized access. You don't have access to this resource"})
+    }
+
+    const { data, total } = await OrderService.getAllCustomerOrder(userData.id);
     return res.status(HttpStatusCodes.OK).json({ orders: data, total });
   } catch (error) {
     if (error instanceof RouteError)
@@ -958,4 +999,5 @@ export default {
   getBookedTimeSlots,
   getBookingDetails,
   getExtraDiscountPractitionerIds,
+  getAllMyOrders,
 } as const;

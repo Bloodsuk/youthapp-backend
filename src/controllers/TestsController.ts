@@ -49,6 +49,68 @@ async function getCustomerTest(req: IReq, res: IRes) {
   return res.status(HttpStatusCodes.OK).json({ tests: data, total });
 }
 
+interface IGetAllMyTestsReqBody {
+  userData: ISessionUser
+}
+async function getAllMyTests(req: IReq<IGetAllMyTestsReqBody>, res: IRes) {
+  const { userData } = req.body
+
+  if(userData.user_level !== "Customer") {
+    return res.status(HttpStatusCodes.FORBIDDEN).json({error: "Unauthorized access. You don't have access to this resource"})
+  }
+
+  let page = parseInt(req.query.page as string);
+  if (isNaN(page)) page = 1;
+  const search = (req.query.search as string) || "";
+  const cate_id = (req.query.cate_id as string) || "";
+  const { data, total } = await TestService.getCustomerTest(userData.id, page, search, cate_id, userData.practitioner_id, 'alpha');
+  return res.status(HttpStatusCodes.OK).json({ tests: data, total });
+}
+
+/**
+ * Get test by Id.
+ */
+interface GetMyTestByIdReqBody {
+  userData: ISessionUser
+}
+
+async function getMyTestById(req: IReq<GetMyTestByIdReqBody>, res: IRes) {
+  const id = parseInt(req.params.id);
+  const { userData } = req.body;
+
+  if(userData.user_level !== "Customer") {
+    return res.status(HttpStatusCodes.FORBIDDEN).json({error: "Unauthorized access. You don't have access to this resource"})
+  }
+
+  try {
+    const test = await TestService.getOneForCustomer(id, userData.id);
+    return res
+      .status(HttpStatusCodes.OK)
+      .json({
+        success: true,
+        test: test,
+      })
+      .end();
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
 /**
  * Get test by Id.
  */
@@ -245,4 +307,6 @@ export default {
   updateCustomerPrice,
   activateDeactivate,
   delete: delete_,
+  getAllMyTests,
+  getMyTestById
 } as const;

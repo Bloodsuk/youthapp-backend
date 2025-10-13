@@ -20,6 +20,8 @@ orderRouter.get(
   OrderController.getExtraDiscountPractitionerIds
 );
 
+orderRouter.get(Paths.Orders.GetAllMy, OrderController.getAllMyOrders)
+
 // Get all orders
 orderRouter.post(Paths.Orders.Get, OrderController.getAll);
 
