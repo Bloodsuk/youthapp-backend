@@ -51,8 +51,14 @@ async function login(email: string, password: string) {
     );
   }
 
+  // Check phlebotomist table if still not found
+  if (query[0].length === 0) {
+    query = await pool.query<RowDataPacket[]>(
+      `SELECT * from phlebotomy_applications where email = '${email}' AND password = '${password}'`
+    );
+  }
 
-  // Now $rows > 0 means could be a Practioner or Moderator or a Customer
+  // Now $rows > 0 means could be a Practioner or Moderator or a Customer or Phlebotomist
   if (query[0].length > 0) {
     const user = query[0][0] as IUser;
     if (user['status'] == 0)

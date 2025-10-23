@@ -19,6 +19,8 @@ import roleRouter from "./roleRouter";
 import permissionRouter from "./permissionRouter";
 import clinicRouter from "./clinicRouter";
 import appVersionRouter from "./appVersionRouter";
+import phlebotomistRouter from "./phlebotomistRouter";
+import fileUploadRouter from "./fileUploadRouter";
 
 const routes = Router();
 
@@ -78,5 +80,11 @@ routes.use(Paths.Clinics.Base, clinicRouter);
 
 // Add AppVersionRouter
 routes.use(Paths.AppVersions.Base, appVersionRouter);
+
+// Add PhlebotomistRouter
+routes.use(Paths.Phlebotomists.Base, phlebotomistRouter);
+
+// Add FileUploadRouter
+routes.use(Paths.FileUpload.Base, fileUploadRouter);
 
 export default routes;

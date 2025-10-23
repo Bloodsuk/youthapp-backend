@@ -1,6 +1,7 @@
 import HttpStatusCodes from "@src/constants/HttpStatusCodes";
 import SessionUtil from "@src/util/SessionUtil";
 import AuthService from "@src/services/AuthService";
+import PhlebotomistService from "@src/services/PhlebotomistService";
 
 import { IReq, IRes } from "@src/types/express/misc";
 import { RouteError } from "@src/other/classes";
@@ -14,6 +15,7 @@ import JwtHelper from "@src/util/JwtHelper";
 interface ILoginReq {
   email: string;
   password: string;
+  isPleb?: boolean; // Flag to indicate phlebotomist flow
 }
 
 
@@ -23,8 +25,82 @@ interface ILoginReq {
  * Login a user.
  */
 async function login(req: IReq<ILoginReq>, res: IRes) {
-  const { email, password } = req.body;
-  // Login
+  const { email, password, isPleb } = req.body;
+  
+  // Handle phlebotomist flow
+  if (isPleb) {
+    try {
+      // Check if phlebotomist already has a password
+      const existingPhlebotomist = await PhlebotomistService.getPhlebotomistByEmail(email);
+      
+      if (existingPhlebotomist && existingPhlebotomist.password) {
+        // Phlebotomist already has a password, treat as normal login
+        if (!password) {
+          return res
+            .status(HttpStatusCodes.BAD_REQUEST)
+            .json({
+              success: false,
+              message: "Password is required for existing phlebotomist accounts. Please provide your password.",
+            })
+            .end();
+        }
+        
+        // Try to authenticate with provided password
+        const user = await PhlebotomistService.loginPhlebotomist(email, password);
+        
+        return res
+          .status(HttpStatusCodes.OK)
+          .json({
+            success: true,
+            user: {
+              id: user.id,
+              full_name: user.full_name,
+              email: user.email,
+              user_level: "Phlebotomist",
+              // Add other relevant fields
+            },
+            token: await JwtHelper._sign({
+              id: user.id,
+              email: user.email,
+              full_name: user.full_name,
+              user_level: "Phlebotomist",
+            }),
+          })
+          .end();
+      } else {
+        // No existing password, generate new one
+        const newPassword = await PhlebotomistService.createPasswordForPhlebotomist(email);
+        
+        return res
+          .status(HttpStatusCodes.OK)
+          .json({
+            success: true,
+            message: "Password has been sent to your email. Please check your inbox and use the provided password to login.",
+            isPleb: true,
+          })
+          .end();
+      }
+    } catch (error) {
+      if (error instanceof RouteError)
+        return res
+          .status(error.status)
+          .json({
+            success: false,
+            message: error.message,
+          })
+          .end();
+      else
+        return res
+          .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+          .json({
+            success: false,
+            message: "Phlebotomist Error: " + JSON.stringify(error),
+          })
+          .end();
+    }
+  }
+  
+  // Regular login flow
   try {
     const user = await AuthService.login(email, password);
     console.log("user", user);

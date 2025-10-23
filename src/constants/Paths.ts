@@ -201,4 +201,14 @@ export default {
     Get: "/all",
     GetByPlatform: "/platform/:platform",
   },
+  Phlebotomists: {
+    Base: "/phlebotomists",
+    Get: "/all",
+    UpdateStatus: "/update_status",
+    ResendCredentials: "/resend_credentials",
+  },
+  FileUpload: {
+    Base: "/file_upload_api",
+    Upload: "/",
+  },
 } as const;
