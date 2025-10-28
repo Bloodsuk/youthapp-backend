@@ -20,6 +20,7 @@ import permissionRouter from "./permissionRouter";
 import clinicRouter from "./clinicRouter";
 import appVersionRouter from "./appVersionRouter";
 import phlebotomistRouter from "./phlebotomistRouter";
+import plebJobRouter from "./plebJobRouter";
 import fileUploadRouter from "./fileUploadRouter";
 
 const routes = Router();
@@ -83,6 +84,9 @@ routes.use(Paths.AppVersions.Base, appVersionRouter);
 
 // Add PhlebotomistRouter
 routes.use(Paths.Phlebotomists.Base, phlebotomistRouter);
+
+// Add PlebJobRouter
+routes.use(Paths.PlebJobs.Base, plebJobRouter);
 
 // Add FileUploadRouter
 routes.use(Paths.FileUpload.Base, fileUploadRouter);

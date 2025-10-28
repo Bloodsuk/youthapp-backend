@@ -207,6 +207,12 @@ export default {
     UpdateStatus: "/update_status",
     ResendCredentials: "/resend_credentials",
   },
+  PlebJobs: {
+    Base: "/pleb_jobs",
+    Get: "/all",
+    UpdateStatus: "/update_status/:id",
+    GetByPlebId: "/pleb/:pleb_id",
+  },
   FileUpload: {
     Base: "/file_upload_api",
     Upload: "/",

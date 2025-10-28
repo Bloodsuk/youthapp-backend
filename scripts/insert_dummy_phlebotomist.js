@@ -8,9 +8,9 @@ async function insertDummyPhlebotomist() {
     // Create database connection
     connection = await mysql.createConnection({
       host: process.env.DB_HOST || '127.0.0.1',
-      user: process.env.DB_USER || 'znHi3Ozs',
-      password: process.env.PASSWORD || 'AghhnvPmOfP7aUzT',
-      database: process.env.DATABASE || 'practitionermaindb'
+      user: process.env.DB_USER ,
+      password: process.env.PASSWORD ,
+      database: process.env.DATABASE
     });
 
     console.log('Connected to database successfully!');
