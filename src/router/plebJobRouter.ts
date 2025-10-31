@@ -19,11 +19,22 @@ plebJobRouter.get(
   PlebJobController.getByPlebId
 );
 
-// Update pleb job status
+// Update pleb job status (requires tracking_number from pleb)
 plebJobRouter.post(
   Paths.PlebJobs.UpdateStatus,
-  validate("job_status"),
   PlebJobController.updateStatus
+);
+
+// Get all plebs with id and name (Admin only)
+plebJobRouter.get(
+  Paths.PlebJobs.GetAllPlebs,
+  PlebJobController.getAllPlebs
+);
+
+// Assign job to pleb (Admin only)
+plebJobRouter.post(
+  Paths.PlebJobs.AssignJob,
+  PlebJobController.assignJob
 );
 
 export default plebJobRouter;

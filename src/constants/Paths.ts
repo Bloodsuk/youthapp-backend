@@ -135,6 +135,7 @@ export default {
     BookedTimeSlots: "/booked_time_slots",
     BookingDetails: "/booking_details",
     GetExtraDiscountPractitionerIds: "/extra_discount_practitioners",
+    GetOrdersStarted: "/started",
   },
   Tests: {
     Base: "/tests",
@@ -212,6 +213,8 @@ export default {
     Get: "/all",
     UpdateStatus: "/update_status/:id",
     GetByPlebId: "/pleb/:pleb_id",
+    GetAllPlebs: "/plebs/all",
+    AssignJob: "/assign",
   },
   FileUpload: {
     Base: "/file_upload_api",

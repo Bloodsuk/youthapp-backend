@@ -450,6 +450,59 @@ const sendPhlebotomistCredentialsEmail = async (name: string, email: string, pas
   );
 };
 
+const sendJobAssignmentEmail = async (name: string, email: string, orderId: number, customerName: string | null, jobStatus: string) => {
+  const subject = "New Job Assignment - Youth Revisited";
+  const title = "New Job Assigned";
+
+  const config = await getMailConfig();
+  if (!config) throw new Error("Mail configuration not found");
+
+  const mailerConfig = {
+    host: config.smtp_host,
+    secureConnection: true,
+    port: Number(config.smtp_port),
+    auth: {
+      user: config.smtp_username,
+      pass: config.smtp_password,
+    },
+    tls: {
+      rejectUnauthorized: false,
+    },
+  };
+  const transporter = nodemailer.createTransport(mailerConfig);
+
+  return new Promise<void>((resolve, reject) => {
+    renderFile(
+      __dirname + "/mail_templates/job_assignment.ejs",
+      { name, order_id: orderId, customer_name: customerName, job_status: jobStatus, title },
+      (err, data) => {
+        if (err) {
+          console.log(err);
+          reject(new Error("Error rendering email template"));
+        } else {
+          const mailOptions = {
+            from: from,
+            to: email,
+            cc: cc,
+            subject: subject,
+            html: data,
+          };
+
+          transporter.sendMail(mailOptions, (error, info) => {
+            if (error) {
+              console.log("Error sending job assignment email:", error);
+              reject(error);
+            } else {
+              console.log("Job assignment email sent: %s", info.messageId);
+              resolve();
+            }
+          });
+        }
+      }
+    );
+  });
+};
+
 export default {
   getMailConfig,
   addMailConfig,
@@ -463,5 +516,6 @@ export default {
   sendProfileUpdateEmail,
   sendUserOrderStatusEmail,
   sendUserForgotCodeEmail,
-  sendPhlebotomistCredentialsEmail
+  sendPhlebotomistCredentialsEmail,
+  sendJobAssignmentEmail
 } as const;

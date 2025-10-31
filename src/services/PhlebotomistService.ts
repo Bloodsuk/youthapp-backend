@@ -137,6 +137,16 @@ async function updatePhlebotomistStatus(id: number, isActive: number): Promise<b
   return result.affectedRows > 0;
 }
 
+/**
+ * Get all plebs with id and name only (Admin only)
+ */
+async function getAllPlebsIdAndName(): Promise<{ id: number; name: string }[]> {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT id, full_name as name FROM phlebotomy_applications ORDER BY id DESC"
+  );
+  return rows.map((row) => ({ id: row.id, name: row.name })) as { id: number; name: string }[];
+}
+
 // **** Export default **** //
 
 export default {
@@ -145,6 +155,7 @@ export default {
   loginPhlebotomist,
   getAllPhlebotomists,
   updatePhlebotomistStatus,
+  getAllPlebsIdAndName,
   generatePassword,
   generateHash,
 } as const;
