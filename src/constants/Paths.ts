@@ -215,6 +215,7 @@ export default {
     GetByPlebId: "/pleb/:pleb_id",
     GetAllPlebs: "/plebs/all",
     AssignJob: "/assign",
+    Distance: "/distance",
   },
   FileUpload: {
     Base: "/file_upload_api",

@@ -217,6 +217,42 @@ async function assignJob(req: IReq<{ pleb_id: number; order_id: number; job_stat
   }
 }
 
+/**
+ * Get distance between pleb and customer's address (by order)
+ */
+async function getDistance(req: IReq<{ pleb_id: number; order_id: number }>, res: IRes) {
+  const { pleb_id, order_id } = req.body;
+
+  if (!pleb_id || !order_id) {
+    return res.status(HttpStatusCodes.BAD_REQUEST).json({
+      success: false,
+      error: "pleb_id and order_id are required"
+    }).end();
+  }
+
+  try {
+    const result = await PlebJobService.getDistanceBetweenPlebAndCustomer(Number(pleb_id), Number(order_id));
+    return res.status(HttpStatusCodes.OK).json({ success: true, data: result }).end();
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.BAD_REQUEST)
+        .json({
+          success: false,
+          error: "Error calculating distance: " + (error as Error).message,
+        })
+        .end();
+  }
+}
+
 // **** Export default **** //
 
 export default {
@@ -225,4 +261,5 @@ export default {
   updateStatus,
   getAllPlebs,
   assignJob,
+  getDistance,
 } as const;

@@ -2,6 +2,7 @@ import { pool } from "@src/server";
 import { RowDataPacket, ResultSetHeader } from "mysql2";
 import { IPlebJob } from "@src/interfaces/IPlebJob";
 import MailService from "./MailService";
+import fetch from "node-fetch";
 
 async function getAll(): Promise<IPlebJob[]> {
   const [rows] = await pool.query<RowDataPacket[]>(
@@ -58,6 +59,17 @@ async function assignJob(plebId: number, orderId: number, jobStatus: string = "A
   );
   
   const plebJob = rows[0] as IPlebJob;
+
+  // Mark order as assigned to avoid duplicates in available list
+  try {
+    await pool.query<ResultSetHeader>(
+      "UPDATE orders SET is_job_assigned = 1 WHERE id = ?",
+      [orderId]
+    );
+  } catch (e) {
+    console.error("❌ Failed to mark order as assigned:", e instanceof Error ? e.message : e);
+    // Non-fatal
+  }
   
   // Send email notification to pleb
   if (plebRows.length > 0 && plebRows[0].email) {
@@ -83,11 +95,63 @@ async function assignJob(plebId: number, orderId: number, jobStatus: string = "A
   return plebJob;
 }
 
+/**
+ * Calculate distance between pleb (lat,lng) and order's customer address using Google Distance Matrix
+ */
+async function getDistanceBetweenPlebAndCustomer(plebId: number, orderId: number): Promise<{
+  distance_text: string;
+  distance_value: number;
+  duration_text: string;
+  duration_value: number;
+}> {
+  // Get pleb coordinates
+  const [plebRows] = await pool.query<RowDataPacket[]>(
+    "SELECT lat, lng, full_name, email FROM phlebotomy_applications WHERE id = ?",
+    [plebId]
+  );
+  if (plebRows.length === 0) throw new Error("Pleb not found");
+  const pleb = plebRows[0];
+  if (!pleb.lat || !pleb.lng) throw new Error("Pleb lat/lng not set");
+
+  // Build customer address from order
+  const [orderRows] = await pool.query<RowDataPacket[]>(
+    `SELECT 
+      COALESCE(CONCAT_WS(', ', customers.address, customers.town, customers.postal_code, customers.country), orders.client_name) AS customer_address
+    FROM orders 
+    LEFT JOIN customers ON orders.customer_id = customers.id
+    WHERE orders.id = ?`,
+    [orderId]
+  );
+  if (orderRows.length === 0) throw new Error("Order not found");
+  const customerAddress = orderRows[0].customer_address;
+  if (!customerAddress) throw new Error("Customer address not available");
+
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  const origins = encodeURIComponent(`${pleb.lat},${pleb.lng}`);
+  const destinations = encodeURIComponent(customerAddress);
+  const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origins}&destinations=${destinations}&key=${apiKey}`;
+
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`Google API error: ${resp.status}`);
+  const data = await resp.json();
+  if (data.status !== 'OK' || !data.rows?.[0]?.elements?.[0] || data.rows[0].elements[0].status !== 'OK') {
+    throw new Error("Unable to compute distance");
+  }
+  const el = data.rows[0].elements[0];
+  return {
+    distance_text: el.distance.text,
+    distance_value: el.distance.value,
+    duration_text: el.duration.text,
+    duration_value: el.duration.value,
+  };
+}
+
 export default {
   getAll,
   getByPlebId,
   updateStatus,
   assignJob,
+  getDistanceBetweenPlebAndCustomer,
 } as const;
 
 

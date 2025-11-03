@@ -661,7 +661,10 @@ async function getOrderIdsWithStartedStatus(): Promise<{ id: number; customer_na
       COALESCE(CONCAT(customers.fore_name, ' ', customers.sur_name), orders.client_name, '') AS customer_name
     FROM orders 
     LEFT JOIN customers ON orders.customer_id = customers.id
-    WHERE orders.status = 'Started' 
+    WHERE (
+        FIND_IN_SET('2', orders.other_charges) > 0
+      )
+      AND (orders.is_job_assigned IS NULL OR orders.is_job_assigned = 0)
     ORDER BY orders.id DESC`
   );
   return rows.map((row) => ({ 

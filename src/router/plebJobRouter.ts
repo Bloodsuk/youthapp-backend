@@ -37,4 +37,10 @@ plebJobRouter.post(
   PlebJobController.assignJob
 );
 
+// Get distance between pleb and customer
+plebJobRouter.post(
+  Paths.PlebJobs.Distance,
+  PlebJobController.getDistance
+);
+
 export default plebJobRouter;
