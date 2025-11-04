@@ -116,26 +116,72 @@ async function getDistanceBetweenPlebAndCustomer(plebId: number, orderId: number
   // Build customer address from order
   const [orderRows] = await pool.query<RowDataPacket[]>(
     `SELECT 
-      COALESCE(CONCAT_WS(', ', customers.address, customers.town, customers.postal_code, customers.country), orders.client_name) AS customer_address
+      customers.address AS c_address,
+      customers.town AS c_town,
+      customers.postal_code AS c_postal_code,
+      customers.country AS c_country,
+      orders.client_name AS client_name
     FROM orders 
     LEFT JOIN customers ON orders.customer_id = customers.id
     WHERE orders.id = ?`,
     [orderId]
   );
   if (orderRows.length === 0) throw new Error("Order not found");
-  const customerAddress = orderRows[0].customer_address;
+  const cAddress = (orderRows[0].c_address ?? '').toString().trim();
+  const cTown = (orderRows[0].c_town ?? '').toString().trim();
+  const cPostal = (orderRows[0].c_postal_code ?? '').toString().trim();
+  const cCountry = (orderRows[0].c_country ?? '').toString().trim();
+  const clientName = (orderRows[0].client_name ?? '').toString().trim();
+  const addressParts = [cAddress, cTown, cPostal, cCountry].filter((s) => s.length > 0);
+  const customerAddress = addressParts.length > 0 ? addressParts.join(', ') : clientName || null;
   if (!customerAddress) throw new Error("Customer address not available");
 
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey || apiKey.trim() === "") {
+    throw new Error("GOOGLE_MAPS_API_KEY not configured");
+  }
+  const maskedKey = `${apiKey.slice(0, 3)}***${apiKey.slice(-3)}`;
+  console.log("[Distance] Inputs:", JSON.stringify({
+    plebId,
+    orderId,
+    plebLat: pleb.lat,
+    plebLng: pleb.lng,
+    customerAddress,
+    apiKeyMask: maskedKey,
+  }));
   const origins = encodeURIComponent(`${pleb.lat},${pleb.lng}`);
   const destinations = encodeURIComponent(customerAddress);
-  const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origins}&destinations=${destinations}&key=${apiKey}`;
+  const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origins}&destinations=${destinations}&mode=driving&units=metric&key=${apiKey}`;
 
-  const resp = await fetch(url);
+  console.log("[Distance] Request Params:", {
+    origins: `${pleb.lat},${pleb.lng}`,
+    destinations: customerAddress,
+    mode: "driving",
+    units: "metric",
+  });
+
+  let resp;
+  try {
+    resp = await fetch(url);
+  } catch (networkErr) {
+    console.error("[Distance] Network error calling Google API:", networkErr);
+    throw new Error("Network error calling Google API");
+  }
+  console.log("[Distance] HTTP Status:", resp.status);
   if (!resp.ok) throw new Error(`Google API error: ${resp.status}`);
   const data = await resp.json();
-  if (data.status !== 'OK' || !data.rows?.[0]?.elements?.[0] || data.rows[0].elements[0].status !== 'OK') {
-    throw new Error("Unable to compute distance");
+  console.log("[Distance] Google API status:", data.status, data.error_message || "");
+  if (data.status !== 'OK') {
+    const apiError = typeof data.error_message === 'string' ? `: ${data.error_message}` : '';
+    throw new Error(`Google API status ${data.status}${apiError}`);
+  }
+  if (!data.rows?.[0]?.elements?.[0]) {
+    console.error("[Distance] Malformed response, rows/elements missing:", JSON.stringify(data));
+    throw new Error("No distance elements returned by Google API");
+  }
+  if (data.rows[0].elements[0].status !== 'OK') {
+    console.warn("[Distance] Element status:", data.rows[0].elements[0].status, data.rows[0].elements[0]);
+    throw new Error(`Distance element status ${data.rows[0].elements[0].status}`);
   }
   const el = data.rows[0].elements[0];
   return {
