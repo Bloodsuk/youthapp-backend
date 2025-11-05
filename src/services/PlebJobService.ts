@@ -19,10 +19,10 @@ async function getByPlebId(plebId: number): Promise<IPlebJob[]> {
   return rows as unknown as IPlebJob[];
 }
 
-async function updateStatus(id: number, jobStatus: string, trackingNumber: string): Promise<boolean> {
+async function updateStatus(id: number, jobStatus: string, trackingNumber?: string): Promise<boolean> {
   const [result] = await pool.query<ResultSetHeader>(
-    "UPDATE pleb_jobs SET job_status = ?, tracking_number = ? WHERE id = ?",
-    [jobStatus, trackingNumber, id]
+    "UPDATE pleb_jobs SET job_status = ?, tracking_number = COALESCE(?, tracking_number) WHERE id = ?",
+    [jobStatus, trackingNumber ?? null, id]
   );
   return result.affectedRows > 0;
 }

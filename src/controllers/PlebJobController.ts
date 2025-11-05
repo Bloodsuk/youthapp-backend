@@ -70,24 +70,27 @@ async function getByPlebId(req: IReq<{ pleb_id: number }>, res: IRes) {
 }
 
 /**
- * Update pleb job status (requires tracking number from pleb)
+ * Update pleb job status (tracking number required only when Delivered)
  */
-async function updateStatus(req: IReq<{ id: number; job_status: string; tracking_number: string }>, res: IRes) {
+async function updateStatus(req: IReq<{ id: number; job_status: string; tracking_number?: string }>, res: IRes) {
   const { id } = req.params;
   const { job_status, tracking_number } = req.body;
-
-  if (!tracking_number || tracking_number.trim() === '') {
-    return res.status(HttpStatusCodes.BAD_REQUEST).json({
-      success: false,
-      error: "tracking_number is required"
-    }).end();
-  }
 
   if (!job_status || job_status.trim() === '') {
     return res.status(HttpStatusCodes.BAD_REQUEST).json({
       success: false,
       error: "job_status is required"
     }).end();
+  }
+
+  const normalizedStatus = job_status.trim().toLowerCase();
+  if (normalizedStatus === 'delivered') {
+    if (!tracking_number || tracking_number.trim() === '') {
+      return res.status(HttpStatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: "tracking_number is required when job_status is Delivered"
+      }).end();
+    }
   }
 
   try {
