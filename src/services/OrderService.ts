@@ -664,7 +664,7 @@ async function getOrderIdsWithStartedStatus(): Promise<{ id: number; customer_na
     WHERE (
         FIND_IN_SET('2', orders.other_charges) > 0
       )
-      AND (orders.is_job_assigned IS NULL OR orders.is_job_assigned = 0)
+      AND COALESCE(orders.is_job_assigned, 0) = 0
     ORDER BY orders.id DESC`
   );
   return rows.map((row) => ({ 
