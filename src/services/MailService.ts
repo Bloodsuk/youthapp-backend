@@ -644,6 +644,9 @@ interface IPlebJobAssignmentPayload extends IOrderIdentifiers {
   jobStatus: string;
 }
 
+const getDetailValue = (value?: string | null, fallback = "Not provided"): string =>
+  typeof value === "string" && value.trim().length > 0 ? value.trim() : fallback;
+
 const sendPlebJobAssignmentEmail = async (
   email: string,
   payload: IPlebJobAssignmentPayload
@@ -658,9 +661,9 @@ const sendPlebJobAssignmentEmail = async (
 
   const detailRows: INotificationDetail[] = [
     { label: "Order Reference", value: orderRef },
-    { label: "Customer", value: customerName },
-    { label: "Customer Phone", value: customerPhone },
-    { label: "Customer Address", value: customerAddress },
+    { label: "Customer", value: getDetailValue(customerName) },
+    { label: "Customer Phone", value: getDetailValue(customerPhone) },
+    { label: "Customer Address", value: getDetailValue(customerAddress) },
     { label: "Starting Status", value: jobStatus },
   ];
 
@@ -693,11 +696,11 @@ const sendAdminJobAssignmentEmail = async (
 
   const detailRows: INotificationDetail[] = [
     { label: "Order Reference", value: orderRef },
-    { label: "Pleb", value: payload.plebName },
-    { label: "Pleb Phone", value: payload.plebPhone },
-    { label: "Customer", value: payload.customerName },
-    { label: "Customer Phone", value: payload.customerPhone },
-    { label: "Customer Address", value: payload.customerAddress },
+    { label: "Pleb", value: getDetailValue(payload.plebName) },
+    { label: "Pleb Phone", value: getDetailValue(payload.plebPhone) },
+    { label: "Customer", value: getDetailValue(payload.customerName) },
+    { label: "Customer Phone", value: getDetailValue(payload.customerPhone) },
+    { label: "Customer Address", value: getDetailValue(payload.customerAddress) },
   ];
 
   const html = buildNotificationEmail({

@@ -1,4 +1,6 @@
 import HttpStatusCodes from "@src/constants/HttpStatusCodes";
+import { pool } from "@src/server";
+import { RowDataPacket } from "mysql2";
 import { IReq, IRes } from "@src/types/express/misc";
 import { RouteError } from "@src/other/classes";
 import PlebJobService from "@src/services/PlebJobService";
@@ -189,10 +191,31 @@ async function assignJob(req: IReq<{ pleb_id: number; order_id: number; job_stat
   }
 
   try {
+    const [orderRows] = await pool.query<RowDataPacket[]>(
+      "SELECT is_job_assigned FROM orders WHERE id = ? LIMIT 1",
+      [Number(order_id)]
+    );
+
+    if (orderRows.length === 0) {
+      return res.status(HttpStatusCodes.NOT_FOUND).json({
+        success: false,
+        error: "Order not found",
+      }).end();
+    }
+
+    const { is_job_assigned } = orderRows[0];
+    if (Number(is_job_assigned) === 1) {
+      return res.status(HttpStatusCodes.CONFLICT).json({
+        success: false,
+        error: "Job already assigned for this order",
+      }).end();
+    }
+
     const assignedJob = await PlebJobService.assignJob(
       Number(pleb_id), 
       Number(order_id), 
-      job_status || "Assigned"
+      job_status || "Assigned",
+      res.locals.sessionUser
     );
     
     return res.status(HttpStatusCodes.OK).json({

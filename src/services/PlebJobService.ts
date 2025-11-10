@@ -1,6 +1,8 @@
 import { pool } from "@src/server";
 import { RowDataPacket, ResultSetHeader } from "mysql2";
 import { IPlebJob } from "@src/interfaces/IPlebJob";
+import { UserLevels } from "@src/constants/enums";
+import type { ISessionUser } from "@src/interfaces/ISessionUser";
 import MailService from "./MailService";
 import fetch from "node-fetch";
 
@@ -21,6 +23,7 @@ interface IPlebJobContext {
   customerEmail: string | null;
   customerPhone: string | null;
   customerAddress: string | null;
+  orderCreatedBy: number | null;
   jobStatus: string | null;
   trackingNumber: string | null;
 }
@@ -54,8 +57,8 @@ const getActiveAdminContacts = async (): Promise<IAdminContact[]> => {
         email, 
         TRIM(CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, ''))) AS name
       FROM users
-      WHERE user_level = 'Admin'
-        AND status = 1
+      WHERE LOWER(TRIM(COALESCE(user_level, ''))) = 'admin'
+        AND (status IS NULL OR status = 1)
         AND email IS NOT NULL
         AND TRIM(email) <> ''`
   );
@@ -68,6 +71,74 @@ const getActiveAdminContacts = async (): Promise<IAdminContact[]> => {
     .filter((contact) => !!contact.email && contact.email.trim().length > 0);
 };
 
+const getAdminContactById = async (adminId: number): Promise<IAdminContact | null> => {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT 
+        email,
+        TRIM(CONCAT(COALESCE(first_name, ''), ' ', COALESCE(last_name, ''))) AS name
+      FROM users
+      WHERE id = ?
+        AND LOWER(TRIM(COALESCE(user_level, ''))) = 'admin'
+        AND (status IS NULL OR status = 1)
+        AND email IS NOT NULL
+        AND TRIM(email) <> ''
+      LIMIT 1`,
+    [adminId]
+  );
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  const row = rows[0];
+  return {
+    email: String(row.email),
+    name: normalizeString(row.name) ?? "Admin",
+  };
+};
+
+const buildAdminRecipientEmails = async ({
+  assignedBy,
+  orderCreatedBy,
+  fallbackToAll = true,
+}: {
+  assignedBy?: ISessionUser;
+  orderCreatedBy?: number | null;
+  fallbackToAll?: boolean;
+}): Promise<string[]> => {
+  const recipients = new Set<string>();
+
+  if (assignedBy && assignedBy.user_level === UserLevels.Admin) {
+    const normalizedEmail = normalizeString(assignedBy.email);
+    if (normalizedEmail) {
+      recipients.add(normalizedEmail);
+    } else if (assignedBy.id) {
+      const contact = await getAdminContactById(assignedBy.id);
+      if (contact?.email) {
+        recipients.add(contact.email);
+      }
+    }
+  }
+
+  if (orderCreatedBy) {
+    const contact = await getAdminContactById(orderCreatedBy);
+    if (contact?.email) {
+      recipients.add(contact.email);
+    }
+  }
+
+  if (recipients.size === 0 && fallbackToAll) {
+    const activeAdmins = await getActiveAdminContacts();
+    activeAdmins.forEach((contact) => {
+      if (contact.email) {
+        recipients.add(contact.email);
+      }
+    });
+  }
+
+  return Array.from(recipients);
+};
+
 const getPlebJobContext = async (jobId: number): Promise<IPlebJobContext | null> => {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT 
@@ -77,6 +148,7 @@ const getPlebJobContext = async (jobId: number): Promise<IPlebJobContext | null>
         pj.job_status,
         pj.tracking_number,
         orders.order_id AS order_code,
+        orders.created_by AS order_created_by,
         COALESCE(CONCAT(customers.fore_name, ' ', customers.sur_name), orders.client_name, '') AS customer_name,
         customers.email AS customer_email,
         customers.telephone AS customer_phone,
@@ -120,6 +192,7 @@ const getPlebJobContext = async (jobId: number): Promise<IPlebJobContext | null>
     customerEmail: normalizeString(row.customer_email),
     customerPhone: normalizeString(row.customer_phone),
     customerAddress: address,
+    orderCreatedBy: row.order_created_by !== null ? Number(row.order_created_by) : null,
     jobStatus: normalizeString(row.job_status),
     trackingNumber: normalizeString(row.tracking_number),
   };
@@ -165,8 +238,10 @@ async function updateStatus(id: number, jobStatus: string, trackingNumber?: stri
   };
 
   try {
-    const adminContacts = await getActiveAdminContacts();
-    const adminEmails = adminContacts.map((contact) => contact.email);
+    const adminEmails = await buildAdminRecipientEmails({
+      orderCreatedBy: context.orderCreatedBy,
+      fallbackToAll: true,
+    });
     const plebName = updatedContext.plebName ?? "Phlebotomist";
     const orderIdentifiers = {
       orderId: updatedContext.orderId,
@@ -174,7 +249,11 @@ async function updateStatus(id: number, jobStatus: string, trackingNumber?: stri
     };
 
     const normalizedStatus = trimmedStatus.toLowerCase();
-    const isCompletion = normalizedStatus === "delivered" || normalizedStatus === "completed";
+    const isCompletion =
+      normalizedStatus === "delivered" ||
+      normalizedStatus === "completed" ||
+      normalizedStatus === "deliver" ||
+      normalizedStatus === "deliever";
 
     const notifications: Promise<void>[] = [];
 
@@ -246,7 +325,12 @@ async function updateStatus(id: number, jobStatus: string, trackingNumber?: stri
 /**
  * Assign a job to a pleb (create new pleb_job)
  */
-async function assignJob(plebId: number, orderId: number, jobStatus: string = "Assigned"): Promise<IPlebJob> {
+async function assignJob(
+  plebId: number,
+  orderId: number,
+  jobStatus: string = "Assigned",
+  assignedBy?: ISessionUser
+): Promise<IPlebJob> {
   const [result] = await pool.query<ResultSetHeader>(
     "INSERT INTO pleb_jobs (pleb_id, order_id, job_status, created_at) VALUES (?, ?, ?, NOW())",
     [plebId, orderId, jobStatus]
@@ -273,8 +357,14 @@ async function assignJob(plebId: number, orderId: number, jobStatus: string = "A
   }
   if (jobContext) {
     try {
-      const adminContacts = await getActiveAdminContacts();
-      const adminEmails = adminContacts.map((contact) => contact.email);
+      const adminEmails = await buildAdminRecipientEmails({
+        assignedBy,
+        orderCreatedBy:
+          assignedBy && assignedBy.user_level === UserLevels.Admin
+            ? undefined
+            : jobContext.orderCreatedBy,
+        fallbackToAll: false,
+      });
       const plebName = jobContext.plebName ?? "Phlebotomist";
       const orderIdentifiers = {
         orderId: jobContext.orderId,
