@@ -12960,3 +12960,23 @@ ALTER TABLE `users`
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+
+CREATE TABLE tests_cost_by_practitioner (
+  practitioner_id INT,
+  tests_id INT, 
+  customer_cost DECIMAL,
+  PRIMARY KEY (practitioner_id, tests_id)
+);
+
+CREATE TABLE tests_active_deactive (
+	is_active_for_clinic BOOLEAN, 
+	test_id INT, 
+	practitioner_id INT
+);
+
+
+ALTER TABLE tests
+  ADD COLUMN cost DECIMAL
+  ADD COLUMN customer_cost DECIMAL
+  ADD COLUMN discount_type VARCHAR(256);
+

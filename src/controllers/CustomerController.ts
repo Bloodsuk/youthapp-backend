@@ -65,24 +65,37 @@ async function getById(req: IReq, res: IRes) {
 /**
  * Get customer by Id.
  */
-interface GetMyDetailsReqBody {
-  userData: ISessionUser
+interface IGetCustomerDetailsReqBody {
+  email: string
 }
 
-async function getMyDetails(req: IReq<GetMyDetailsReqBody>, res: IRes) {
-  const { userData } = req.body;
+async function getCustomerDetailsByEmail(req: IReq<IGetCustomerDetailsReqBody>, res: IRes) {
+  const { email } = req.body;
 
-  if(userData.user_level !== "Customer") {
-    return res.status(HttpStatusCodes.FORBIDDEN).json({error: "Unauthorized access. You don't have access to this resource"})
+  if(!email) {
+    return res.status(HttpStatusCodes.BAD_REQUEST).json({error: "Email is required to acces details"})
   }
 
   try {
-    const customer = await CustomerService.getOne(userData.id);
+    const customer = await CustomerService.getOneByEmail(email);
     return res
       .status(HttpStatusCodes.OK)
       .json({
         success: true,
-        customer: customer,
+        customer: {
+          id: customer.id,
+          firstName: customer.fore_name,
+          lastName: customer.sur_name,
+          date_of_birth: customer.date_of_birth,
+          gender: customer.gender,
+          address: customer.address,
+          town: customer.town,
+          country: customer.country,
+          postalCode: customer.postal_code,
+          email: customer.email,
+          telephone: customer.telephone,
+          practitioner_name: (customer as any).practitioner_name,
+        },
       })
       .end();
   } catch (error) {
@@ -282,5 +295,5 @@ export default {
   delete: delete_,
   sendLogins,
   getByEmail,
-  getMyDetails
+  getCustomerDetailsByEmail
 } as const;

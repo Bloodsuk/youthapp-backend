@@ -6,6 +6,7 @@ import { RouteError } from "@src/other/classes";
 import { ITest } from "@src/interfaces/ITest";
 import { UserLevels } from "@src/constants/enums";
 import { ISessionUser } from "@src/interfaces/ISessionUser";
+import CustomerService from "@src/services/CustomerService";
 
 // **** Functions **** //
 
@@ -49,41 +50,51 @@ async function getCustomerTest(req: IReq, res: IRes) {
   return res.status(HttpStatusCodes.OK).json({ tests: data, total });
 }
 
-interface IGetAllMyTestsReqBody {
-  userData: ISessionUser
+interface IGetAllCustomerTestsReqBody {
+  email: string
 }
-async function getAllMyTests(req: IReq<IGetAllMyTestsReqBody>, res: IRes) {
-  const { userData } = req.body
+async function getAllCustomerTests(req: IReq<IGetAllCustomerTestsReqBody>, res: IRes) {
+  const { email } = req.body
 
-  if(userData.user_level !== "Customer") {
-    return res.status(HttpStatusCodes.FORBIDDEN).json({error: "Unauthorized access. You don't have access to this resource"})
+  if(!email) {
+    return res.status(HttpStatusCodes.BAD_REQUEST).json({error: "Invalid Email. Email is required to access this resource"})
   }
 
-  let page = parseInt(req.query.page as string);
-  if (isNaN(page)) page = 1;
-  const search = (req.query.search as string) || "";
-  const cate_id = (req.query.cate_id as string) || "";
-  const { data, total } = await TestService.getCustomerTest(userData.id, page, search, cate_id, userData.practitioner_id, 'alpha');
+  const customer = await CustomerService.getOneByEmail(email);
+
+  if(!customer) {
+    return res.status(HttpStatusCodes.NOT_FOUND).json({error: "No customer found with the provided email"})
+  }
+
+  const { data, total } = await TestService.getAllTestForCustomer(customer.id);
   return res.status(HttpStatusCodes.OK).json({ tests: data, total });
 }
 
 /**
  * Get test by Id.
  */
-interface GetMyTestByIdReqBody {
-  userData: ISessionUser
+interface IGetCustomerTestByIdReqBody {
+  email: string
 }
 
-async function getMyTestById(req: IReq<GetMyTestByIdReqBody>, res: IRes) {
+async function getCustomerTestById(req: IReq<IGetCustomerTestByIdReqBody>, res: IRes) {
   const id = parseInt(req.params.id);
-  const { userData } = req.body;
+  const { email } = req.body;
 
-  if(userData.user_level !== "Customer") {
-    return res.status(HttpStatusCodes.FORBIDDEN).json({error: "Unauthorized access. You don't have access to this resource"})
+  if(!email) {
+    return res.status(HttpStatusCodes.BAD_REQUEST).json({error: "Invalid email. Email is required to access this resource"})
   }
 
   try {
-    const test = await TestService.getOneForCustomer(id, userData.id);
+
+    const customer = await CustomerService.getOneByEmail(email);
+
+    if(!customer) {
+      return res.status(HttpStatusCodes.NOT_FOUND)
+        .json({error: "Customer not found with the provided email"})
+    }
+
+    const test = await TestService.getOneForCustomer(id, customer.id);
     return res
       .status(HttpStatusCodes.OK)
       .json({
@@ -307,6 +318,6 @@ export default {
   updateCustomerPrice,
   activateDeactivate,
   delete: delete_,
-  getAllMyTests,
-  getMyTestById
+  getAllCustomerTests,
+  getCustomerTestById
 } as const;

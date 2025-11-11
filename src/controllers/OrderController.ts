@@ -91,19 +91,25 @@ async function getAllCustomerOrder(req: IReq<IGetOrdersReqBody>, res: IRes) {
  * @param res 
  * @returns 
  */
-interface IGetAllMyOrdersReqBody {
-  userData: ISessionUser
+interface IGetAllCustomerOrdersReqBody {
+  email: string
 }
 
-async function getAllMyOrders(req: IReq<IGetAllMyOrdersReqBody>, res: IRes) {
+async function GetAllCustomerOrders(req: IReq<IGetAllCustomerOrdersReqBody>, res: IRes) {
   try {
-    const { userData } = req.body;
+    const { email } = req.body;
 
-    if(userData.user_level !== "Customer") {
-      return res.status(HttpStatusCodes.FORBIDDEN).json({error: "Unauthorized access. You don't have access to this resource"})
+    if(!email) {
+      return res.status(HttpStatusCodes.BAD_REQUEST).json({error: "Email is required to access customer orders"})
     }
 
-    const { data, total } = await OrderService.getAllCustomerOrder(userData.id);
+    const customer = await CustomerService.getOneByEmail(email);
+
+    if(!customer) {
+      return res.status(HttpStatusCodes.NOT_FOUND).json({ error: "Customer with the specified email is not found" })
+    }
+
+    const { data, total } = await OrderService.getAllCustomerOrder(customer.id);
     return res.status(HttpStatusCodes.OK).json({ orders: data, total });
   } catch (error) {
     if (error instanceof RouteError)
@@ -999,5 +1005,5 @@ export default {
   getBookedTimeSlots,
   getBookingDetails,
   getExtraDiscountPractitionerIds,
-  getAllMyOrders,
+  GetAllCustomerOrders,
 } as const;

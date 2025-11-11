@@ -91,7 +91,7 @@ export default {
   Customers: {
     Base: "/customers",
     Get: "/all",
-    GetMyDetails: "/my/details",
+    GetCustomerDetailsByEmail: "/details",
     GetByUserId: "/user/:userId",
     GetByEmail: "/email/:email",
     GetById: "/:id",
@@ -117,7 +117,7 @@ export default {
     GetMyOrders: "/my",
     GetMyOrderById: "/my/:id",
     Get: "/all",
-    GetAllMy: "/all/my",
+    GetAllCustomerOrders: "/customer/all",
     GetPractitionersCommission: "/practitioners_commission",
     GetPractitionerOutstandingCredits: "/practitioner_outstanding_credits",
     GetOutstanding: "/outstanding_credit",
@@ -139,8 +139,8 @@ export default {
   Tests: {
     Base: "/tests",
     Get: "/all",
-    GetAllMy: "/all/my",
-    GetMyTest: "/my/:id",
+    GetAllCustomerTests: "/customer/all",
+    GetCustomerTestById: "/customer/:id",
     GetPractitionerTest: "/practitioner/all/:practitioner_id",
     GetCustomerTest: "/customer/all/:customer_id/:practitioner_id",
     GetById: "/:id",

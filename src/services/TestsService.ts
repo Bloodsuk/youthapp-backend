@@ -285,6 +285,29 @@ WHERE
 }
 
 /**
+ * INFO: Get all customer test for a customer without pagination
+ * @param customer_id 
+ * @param page 
+ * @param search 
+ * @returns 
+ */
+async function getAllTestForCustomer(customer_id: number): Promise<IGetResponse<ITest>> {
+  let sql = `
+  SELECT t.* from tests t
+JOIN orders o ON FIND_IN_SET(t.id, o.test_ids)
+WHERE o.customer_id = ${customer_id};
+`;
+  const [rows] = await pool.query<RowDataPacket[]>(sql);
+  const allTests = rows.map((test) => {
+    return test as ITest;
+  });
+
+  const total = await getTotalCount(pool, 'tests', `WHERE 1`);
+
+  return { data: allTests, total };
+}
+
+/**
  * Get one test.
  */
 async function getOneForCustomer(id: number, customerId: number): Promise<ITest> {
@@ -488,4 +511,5 @@ export default {
   activateDeactivate,
   delete: _delete,
   getOneForCustomer,
+  getAllTestForCustomer,
 } as const;

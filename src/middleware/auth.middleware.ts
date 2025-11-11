@@ -10,6 +10,7 @@ import JwtHelper from '@src/util/JwtHelper';
 // **** Variables **** //
 
 const USER_UNAUTHORIZED_ERR = 'User not authorized to perform this action';
+const CHATBOT_PATHS = [/^\/api\/customers\/details$/, /^\/api\/orders\/customer\/all$/, /^\/api\/tests\/customer\/all$/, /^\/api\/tests\/customer\/[0-9]+$/]
 
 // **** Functions **** //
 
@@ -23,6 +24,22 @@ async function authorization(
 ) {
   // Get session data
   if(req.path.includes("/auth") || req.path.includes("/app_versions") || req.path.includes("/app-versions")) return next();
+
+  // If the paths is for chatbot, check the token and allow access based on that
+  const isChatbotPath = CHATBOT_PATHS.some(s => s.test(req.path))
+  console.log(isChatbotPath)
+  if(isChatbotPath) {
+    const authHeader = req.headers.authorization;
+
+    if(!authHeader || authHeader !== process.env.CHATBOT_ACCESS_TOKEN) {
+      return res
+        .status(HttpStatusCodes.UNAUTHORIZED)
+        .json({ error: "Invalid chatbot access token"});
+    }
+
+    return next();
+  }
+
   const authHeader = req.headers.authorization;
   if (!authHeader) {
     return res

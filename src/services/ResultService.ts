@@ -169,54 +169,6 @@ async function getOne(id: number): Promise<IResult> {
 }
 
 /**
- * Extract PDF text from an order's attachment located in the public folder.
- */
-async function extractPdfTextByOrderId(id: number, customerId: number): Promise<string> {
-  const [rows] = await pool.query<RowDataPacket[]>(
-    "SELECT attachment FROM orders WHERE id = ? AND customer_id = ?",
-    [id, customerId]
-  );
-  if (rows.length === 0) {
-    throw new RouteError(HttpStatusCodes.NOT_FOUND, NOT_FOUND_ERR);
-  }
-  const attachment = (rows[0] as RowDataPacket).attachment as string | null;
-  if (!attachment || attachment.trim() === "") {
-    throw new RouteError(
-      HttpStatusCodes.NOT_FOUND,
-      "No attachment found for this order"
-    );
-  }
-
-  // Resolve path to the public directory similar to server.ts
-  const rootDir = path.resolve(__dirname, "..", "..");
-  const staticDir = path.join(rootDir, "public");
-
-  // Normalize attachment to be relative to public directory
-  let relativePath = attachment.trim();
-  if (/^https?:\/\//i.test(relativePath)) {
-    throw new RouteError(
-      HttpStatusCodes.BAD_REQUEST,
-      "Attachment is a remote URL; expected local public file"
-    );
-  }
-  relativePath = relativePath.replace(/^\/+/, "");
-  relativePath = relativePath.replace(/^public[\\/]/, "");
-
-  const filePath = path.join(staticDir, relativePath);
-
-  try {
-    const buffer = await fs.promises.readFile(filePath);
-    const result = await pdf(buffer);
-    return (result as any).text || "";
-  } catch (err) {
-    throw new RouteError(
-      HttpStatusCodes.INTERNAL_SERVER_ERROR,
-      "Failed to read or parse PDF: " + err
-    );
-  }
-}
-
-/**
  * Delete a order by their id.
  */
 async function _delete(id: number, type: string): Promise<void> {
@@ -237,6 +189,5 @@ async function _delete(id: number, type: string): Promise<void> {
 export default {
   getAll,
   getOne,
-  extractPdfTextByOrderId,
   delete: _delete,
 } as const;
