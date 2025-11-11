@@ -135,6 +135,7 @@ export default {
     BookedTimeSlots: "/booked_time_slots",
     BookingDetails: "/booking_details",
     GetExtraDiscountPractitionerIds: "/extra_discount_practitioners",
+    GetOrdersStarted: "/started",
   },
   Tests: {
     Base: "/tests",
@@ -200,5 +201,24 @@ export default {
     Base: "/app-versions",
     Get: "/all",
     GetByPlatform: "/platform/:platform",
+  },
+  Phlebotomists: {
+    Base: "/phlebotomists",
+    Get: "/all",
+    UpdateStatus: "/update_status",
+    ResendCredentials: "/resend_credentials",
+  },
+  PlebJobs: {
+    Base: "/pleb_jobs",
+    Get: "/all",
+    UpdateStatus: "/update_status/:id",
+    GetByPlebId: "/pleb/:pleb_id",
+    GetAllPlebs: "/plebs/all",
+    AssignJob: "/assign",
+    Distance: "/distance",
+  },
+  FileUpload: {
+    Base: "/file_upload_api",
+    Upload: "/",
   },
 } as const;

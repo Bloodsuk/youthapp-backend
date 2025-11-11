@@ -651,6 +651,28 @@ async function getBookingDetails(
   };
 }
 
+/**
+ * Get order IDs with status "Started" (Admin only)
+ */
+async function getOrderIdsWithStartedStatus(): Promise<{ id: number; customer_name: string }[]> {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT 
+      orders.id,
+      COALESCE(CONCAT(customers.fore_name, ' ', customers.sur_name), orders.client_name, '') AS customer_name
+    FROM orders 
+    LEFT JOIN customers ON orders.customer_id = customers.id
+    WHERE (
+        FIND_IN_SET('2', orders.other_charges) > 0
+      )
+      AND COALESCE(orders.is_job_assigned, 0) = 0
+    ORDER BY orders.id DESC`
+  );
+  return rows.map((row) => ({ 
+    id: row.id, 
+    customer_name: row.customer_name || '' 
+  })) as { id: number; customer_name: string }[];
+}
+
 // **** Export default **** //
 
 export default {
@@ -669,4 +691,5 @@ export default {
   getBookedTimeSlots,
   getBookingDetails,
   getOneForTestAndCustomer,
+  getOrderIdsWithStartedStatus,
 } as const;

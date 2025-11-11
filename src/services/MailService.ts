@@ -401,6 +401,502 @@ const sendUserForgotCodeEmail = async (email: string, code: string) => {
     }
   );
 }
+
+const sendPhlebotomistCredentialsEmail = async (name: string, email: string, password: string) => {
+  const subject = "Your Phlebotomist Login Credentials";
+  const title = "Welcome to Youth Revisited!";
+
+  const config = await getMailConfig();
+  if (!config) throw new Error("Mail configuration not found");
+
+  const mailerConfig = {
+    host: config.smtp_host,
+    secureConnection: true,
+    port: Number(config.smtp_port),
+    auth: {
+      user: config.smtp_username,
+      pass: config.smtp_password,
+    },
+    tls: {
+      rejectUnauthorized: false,
+    },
+  };
+  const transporter = nodemailer.createTransport(mailerConfig);
+
+  renderFile(
+    __dirname + "/mail_templates/phlebotomist_credentials.ejs",
+    { name, email, password, title },
+    (err, data) => {
+      if (err) {
+        console.log(err);
+        throw new Error("Error rendering email template");
+      } else {
+        const mailOptions = {
+          from: from,
+          to: email,
+          cc: cc,
+          subject: subject,
+          html: data,
+        };
+
+        transporter.sendMail(mailOptions, (error, info) => {
+          if (error) {
+            return console.log(error);
+          }
+          console.log("Phlebotomist credentials email sent: %s", info.messageId);
+        });
+      }
+    }
+  );
+};
+
+type Recipient = string | string[];
+
+interface INotificationDetail {
+  label: string;
+  value?: string | null;
+}
+
+interface INotificationTemplateOptions {
+  title: string;
+  greeting?: string;
+  introLines?: string[];
+  detailRows?: INotificationDetail[];
+  outroLines?: string[];
+}
+
+const htmlEscape = (value: string): string =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const normalizeDetailValue = (value: unknown): string | null => {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (value === undefined || value === null) {
+    return null;
+  }
+  return null;
+};
+
+const buildNotificationEmail = ({
+  title,
+  greeting,
+  introLines = [],
+  detailRows = [],
+  outroLines = [],
+}: INotificationTemplateOptions): string => {
+  const introHtml = introLines
+    .filter((line) => !!line && line.trim().length > 0)
+    .map(
+      (line) =>
+        `<p style="margin: 0 0 12px 0; color: #333333; font-size: 16px; line-height: 22px;">${htmlEscape(
+          line.trim()
+        )}</p>`
+    )
+    .join("");
+
+  const detailHtml = detailRows
+    .map((row) => ({
+      label: row.label,
+      value: normalizeDetailValue(row.value),
+    }))
+    .filter((row) => !!row.value)
+    .map(
+      (row) => `
+        <tr>
+          <td style="padding: 6px 12px; border: 1px solid #e3e3e3; font-weight: 600; background-color: #f7f9fc;">${htmlEscape(
+            row.label
+          )}</td>
+          <td style="padding: 6px 12px; border: 1px solid #e3e3e3;">${htmlEscape(
+            row.value!
+          )}</td>
+        </tr>`
+    )
+    .join("");
+
+  const detailsTable =
+    detailHtml.length > 0
+      ? `<table width="100%" cellspacing="0" cellpadding="0" style="border-collapse: collapse; margin: 10px 0;">${detailHtml}</table>`
+      : "";
+
+  const outroHtml = outroLines
+    .filter((line) => !!line && line.trim().length > 0)
+    .map(
+      (line) =>
+        `<p style="margin: 12px 0 0 0; color: #333333; font-size: 16px; line-height: 22px;">${htmlEscape(
+          line.trim()
+        )}</p>`
+    )
+    .join("");
+
+  const greetingHtml = greeting
+    ? `<p style="margin: 0 0 12px 0; color: #333333; font-size: 16px; line-height: 22px;">${htmlEscape(
+        greeting
+      )}</p>`
+    : "";
+
+  return `<!DOCTYPE html>
+  <html>
+    <head>
+      <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>${htmlEscape(title)}</title>
+    </head>
+    <body style="background-color: #f4f4f4; padding: 20px; font-family: 'Lato', Helvetica, Arial, sans-serif;">
+      <table align="center" cellpadding="0" cellspacing="0" width="100%" style="max-width: 640px; background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+        <tr>
+          <td style="background-color: #07274a; padding: 24px 32px; color: #ffffff;">
+            <h1 style="margin: 0; font-size: 22px; font-weight: 600;">${htmlEscape(title)}</h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 24px 32px;">
+            ${greetingHtml}
+            ${introHtml}
+            ${detailsTable}
+            ${outroHtml}
+            <p style="margin: 24px 0 0 0; color: #333333; font-size: 16px; line-height: 22px;">Regards,<br/>Youth Revisited Team</p>
+          </td>
+        </tr>
+      </table>
+    </body>
+  </html>`;
+};
+
+const toArray = (recipient: Recipient): string[] => {
+  if (Array.isArray(recipient)) {
+    return recipient
+      .filter((email) => typeof email === "string" && email.trim().length > 0)
+      .map((email) => email.trim());
+  }
+  if (typeof recipient === "string" && recipient.trim().length > 0) {
+    return [recipient.trim()];
+  }
+  return [];
+};
+
+const sendEmail = async (
+  to: Recipient,
+  subject: string,
+  html: string,
+  options?: { cc?: Recipient | null }
+): Promise<void> => {
+  const recipients = toArray(to);
+  if (recipients.length === 0) {
+    return;
+  }
+
+  const config = await getMailConfig();
+  if (!config) throw new Error("Mail configuration not found");
+
+  const mailerConfig = {
+    host: config.smtp_host,
+    secureConnection: true,
+    port: Number(config.smtp_port),
+    auth: {
+      user: config.smtp_username,
+      pass: config.smtp_password,
+    },
+    tls: {
+      rejectUnauthorized: false,
+    },
+  };
+  const transporter = nodemailer.createTransport(mailerConfig);
+
+  const ccOption =
+    options && options.cc !== undefined
+      ? options.cc === null
+        ? undefined
+        : toArray(options.cc)
+      : cc;
+
+  await transporter.sendMail({
+    from,
+    to: recipients,
+    cc: ccOption,
+    subject,
+    html,
+  });
+};
+
+interface IOrderIdentifiers {
+  orderId: number;
+  orderCode?: string | null;
+}
+
+const formatOrderRef = ({ orderId, orderCode }: IOrderIdentifiers): string =>
+  orderCode && orderCode.trim().length > 0 ? `#${orderCode.trim()}` : `#${orderId}`;
+
+interface IPlebJobAssignmentPayload extends IOrderIdentifiers {
+  plebName: string;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  customerAddress?: string | null;
+  jobStatus: string;
+}
+
+const getDetailValue = (value?: string | null, fallback = "Not provided"): string =>
+  typeof value === "string" && value.trim().length > 0 ? value.trim() : fallback;
+
+const sendPlebJobAssignmentEmail = async (
+  email: string,
+  payload: IPlebJobAssignmentPayload
+): Promise<void> => {
+  const { plebName, customerName, customerPhone, customerAddress, jobStatus } = payload;
+  const orderRef = formatOrderRef(payload);
+
+  const introLines = [
+    "A new job has been assigned to you.",
+    `Order ${orderRef} is ready for you to review.`,
+  ];
+
+  const detailRows: INotificationDetail[] = [
+    { label: "Order Reference", value: orderRef },
+    { label: "Customer", value: getDetailValue(customerName) },
+    { label: "Customer Phone", value: getDetailValue(customerPhone) },
+    { label: "Customer Address", value: getDetailValue(customerAddress) },
+    { label: "Starting Status", value: jobStatus },
+  ];
+
+  const html = buildNotificationEmail({
+    title: "New Job Assigned",
+    greeting: `Hi ${plebName},`,
+    introLines,
+    detailRows,
+    outroLines: [
+      "Please log in to your phlebotomist portal for full job details and keep the status updated as you progress.",
+    ],
+  });
+
+  await sendEmail(email, `Job Assigned: ${orderRef}`, html);
+};
+
+interface IAdminAssignmentPayload extends IOrderIdentifiers {
+  plebName: string;
+  plebPhone?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
+  customerAddress?: string | null;
+}
+
+const sendAdminJobAssignmentEmail = async (
+  adminEmails: Recipient,
+  payload: IAdminAssignmentPayload
+): Promise<void> => {
+  const orderRef = formatOrderRef(payload);
+
+  const detailRows: INotificationDetail[] = [
+    { label: "Order Reference", value: orderRef },
+    { label: "Pleb", value: getDetailValue(payload.plebName) },
+    { label: "Pleb Phone", value: getDetailValue(payload.plebPhone) },
+    { label: "Customer", value: getDetailValue(payload.customerName) },
+    { label: "Customer Phone", value: getDetailValue(payload.customerPhone) },
+    { label: "Customer Address", value: getDetailValue(payload.customerAddress) },
+  ];
+
+  const html = buildNotificationEmail({
+    title: "Job Assigned to Pleb",
+    greeting: "Hello Admin,",
+    introLines: [
+      `${payload.plebName} has been assigned to order ${orderRef}.`,
+    ],
+    detailRows,
+    outroLines: [
+      "You can review the assignment details in the admin dashboard.",
+    ],
+  });
+
+  await sendEmail(adminEmails, `Job Assigned: ${orderRef} → ${payload.plebName}`, html);
+};
+
+interface ICustomerAssignmentPayload extends IOrderIdentifiers {
+  customerName?: string | null;
+  plebName: string;
+  plebPhone?: string | null;
+}
+
+const sendCustomerJobAssignmentEmail = async (
+  email: string,
+  payload: ICustomerAssignmentPayload
+): Promise<void> => {
+  const orderRef = formatOrderRef(payload);
+  const greeting =
+    payload.customerName && payload.customerName.trim().length > 0
+      ? `Hello ${payload.customerName},`
+      : "Hello,";
+
+  const detailRows: INotificationDetail[] = [
+    { label: "Order Reference", value: orderRef },
+    { label: "Assigned Phlebotomist", value: payload.plebName },
+    { label: "Pleb Phone", value: payload.plebPhone },
+  ];
+
+  const html = buildNotificationEmail({
+    title: "Phlebotomist Assigned",
+    greeting,
+    introLines: [
+      `${payload.plebName} has been assigned to carry out your blood draw for order ${orderRef}.`,
+    ],
+    detailRows,
+    outroLines: [
+      "They will reach out if any additional coordination is required.",
+    ],
+  });
+
+  await sendEmail(email, `Your Phlebotomist: ${payload.plebName}`, html);
+};
+
+interface IJobStatusPayload extends IOrderIdentifiers {
+  plebName: string;
+  newStatus: string;
+  trackingNumber?: string | null;
+}
+
+const sendAdminJobStatusUpdateEmail = async (
+  adminEmails: Recipient,
+  payload: IJobStatusPayload
+): Promise<void> => {
+  const orderRef = formatOrderRef(payload);
+
+  const detailRows: INotificationDetail[] = [
+    { label: "Order Reference", value: orderRef },
+    { label: "Pleb", value: payload.plebName },
+    { label: "New Status", value: payload.newStatus },
+    { label: "Tracking Number", value: payload.trackingNumber },
+  ];
+
+  const html = buildNotificationEmail({
+    title: "Pleb Job Status Updated",
+    greeting: "Hello Admin,",
+    introLines: [
+      `${payload.plebName} updated the status for order ${orderRef}.`,
+    ],
+    detailRows,
+    outroLines: [
+      "Please review if any additional action is needed.",
+    ],
+  });
+
+  await sendEmail(
+    adminEmails,
+    `Job Status Updated (${payload.newStatus}): ${orderRef}`,
+    html
+  );
+};
+
+interface ICustomerJobStatusPayload extends IOrderIdentifiers {
+  customerName?: string | null;
+  plebName: string;
+  newStatus: string;
+}
+
+const sendCustomerJobStatusUpdateEmail = async (
+  email: string,
+  payload: ICustomerJobStatusPayload
+): Promise<void> => {
+  const orderRef = formatOrderRef(payload);
+  const greeting =
+    payload.customerName && payload.customerName.trim().length > 0
+      ? `Hello ${payload.customerName},`
+      : "Hello,";
+
+  const detailRows: INotificationDetail[] = [
+    { label: "Order Reference", value: orderRef },
+    { label: "Pleb", value: payload.plebName },
+    { label: "New Status", value: payload.newStatus },
+  ];
+
+  const html = buildNotificationEmail({
+    title: "Job Status Update",
+    greeting,
+    introLines: [
+      `${payload.plebName} has updated the status of your order (${orderRef}) to "${payload.newStatus}".`,
+    ],
+    detailRows,
+    outroLines: [
+      "We will keep you updated as the job progresses.",
+    ],
+  });
+
+  await sendEmail(email, `Status Update: ${payload.newStatus} for ${orderRef}`, html);
+};
+
+interface IJobCompletionPayload extends IOrderIdentifiers {
+  plebName: string;
+  trackingNumber?: string | null;
+  customerName?: string | null;
+  newStatus: string;
+}
+
+const sendAdminJobCompletionEmail = async (
+  adminEmails: Recipient,
+  payload: IJobCompletionPayload
+): Promise<void> => {
+  const orderRef = formatOrderRef(payload);
+
+  const detailRows: INotificationDetail[] = [
+    { label: "Order Reference", value: orderRef },
+    { label: "Pleb", value: payload.plebName },
+    { label: "Status", value: payload.newStatus },
+    { label: "Tracking Number", value: payload.trackingNumber },
+  ];
+
+  const html = buildNotificationEmail({
+    title: "Job Marked as Completed",
+    greeting: "Hello Admin,",
+    introLines: [
+      `${payload.plebName} marked order ${orderRef} as "${payload.newStatus}".`,
+    ],
+    detailRows,
+    outroLines: [
+      "Please ensure the logistics follow-up is handled promptly.",
+    ],
+  });
+
+  await sendEmail(adminEmails, `Job Completed: ${orderRef}`, html);
+};
+
+const sendCustomerJobCompletionEmail = async (
+  email: string,
+  payload: IJobCompletionPayload
+): Promise<void> => {
+  const orderRef = formatOrderRef(payload);
+  const greeting =
+    payload.customerName && payload.customerName.trim().length > 0
+      ? `Hello ${payload.customerName},`
+      : "Hello,";
+
+  const html = buildNotificationEmail({
+    title: "Blood Sample Collected",
+    greeting,
+    introLines: [
+      `${payload.plebName} has updated your order (${orderRef}) to "${payload.newStatus}".`,
+      "The blood sample has been collected successfully.",
+      "Thank you for your cooperation. We will notify you once your results are available.",
+    ],
+    detailRows: [
+      { label: "Order Reference", value: orderRef },
+      { label: "Status", value: payload.newStatus },
+      { label: "Tracking Number", value: payload.trackingNumber },
+    ],
+  });
+
+  await sendEmail(
+    email,
+    `Blood Sample Collected for ${orderRef}`,
+    html
+  );
+};
+
 export default {
   getMailConfig,
   addMailConfig,
@@ -413,5 +909,13 @@ export default {
   sendCustomerLoginsMail,
   sendProfileUpdateEmail,
   sendUserOrderStatusEmail,
-  sendUserForgotCodeEmail
+  sendUserForgotCodeEmail,
+  sendPhlebotomistCredentialsEmail,
+  sendPlebJobAssignmentEmail,
+  sendAdminJobAssignmentEmail,
+  sendCustomerJobAssignmentEmail,
+  sendAdminJobStatusUpdateEmail,
+  sendCustomerJobStatusUpdateEmail,
+  sendAdminJobCompletionEmail,
+  sendCustomerJobCompletionEmail
 } as const;

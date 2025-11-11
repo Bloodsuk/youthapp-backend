@@ -2,15 +2,38 @@ import Paths from "@src/constants/Paths";
 import AuthController from "@src/controllers/AuthController";
 import { Router } from "express";
 import jetValidator from "jet-validator/lib/jet-validator";
+import { Request, Response, NextFunction } from "express";
+import HttpStatusCodes from "@src/constants/HttpStatusCodes";
 
 const validate = jetValidator();
 
 const authRouter = Router();
 
+// Custom validation for login (handles phlebotomist flow)
+function validateLogin(req: Request, res: Response, next: NextFunction) {
+  const { email, isPleb } = req.body;
+  
+  // Email is always required
+  if (!email) {
+    return res.status(HttpStatusCodes.BAD_REQUEST).json({
+      error: "The following parameter was missing or invalid: \"email\"."
+    });
+  }
+  
+  // For phlebotomist flow, password is optional
+  if (!isPleb && !req.body.password) {
+    return res.status(HttpStatusCodes.BAD_REQUEST).json({
+      error: "The following parameter was missing or invalid: \"password\"."
+    });
+  }
+  
+  next();
+}
+
 // Login user
 authRouter.post(
   Paths.Auth.Login,
-  validate("email", "password"),
+  validateLogin,
   AuthController.login
 );
 // Register user

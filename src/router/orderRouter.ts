@@ -43,6 +43,12 @@ orderRouter.get(
   OrderController.getPaymentMethods
 );
 
+// Get orders with status "Started" (Admin only)
+orderRouter.get(
+  Paths.Orders.GetOrdersStarted,
+  OrderController.getOrdersWithStartedStatus
+);
+
 // Get By Id
 orderRouter.get(Paths.Orders.GetById, OrderController.getById);
 

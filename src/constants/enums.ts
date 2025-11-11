@@ -3,6 +3,7 @@ export enum UserLevels {
   Practitioner = "Practitioner",
   Moderator = "Moderator",
   Admin = "Admin",
+  Phlebotomist = "Phlebotomist",
 }
 export enum Gender {
   Male = "Male",

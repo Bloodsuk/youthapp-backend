@@ -983,6 +983,45 @@ async function getExtraDiscountPractitionerIds(req: IReq, res: IRes) {
   }
 }
 
+/**
+ * Get order IDs with status "Started" (Admin only)
+ */
+async function getOrdersWithStartedStatus(req: IReq, res: IRes) {
+  const isAdmin = res.locals.sessionUser?.user_level === UserLevels.Admin;
+  
+  if (!isAdmin) {
+    return res.status(HttpStatusCodes.FORBIDDEN).json({
+      success: false,
+      error: "Admin access required"
+    }).end();
+  }
+
+  try {
+    const orders = await OrderService.getOrderIdsWithStartedStatus();
+    return res.status(HttpStatusCodes.OK).json({
+      success: true,
+      data: orders
+    }).end();
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
 // **** Export default **** //
 
 export default {
@@ -1006,4 +1045,5 @@ export default {
   getBookingDetails,
   getExtraDiscountPractitionerIds,
   GetAllCustomerOrders,
+  getOrdersWithStartedStatus,
 } as const;
