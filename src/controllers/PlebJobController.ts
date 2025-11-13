@@ -6,6 +6,7 @@ import { RouteError } from "@src/other/classes";
 import PlebJobService from "@src/services/PlebJobService";
 import PhlebotomistService from "@src/services/PhlebotomistService";
 import { UserLevels } from "@src/constants/enums";
+import { canAssignJobs } from "@src/util/JobAssignmentAuth";
 
 // **** Functions **** //
 
@@ -172,12 +173,12 @@ async function getAllPlebs(req: IReq, res: IRes) {
  * Assign a job to a pleb (Admin only)
  */
 async function assignJob(req: IReq<{ pleb_id: number; order_id: number; job_status?: string }>, res: IRes) {
-  const isAdmin = res.locals.sessionUser?.user_level === UserLevels.Admin;
-  
-  if (!isAdmin) {
+  const sessionUser = res.locals.sessionUser;
+
+  if (!canAssignJobs(sessionUser)) {
     return res.status(HttpStatusCodes.FORBIDDEN).json({
       success: false,
-      error: "Admin access required"
+      error: "Job assignment access required"
     }).end();
   }
 

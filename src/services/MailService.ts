@@ -8,6 +8,29 @@ import { IMailTemplate } from "@src/interfaces/IMailTemplate";
 const from = "info@youth-revisited.co.uk";
 const cc = "info@youth-revisited.co.uk";
 
+const normalizeEmail = (email: string): string | null => {
+  const trimmed = email.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+const parseEmailCsv = (raw?: string): string[] =>
+  raw
+    ? raw
+        .split(",")
+        .map((email) => normalizeEmail(email))
+        .filter((email): email is string => !!email)
+    : [];
+
+const adminNotificationCcList = parseEmailCsv(process.env.ADMIN_NOTIFICATIONS_CC);
+
+const defaultCcRecipients: string[] = normalizeEmail(cc) ? [normalizeEmail(cc)!] : [];
+
+const adminCcRecipients = Array.from(
+  new Set([...defaultCcRecipients, ...adminNotificationCcList])
+);
+
+const getAdminCcRecipients = (): string[] => adminCcRecipients;
+
 async function getMailConfig() {
   const [rows] = await pool.query<RowDataPacket[]>(
     "SELECT * from email_configuration where id = 1"
@@ -715,7 +738,9 @@ const sendAdminJobAssignmentEmail = async (
     ],
   });
 
-  await sendEmail(adminEmails, `Job Assigned: ${orderRef} → ${payload.plebName}`, html);
+  await sendEmail(adminEmails, `Job Assigned: ${orderRef} → ${payload.plebName}`, html, {
+    cc: getAdminCcRecipients(),
+  });
 };
 
 interface ICustomerAssignmentPayload extends IOrderIdentifiers {
@@ -789,7 +814,10 @@ const sendAdminJobStatusUpdateEmail = async (
   await sendEmail(
     adminEmails,
     `Job Status Updated (${payload.newStatus}): ${orderRef}`,
-    html
+    html,
+    {
+      cc: getAdminCcRecipients(),
+    }
   );
 };
 
@@ -862,7 +890,9 @@ const sendAdminJobCompletionEmail = async (
     ],
   });
 
-  await sendEmail(adminEmails, `Job Completed: ${orderRef}`, html);
+  await sendEmail(adminEmails, `Job Completed: ${orderRef}`, html, {
+    cc: getAdminCcRecipients(),
+  });
 };
 
 const sendCustomerJobCompletionEmail = async (

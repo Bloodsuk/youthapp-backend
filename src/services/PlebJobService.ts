@@ -3,6 +3,7 @@ import { RowDataPacket, ResultSetHeader } from "mysql2";
 import { IPlebJob } from "@src/interfaces/IPlebJob";
 import { UserLevels } from "@src/constants/enums";
 import type { ISessionUser } from "@src/interfaces/ISessionUser";
+import { canAssignJobs } from "@src/util/JobAssignmentAuth";
 import MailService from "./MailService";
 import fetch from "node-fetch";
 
@@ -108,11 +109,12 @@ const buildAdminRecipientEmails = async ({
 }): Promise<string[]> => {
   const recipients = new Set<string>();
 
-  if (assignedBy && assignedBy.user_level === UserLevels.Admin) {
+  if (assignedBy) {
     const normalizedEmail = normalizeString(assignedBy.email);
-    if (normalizedEmail) {
+
+    if (canAssignJobs(assignedBy) && normalizedEmail) {
       recipients.add(normalizedEmail);
-    } else if (assignedBy.id) {
+    } else if (assignedBy.user_level === UserLevels.Admin && assignedBy.id) {
       const contact = await getAdminContactById(assignedBy.id);
       if (contact?.email) {
         recipients.add(contact.email);
