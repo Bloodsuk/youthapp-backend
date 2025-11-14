@@ -16,6 +16,7 @@ import UserService from "@src/services/UserService";
 import EnvVars from '@src/constants/EnvVars';
 import ExtraDiscountService from "@src/services/ExtraDiscountService";
 import { ISessionUser } from "@src/interfaces/ISessionUser";
+import { canAssignJobs } from "@src/util/JobAssignmentAuth";
 
 const stripe = new Stripe(EnvVars.Stripe.Secret);
 
@@ -987,12 +988,10 @@ async function getExtraDiscountPractitionerIds(req: IReq, res: IRes) {
  * Get order IDs with status "Started" (Admin only)
  */
 async function getOrdersWithStartedStatus(req: IReq, res: IRes) {
-  const isAdmin = res.locals.sessionUser?.user_level === UserLevels.Admin;
-  
-  if (!isAdmin) {
+  if (!canAssignJobs(res.locals.sessionUser)) {
     return res.status(HttpStatusCodes.FORBIDDEN).json({
       success: false,
-      error: "Admin access required"
+      error: "Job assignment access required"
     }).end();
   }
 
