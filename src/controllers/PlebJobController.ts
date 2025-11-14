@@ -131,15 +131,13 @@ async function updateStatus(req: IReq<{ id: number; job_status: string; tracking
 }
 
 /**
- * Get all plebs with id and name (Admin only)
+ * Get all plebs with id and name (Job assignment access)
  */
 async function getAllPlebs(req: IReq, res: IRes) {
-  const isAdmin = res.locals.sessionUser?.user_level === UserLevels.Admin;
-  
-  if (!isAdmin) {
+  if (!canAssignJobs(res.locals.sessionUser)) {
     return res.status(HttpStatusCodes.FORBIDDEN).json({
       success: false,
-      error: "Admin access required"
+      error: "Job assignment access required"
     }).end();
   }
 
