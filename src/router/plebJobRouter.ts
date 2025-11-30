@@ -1,5 +1,6 @@
 import Paths from "@src/constants/Paths";
 import PlebJobController from "@src/controllers/PlebJobController";
+import PlebAvailabilityController from "@src/controllers/PlebAvailabilityController";
 import { Router } from "express";
 import jetValidator from "jet-validator/lib/jet-validator";
 
@@ -41,6 +42,18 @@ plebJobRouter.post(
 plebJobRouter.post(
   Paths.PlebJobs.Distance,
   PlebJobController.getDistance
+);
+
+// Get availability and range for a pleb
+plebJobRouter.get(
+  Paths.PlebJobs.GetAvailability,
+  PlebAvailabilityController.getAvailability
+);
+
+// Update availability and range for a pleb
+plebJobRouter.put(
+  Paths.PlebJobs.UpdateAvailability,
+  PlebAvailabilityController.updateAvailability
 );
 
 export default plebJobRouter;

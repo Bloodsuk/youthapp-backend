@@ -33,4 +33,21 @@ export default {
   Stripe: {
     Secret: process.env.STRIPE_SECRET_KEY ?? "",
   },
+  GlobalPayments: {
+    AppId: process.env.GP_APP_ID ?? "",
+    AppKey: process.env.GP_APP_KEY ?? "",
+    MerchantId: process.env.GP_MERCHANT_ID ?? "",
+    Channel: process.env.GP_CHANNEL ?? "CNP",
+    Country: process.env.GP_COUNTRY ?? "GB",
+    Environment: process.env.GP_ENVIRONMENT ?? "TEST",
+    DefaultCurrency: process.env.GP_DEFAULT_CURRENCY ?? "GBP",
+    TransactionAccountName: process.env.GP_TXN_ACCOUNT_NAME ?? "",
+    TransactionAccountId: process.env.GP_TXN_ACCOUNT_ID ?? "",
+    RiskAccountName: process.env.GP_RISK_ACCOUNT_NAME ?? "",
+    RiskAccountId: process.env.GP_RISK_ACCOUNT_ID ?? "",
+    MethodNotificationUrl: process.env.GP_METHOD_NOTIFICATION_URL ?? "",
+    ChallengeNotificationUrl:
+      process.env.GP_CHALLENGE_NOTIFICATION_URL ?? "",
+    MerchantContactUrl: process.env.GP_MERCHANT_CONTACT_URL ?? "",
+  },
 } as const;

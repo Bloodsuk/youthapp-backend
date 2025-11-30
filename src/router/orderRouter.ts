@@ -104,4 +104,43 @@ orderRouter.post(
   OrderController.stripeCheckout
 );
 
+// Global Payments Checkout (Create Order + Pre-Auth)
+orderRouter.post(
+  Paths.Orders.GlobalPaymentsCheckout,
+  OrderController.globalPaymentsCheckout
+);
+
+// Global Payments Authorize (Pre-Auth on existing order)
+orderRouter.post(
+  Paths.Orders.GlobalPaymentsAuthorize,
+  OrderController.globalPaymentsAuthorize
+);
+
+// Global Payments Capture
+orderRouter.post(
+  Paths.Orders.GlobalPaymentsCapture,
+  OrderController.globalPaymentsCapture
+);
+
+// Global Payments Release/Void
+orderRouter.post(
+  Paths.Orders.GlobalPaymentsRelease,
+  OrderController.globalPaymentsRelease
+);
+
+orderRouter.get(
+  Paths.Orders.GlobalPaymentsPaymentTokens,
+  OrderController.getGlobalPaymentsTokens
+);
+
+orderRouter.delete(
+  `${Paths.Orders.GlobalPaymentsPaymentTokens}/:id`,
+  OrderController.deleteGlobalPaymentsToken
+);
+
+orderRouter.post(
+  Paths.Orders.GlobalPaymentsTokenize,
+  OrderController.tokenizeGlobalPaymentsCard
+);
+
 export default orderRouter;

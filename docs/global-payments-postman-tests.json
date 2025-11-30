@@ -1,0 +1,236 @@
+{
+  "info": {
+    "name": "Global Payments API Tests",
+    "description": "Test data for Global Payments checkout endpoint based on sample order #17837",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Global Payments Checkout - New Card (Based on Sample Order)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer YOUR_JWT_TOKEN_HERE",
+            "description": "Replace with actual JWT token from login"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": 19438,\n  \"test_ids\": [1, 2],\n  \"shipping_type\": 1,\n  \"service_ids\": [],\n  \"discount\": 0,\n  \"current_medication\": \"No\",\n  \"last_trained\": \"\",\n  \"fasted\": \"No\",\n  \"hydrated\": \"Yes\",\n  \"drank_alcohol\": \"No\",\n  \"drugs_taken\": \"\",\n  \"supplements\": \"\",\n  \"enhancing_drugs\": \"\",\n  \"booking\": {},\n  \"payment_method\": {\n    \"number\": \"4263970000005262\",\n    \"exp_month\": \"12\",\n    \"exp_year\": \"2025\",\n    \"cvv\": \"123\",\n    \"card_holder_name\": \"system test\"\n  },\n  \"save_payment_method\": true,\n  \"currency\": \"GBP\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/orders/global_payments/checkout",
+          "host": ["{{base_url}}"],
+          "path": ["api", "orders", "global_payments", "checkout"]
+        },
+        "description": "Creates order and places pre-authorization hold. Based on sample order #17837 (customer_id: 19438, total: 250.00)"
+      }
+    },
+    {
+      "name": "2. Global Payments Checkout - Using Saved Token",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer YOUR_JWT_TOKEN_HERE"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": 19438,\n  \"test_ids\": [1, 2],\n  \"shipping_type\": 1,\n  \"service_ids\": [],\n  \"discount\": 0,\n  \"current_medication\": \"No\",\n  \"last_trained\": \"\",\n  \"fasted\": \"No\",\n  \"hydrated\": \"Yes\",\n  \"drank_alcohol\": \"No\",\n  \"drugs_taken\": \"\",\n  \"supplements\": \"\",\n  \"enhancing_drugs\": \"\",\n  \"booking\": {},\n  \"payment_token_id\": 1,\n  \"currency\": \"GBP\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/orders/global_payments/checkout",
+          "host": ["{{base_url}}"],
+          "path": ["api", "orders", "global_payments", "checkout"]
+        },
+        "description": "Uses a previously saved payment token (payment_token_id) instead of raw card details"
+      }
+    },
+    {
+      "name": "3. Global Payments Checkout - With Discount",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer YOUR_JWT_TOKEN_HERE"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": 19438,\n  \"test_ids\": [1, 2],\n  \"shipping_type\": 1,\n  \"service_ids\": [1],\n  \"discount\": 25.00,\n  \"current_medication\": \"No\",\n  \"last_trained\": \"\",\n  \"fasted\": \"No\",\n  \"hydrated\": \"Yes\",\n  \"drank_alcohol\": \"No\",\n  \"drugs_taken\": \"\",\n  \"supplements\": \"\",\n  \"enhancing_drugs\": \"\",\n  \"booking\": {},\n  \"payment_method\": {\n    \"number\": \"4263970000005262\",\n    \"exp_month\": \"12\",\n    \"exp_year\": \"2025\",\n    \"cvv\": \"123\",\n    \"card_holder_name\": \"system test\"\n  },\n  \"save_payment_method\": false,\n  \"currency\": \"GBP\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/orders/global_payments/checkout",
+          "host": ["{{base_url}}"],
+          "path": ["api", "orders", "global_payments", "checkout"]
+        },
+        "description": "Test with discount applied (25.00 discount)"
+      }
+    },
+    {
+      "name": "4. Global Payments Checkout - Full Health Details",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer YOUR_JWT_TOKEN_HERE"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": 19438,\n  \"test_ids\": [1, 2, 3],\n  \"shipping_type\": 2,\n  \"service_ids\": [1, 2],\n  \"discount\": 0,\n  \"current_medication\": \"Aspirin, Vitamin D\",\n  \"last_trained\": \"2025-01-15\",\n  \"fasted\": \"Yes\",\n  \"hydrated\": \"Yes\",\n  \"drank_alcohol\": \"No\",\n  \"drugs_taken\": \"None\",\n  \"supplements\": \"Multivitamin, Omega-3\",\n  \"enhancing_drugs\": \"None\",\n  \"booking\": {\n    \"appointment_date\": \"2025-12-01\",\n    \"appointment_time\": \"10:00\"\n  },\n  \"payment_method\": {\n    \"number\": \"4263970000005262\",\n    \"exp_month\": \"12\",\n    \"exp_year\": \"2025\",\n    \"cvv\": \"123\",\n    \"card_holder_name\": \"system test\"\n  },\n  \"save_payment_method\": true,\n  \"currency\": \"GBP\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/orders/global_payments/checkout",
+          "host": ["{{base_url}}"],
+          "path": ["api", "orders", "global_payments", "checkout"]
+        },
+        "description": "Complete test with all health details filled in"
+      }
+    },
+    {
+      "name": "5. Capture Payment (After Checkout)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer YOUR_JWT_TOKEN_HERE"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"order_id\": 123,\n  \"amount\": 250.00,\n  \"currency\": \"GBP\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/orders/global_payments/capture",
+          "host": ["{{base_url}}"],
+          "path": ["api", "orders", "global_payments", "capture"]
+        },
+        "description": "Captures the pre-authorized payment. Replace order_id with actual order ID from checkout response"
+      }
+    },
+    {
+      "name": "6. Release Payment (Cancel Hold)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer YOUR_JWT_TOKEN_HERE"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"order_id\": 123\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/orders/global_payments/release",
+          "host": ["{{base_url}}"],
+          "path": ["api", "orders", "global_payments", "release"]
+        },
+        "description": "Releases the pre-authorization hold. Replace order_id with actual order ID"
+      }
+    },
+    {
+      "name": "7. Tokenize Card (Save for Future)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer YOUR_JWT_TOKEN_HERE"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"payment_method\": {\n    \"number\": \"4263970000005262\",\n    \"exp_month\": \"12\",\n    \"exp_year\": \"2025\",\n    \"cvv\": \"123\",\n    \"card_holder_name\": \"system test\"\n  },\n  \"save\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/orders/global_payments/tokenize",
+          "host": ["{{base_url}}"],
+          "path": ["api", "orders", "global_payments", "tokenize"]
+        },
+        "description": "Tokenizes and saves a card for future use without creating an order"
+      }
+    },
+    {
+      "name": "8. Get Saved Payment Tokens",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer YOUR_JWT_TOKEN_HERE"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/orders/global_payments/payment_tokens",
+          "host": ["{{base_url}}"],
+          "path": ["api", "orders", "global_payments", "payment_tokens"]
+        },
+        "description": "Lists all saved payment tokens for the authenticated user"
+      }
+    },
+    {
+      "name": "9. Delete Payment Token",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer YOUR_JWT_TOKEN_HERE"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/orders/global_payments/payment_tokens/1",
+          "host": ["{{base_url}}"],
+          "path": ["api", "orders", "global_payments", "payment_tokens", "1"]
+        },
+        "description": "Deletes a saved payment token. Replace '1' with actual token ID"
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:7020",
+      "type": "string"
+    }
+  ]
+}
+

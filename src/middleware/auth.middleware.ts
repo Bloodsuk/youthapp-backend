@@ -22,8 +22,12 @@ async function authorization(
   res: Response,
   next: NextFunction,
 ) {
+  console.log("Auth middleware path:", req.path);
   // Get session data
-  if(req.path.includes("/auth") || req.path.includes("/app_versions") || req.path.includes("/app-versions")) return next();
+  const bypassPrefixes = ["/auth", "/app_versions", "/app-versions"];
+  if (bypassPrefixes.some((prefix) => req.path.startsWith(prefix))) {
+    return next();
+  }
 
   // If the paths is for chatbot, check the token and allow access based on that
   const isChatbotPath = CHATBOT_PATHS.some(s => s.test(req.path))
@@ -52,7 +56,10 @@ async function authorization(
       .status(HttpStatusCodes.UNAUTHORIZED)
       .json({ error: "JWT token not found" });
   }
+  console.log("Auth middleware token:", token);
+  
   const userData = await JwtHelper._decode<ISessionUser>(token);
+  console.log("Auth middleware decoded userData:", userData);
 
   // const sessionData = await SessionUtil.getSessionData<TSessionData>(req);
   // console.log('sessionData: ', sessionData);

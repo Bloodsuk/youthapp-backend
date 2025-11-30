@@ -17,6 +17,8 @@ import EnvVars from '@src/constants/EnvVars';
 import ExtraDiscountService from "@src/services/ExtraDiscountService";
 import { ISessionUser } from "@src/interfaces/ISessionUser";
 import { canAssignJobs } from "@src/util/JobAssignmentAuth";
+import GlobalPaymentsService from "@src/services/GlobalPaymentsService";
+import PaymentTokenService from "@src/services/PaymentTokenService";
 
 const stripe = new Stripe(EnvVars.Stripe.Secret);
 
@@ -85,7 +87,6 @@ async function getAllCustomerOrder(req: IReq<IGetOrdersReqBody>, res: IRes) {
         .end();
   }
 }
-
 /**
  * INFO: Get my orders.
  * @param req 
@@ -605,6 +606,29 @@ interface IStripeCheckoutReqBody {
   booking: Record<string, any>;
 }
 
+interface IGpPaymentMethodPayload {
+  token?: string;
+  number?: string;
+  exp_month?: string;
+  exp_year?: string;
+  cvv?: string;
+  card_holder_name?: string;
+}
+
+interface IGlobalPaymentsAuthorizeReqBody {
+  order_id: number;
+  payment_method?: IGpPaymentMethodPayload;
+  payment_token_id?: number;
+  save_payment_method?: boolean;
+  amount?: number;
+  currency?: string;
+}
+
+interface IGlobalPaymentsTokenizeReqBody {
+  payment_method: IGpPaymentMethodPayload;
+  save?: boolean;
+}
+
 async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
   if (!res.locals.sessionUser) {
     return res
@@ -747,6 +771,669 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
         .end();
   }
 }
+
+/**
+ * Global Payments Checkout - Creates order and places pre-authorization hold
+ */
+interface IGlobalPaymentsCheckoutReqBody {
+  customer_id: number;
+  test_ids: number[];
+  shipping_type: number;
+  service_ids: number[];
+  discount: number;
+  current_medication: string;
+  last_trained: string;
+  fasted: string;
+  hydrated: string;
+  drank_alcohol: string;
+  drugs_taken: string;
+  supplements: string;
+  enhancing_drugs: string;
+  booking: Record<string, any>;
+  payment_method?: IGpPaymentMethodPayload;
+  payment_token_id?: number;
+  save_payment_method?: boolean;
+  currency?: string;
+}
+
+async function globalPaymentsCheckout(
+  req: IReq<IGlobalPaymentsCheckoutReqBody>,
+  res: IRes
+) {
+  if (!res.locals.sessionUser) {
+    return res
+      .status(HttpStatusCodes.UNAUTHORIZED)
+      .json({ success: false, error: "Unauthorized" });
+  }
+
+  const sessionUser = res.locals.sessionUser;
+  const {
+    customer_id,
+    test_ids,
+    discount,
+    shipping_type,
+    service_ids,
+    current_medication,
+    last_trained,
+    fasted,
+    hydrated,
+    drank_alcohol,
+    drugs_taken,
+    supplements,
+    enhancing_drugs,
+    booking,
+    payment_method,
+    payment_token_id,
+    save_payment_method,
+    currency,
+  } = req.body;
+
+  if (!payment_method && !payment_token_id) {
+    return res.status(HttpStatusCodes.BAD_REQUEST).json({
+      success: false,
+      error: "Either payment_method or payment_token_id is required",
+    });
+  }
+
+  let authorizationResult: Awaited<
+    ReturnType<typeof GlobalPaymentsService.authorize>
+  > | null = null;
+  let authorizationTransactionId: string | null = null;
+  let savedPaymentTokenId: number | null = null;
+  let usingStoredToken = false;
+
+  try {
+    const customer = await CustomerService.getOne(customer_id);
+    if (!customer) {
+      return res
+        .status(HttpStatusCodes.BAD_REQUEST)
+        .json({ success: false, error: "Customer not found" });
+    }
+
+    const order_placed_by = sessionUser.id;
+    const prac_id = customer.created_by;
+    let createdBy = 0;
+    if (
+      sessionUser.user_level == UserLevels.Practitioner ||
+      sessionUser.user_level == UserLevels.Admin
+    ) {
+      createdBy = sessionUser.id;
+    } else {
+      createdBy = sessionUser.practitioner_id || 0;
+    }
+
+    // Calculate totals
+    let cart_total = 0;
+    for (const test_id of test_ids) {
+      const test = await TestsService.getOne(test_id);
+      cart_total += parseFloat(test.price);
+    }
+    const shipping = await ShippingsService.getOne(shipping_type);
+    const shipping_charges = shipping["value"];
+    let other_charges_total = 0;
+    for (const service_id of service_ids) {
+      const service = await ServicesService.getOne(service_id);
+      other_charges_total += service.value;
+    }
+
+    const total_val =
+      cart_total + shipping_charges + other_charges_total - discount;
+
+    if (total_val <= 0) {
+      return res.status(HttpStatusCodes.BAD_REQUEST).json({
+        success: false,
+        error:
+          "Total calculated amount is 0 or less. Please check your order details again.",
+      });
+    }
+
+    const order_id = moment().format("YYMM") + `${mt_rand(55, 55555)}`;
+
+    // Prepare payment method
+    let gpPaymentMethod;
+    if (payment_token_id) {
+      const tokenRecord = await PaymentTokenService.getByIdForUser(
+        payment_token_id,
+        sessionUser.id
+      );
+      if (!tokenRecord) {
+        return res.status(HttpStatusCodes.NOT_FOUND).json({
+          success: false,
+          error: "Stored payment method not found",
+        });
+      }
+      gpPaymentMethod = { token: tokenRecord.token };
+      usingStoredToken = true;
+      savedPaymentTokenId = tokenRecord.id;
+    } else {
+      gpPaymentMethod = {
+        token: payment_method?.token,
+        number: payment_method?.number,
+        expMonth: payment_method?.exp_month,
+        expYear: payment_method?.exp_year,
+        cvv: payment_method?.cvv,
+        cardHolderName: payment_method?.card_holder_name,
+      };
+    }
+
+    // Place pre-authorization hold
+    const shouldSaveToken = !usingStoredToken && (save_payment_method ?? true);
+    authorizationResult = await GlobalPaymentsService.authorize({
+      amount: Number(total_val.toFixed(2)),
+      currency: currency || EnvVars.GlobalPayments.DefaultCurrency,
+      clientTransactionId: order_id,
+      allowDuplicates: false,
+      requestMultiUseToken: shouldSaveToken,
+      paymentMethod: gpPaymentMethod,
+    });
+    authorizationTransactionId = authorizationResult.transactionId;
+
+    // Save token if new card was used
+    if (shouldSaveToken && authorizationResult.token) {
+      const masked = authorizationResult.raw.cardDetails?.maskedNumberLast4;
+      const derivedLast4 = masked ? masked.slice(-4) : null;
+      const tokenRecord = await PaymentTokenService.saveOrUpdate(
+        sessionUser.id,
+        {
+          token: authorizationResult.token,
+          fingerprint: authorizationResult.raw.fingerprint || null,
+          brand:
+            authorizationResult.raw.cardType ||
+            authorizationResult.raw.cardDetails?.brand ||
+            null,
+          last4:
+            authorizationResult.raw.cardLast4 ||
+            derivedLast4 ||
+            (payment_method?.number
+              ? payment_method.number.slice(-4)
+              : null),
+          exp_month: payment_method?.exp_month || null,
+          exp_year: payment_method?.exp_year || null,
+        }
+      );
+      savedPaymentTokenId = tokenRecord.id;
+    }
+
+    // Create order with authorization details
+    const order = {
+      order_id,
+      customer_id,
+      transaction_id: authorizationResult.transactionId,
+      test_ids: test_ids.join(","),
+      client_id: customer.client_code,
+      client_name: customer.fore_name + " " + customer.sur_name,
+      shipping_type: shipping_type.toString(),
+      other_charges: service_ids.join(","),
+      checkout_type: "GlobalPayments",
+      payment_status: "Authorized",
+      order_placed_by,
+      created_by: createdBy,
+      practitioner_id: prac_id,
+      subtotal: cart_total,
+      shipping_charges,
+      other_charges_total,
+      discount,
+      total_val,
+      current_medication,
+      last_trained,
+      fasted,
+      hydrated,
+      drank_alcohol,
+      drugs_taken,
+      supplements,
+      enhancing_drugs,
+    };
+
+    const id = await OrderService.addOne(order, booking);
+    const order_number = `#YRV-${order_id}`;
+
+    return res.status(HttpStatusCodes.CREATED).json({
+      success: true,
+      order_id: id,
+      order_number,
+      authorization: authorizationResult,
+      payment_token_id: savedPaymentTokenId,
+    });
+  } catch (error) {
+    // Release hold if order creation fails
+    if (authorizationTransactionId) {
+      try {
+        await GlobalPaymentsService.release(authorizationTransactionId);
+      } catch (releaseError) {
+        console.error(
+          "Failed to release Global Payments authorization:",
+          releaseError
+        );
+      }
+    }
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
+async function globalPaymentsAuthorize(
+  req: IReq<IGlobalPaymentsAuthorizeReqBody>,
+  res: IRes
+) {
+  console.log("GlobalPaymentsAuthorize - headers:", req.headers);
+  console.log("GlobalPaymentsAuthorize - body:", req.body);
+  const sessionUser = res.locals.sessionUser;
+  console.log("GlobalPaymentsAuthorize - sessionUser:", sessionUser);
+  if (!sessionUser) {
+    return res
+      .status(HttpStatusCodes.UNAUTHORIZED)
+      .json({ success: false, error: "Unauthorized" });
+  }
+
+  const {
+    order_id,
+    payment_method,
+    payment_token_id,
+    save_payment_method,
+    amount,
+    currency,
+  } = req.body;
+
+  if (!order_id) {
+    return res
+      .status(HttpStatusCodes.BAD_REQUEST)
+      .json({ success: false, error: "order_id is required" });
+  }
+
+  if (!payment_method && !payment_token_id) {
+    return res.status(HttpStatusCodes.BAD_REQUEST).json({
+      success: false,
+      error: "Either payment_method or payment_token_id is required",
+    });
+  }
+
+  let authorizationResult: Awaited<
+    ReturnType<typeof GlobalPaymentsService.authorize>
+  > | null = null;
+  let savedPaymentTokenId: number | null = payment_token_id || null;
+  try {
+    const order = await OrderService.getOne(order_id);
+    if (!order) {
+      return res
+        .status(HttpStatusCodes.NOT_FOUND)
+        .json({ success: false, error: "Order not found" });
+    }
+    const authorizationAmount =
+      amount !== undefined ? Number(amount) : Number(order.total_val);
+    if (!authorizationAmount || authorizationAmount <= 0) {
+      return res.status(HttpStatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: "Order total must be greater than zero for authorization",
+      });
+    }
+
+    let gpPaymentMethod;
+    let usingStoredToken = false;
+    if (payment_token_id) {
+      const tokenRecord = await PaymentTokenService.getByIdForUser(
+        payment_token_id,
+        sessionUser.id
+      );
+      if (!tokenRecord) {
+        return res.status(HttpStatusCodes.NOT_FOUND).json({
+          success: false,
+          error: "Stored payment method not found",
+        });
+      }
+      gpPaymentMethod = {
+        token: tokenRecord.token,
+      };
+      usingStoredToken = true;
+    } else {
+      gpPaymentMethod = {
+        token: payment_method?.token,
+        number: payment_method?.number,
+        expMonth: payment_method?.exp_month,
+        expYear: payment_method?.exp_year,
+        cvv: payment_method?.cvv,
+        cardHolderName: payment_method?.card_holder_name,
+      };
+    }
+
+    const shouldSaveToken = !usingStoredToken && (save_payment_method ?? true);
+    authorizationResult = await GlobalPaymentsService.authorize({
+      amount: Number(authorizationAmount.toFixed(2)),
+      currency: currency || EnvVars.GlobalPayments.DefaultCurrency,
+      clientTransactionId: order.order_id,
+      requestMultiUseToken: shouldSaveToken,
+      paymentMethod: gpPaymentMethod,
+    });
+
+    if (shouldSaveToken && authorizationResult.token && payment_method) {
+      const masked = authorizationResult.raw.cardDetails?.maskedNumberLast4;
+      const derivedLast4 = masked ? masked.slice(-4) : null;
+      const tokenRecord = await PaymentTokenService.saveOrUpdate(
+        sessionUser.id,
+        {
+          token: authorizationResult.token,
+          fingerprint: authorizationResult.raw.fingerprint || null,
+          brand:
+            authorizationResult.raw.cardType ||
+            authorizationResult.raw.cardDetails?.brand ||
+            null,
+          last4:
+            authorizationResult.raw.cardLast4 ||
+            derivedLast4 ||
+            (payment_method.number
+              ? payment_method.number.slice(-4)
+              : null),
+          exp_month: payment_method.exp_month || null,
+          exp_year: payment_method.exp_year || null,
+        }
+      );
+      savedPaymentTokenId = tokenRecord.id;
+    }
+
+    await OrderService.updatePaymentFields(order.id, {
+      checkout_type: "GlobalPayments",
+      payment_status: "Authorized",
+      transaction_id: authorizationResult.transactionId,
+    });
+
+    return res.status(HttpStatusCodes.OK).json({
+      success: true,
+      order_id: order.id,
+      authorization: authorizationResult,
+      payment_token_id: savedPaymentTokenId,
+    });
+  } catch (error) {
+    if (authorizationResult?.transactionId) {
+      try {
+        await GlobalPaymentsService.release(authorizationResult.transactionId);
+      } catch (releaseError) {
+        console.error(
+          "Failed to release Global Payments authorization:",
+          releaseError
+        );
+      }
+    }
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
+interface IGpManagePaymentReqBody {
+  order_id: number;
+  amount?: number;
+  currency?: string;
+}
+
+async function globalPaymentsCapture(
+  req: IReq<IGpManagePaymentReqBody>,
+  res: IRes
+) {
+  console.log("GlobalPaymentsCapture - headers:", req.headers);
+  console.log("GlobalPaymentsCapture - body:", req.body);
+  const sessionUser = res.locals.sessionUser;
+  if (!sessionUser || sessionUser.user_level === UserLevels.Customer) {
+    return res
+      .status(HttpStatusCodes.UNAUTHORIZED)
+      .json({ success: false, error: "Unauthorized" });
+  }
+  const { order_id, amount, currency } = req.body;
+  if (!order_id) {
+    return res
+      .status(HttpStatusCodes.BAD_REQUEST)
+      .json({ success: false, error: "order_id is required" });
+  }
+  try {
+    const order = await OrderService.getOne(order_id);
+    if (order.checkout_type !== "GlobalPayments") {
+      return res.status(HttpStatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: "Order was not processed via Global Payments",
+      });
+    }
+    if (!order.transaction_id) {
+      return res.status(HttpStatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: "Order is missing Global Payments transaction reference",
+      });
+    }
+    if (order.payment_status !== "Authorized") {
+      return res.status(HttpStatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: "Only authorized orders can be captured",
+      });
+    }
+    const capture = await GlobalPaymentsService.capture({
+      transactionId: order.transaction_id,
+      amount: amount ?? order.total_val,
+      currency: currency || EnvVars.GlobalPayments.DefaultCurrency,
+    });
+    await OrderService.updatePaymentStatus(
+      order.id,
+      "Paid",
+      capture.transactionId || order.transaction_id
+    );
+    return res.status(HttpStatusCodes.OK).json({
+      success: true,
+      capture,
+    });
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
+async function globalPaymentsRelease(
+  req: IReq<{ order_id: number }>,
+  res: IRes
+) {
+  console.log("GlobalPaymentsRelease - headers:", req.headers);
+  console.log("GlobalPaymentsRelease - body:", req.body);
+  const sessionUser = res.locals.sessionUser;
+  if (!sessionUser || sessionUser.user_level === UserLevels.Customer) {
+    return res
+      .status(HttpStatusCodes.UNAUTHORIZED)
+      .json({ success: false, error: "Unauthorized" });
+  }
+  const { order_id } = req.body;
+  if (!order_id) {
+    return res
+      .status(HttpStatusCodes.BAD_REQUEST)
+      .json({ success: false, error: "order_id is required" });
+  }
+  try {
+    const order = await OrderService.getOne(order_id);
+    if (order.checkout_type !== "GlobalPayments") {
+      return res.status(HttpStatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: "Order was not processed via Global Payments",
+      });
+    }
+    if (!order.transaction_id) {
+      return res.status(HttpStatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: "Order is missing Global Payments transaction reference",
+      });
+    }
+    if (order.payment_status !== "Authorized") {
+      return res.status(HttpStatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: "Only authorized orders can be released",
+      });
+    }
+    const release = await GlobalPaymentsService.release(order.transaction_id);
+    await OrderService.updatePaymentStatus(
+      order.id,
+      "Released",
+      release.transactionId || order.transaction_id
+    );
+    return res.status(HttpStatusCodes.OK).json({
+      success: true,
+      release,
+    });
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
+async function tokenizeGlobalPaymentsCard(
+  req: IReq<IGlobalPaymentsTokenizeReqBody>,
+  res: IRes
+) {
+  if (!res.locals.sessionUser) {
+    return res
+      .status(HttpStatusCodes.UNAUTHORIZED)
+      .json({ success: false, error: "Unauthorized" });
+  }
+  const sessionUser = res.locals.sessionUser;
+  const { payment_method, save = true } = req.body;
+  if (!payment_method) {
+    return res
+      .status(HttpStatusCodes.BAD_REQUEST)
+      .json({ success: false, error: "payment_method is required" });
+  }
+  try {
+    const tokenizeResult = await GlobalPaymentsService.tokenize({
+      token: payment_method.token,
+      number: payment_method.number,
+      expMonth: payment_method.exp_month,
+      expYear: payment_method.exp_year,
+      cvv: payment_method.cvv,
+      cardHolderName: payment_method.card_holder_name,
+    });
+    let savedPaymentTokenId: number | null = null;
+    if (save && tokenizeResult.token) {
+      const tokenRecord = await PaymentTokenService.saveOrUpdate(
+        sessionUser.id,
+        {
+          token: tokenizeResult.token,
+          fingerprint: tokenizeResult.fingerprint || null,
+          brand: tokenizeResult.cardType || null,
+          last4:
+            tokenizeResult.cardLast4 ||
+            (payment_method.number
+              ? payment_method.number.slice(-4)
+              : null),
+          exp_month: payment_method.exp_month || null,
+          exp_year: payment_method.exp_year || null,
+        }
+      );
+      savedPaymentTokenId = tokenRecord.id;
+    }
+    return res.status(HttpStatusCodes.OK).json({
+      success: true,
+      token: tokenizeResult.token,
+      payment_token_id: savedPaymentTokenId,
+    });
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
+async function getGlobalPaymentsTokens(req: IReq, res: IRes) {
+  if (!res.locals.sessionUser) {
+    return res
+      .status(HttpStatusCodes.UNAUTHORIZED)
+      .json({ success: false, error: "Unauthorized" });
+  }
+  const tokens = await PaymentTokenService.listByUser(res.locals.sessionUser.id);
+  return res.status(HttpStatusCodes.OK).json({ success: true, payment_methods: tokens });
+}
+
+async function deleteGlobalPaymentsToken(req: IReq, res: IRes) {
+  if (!res.locals.sessionUser) {
+    return res
+      .status(HttpStatusCodes.UNAUTHORIZED)
+      .json({ success: false, error: "Unauthorized" });
+  }
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) {
+    return res
+      .status(HttpStatusCodes.BAD_REQUEST)
+      .json({ success: false, error: "Invalid payment token id" });
+  }
+  const deleted = await PaymentTokenService.deleteToken(
+    id,
+    res.locals.sessionUser.id
+  );
+  if (!deleted) {
+    return res
+      .status(HttpStatusCodes.NOT_FOUND)
+      .json({ success: false, error: "Payment method not found" });
+  }
+  return res.status(HttpStatusCodes.OK).json({ success: true });
+}
+
 async function getPaymentMethods(req: IReq, res: IRes) {
   if (!res.locals.sessionUser) {
     return res
@@ -1038,6 +1725,13 @@ export default {
   markPaidPractitionersCommission,
   creditCheckout,
   stripeCheckout,
+  globalPaymentsCheckout,
+  globalPaymentsAuthorize,
+  globalPaymentsCapture,
+  globalPaymentsRelease,
+  tokenizeGlobalPaymentsCard,
+  getGlobalPaymentsTokens,
+  deleteGlobalPaymentsToken,
   getPaymentMethods,
   addPaymentMethod,
   getBookedTimeSlots,

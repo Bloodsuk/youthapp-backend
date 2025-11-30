@@ -558,6 +558,48 @@ async function updateStatus(id: number, status: string): Promise<boolean> {
 }
 
 /**
+ * Update payment status (and optionally transaction id).
+ */
+async function updatePaymentStatus(
+  id: number,
+  payment_status: string,
+  transaction_id?: string
+): Promise<boolean> {
+  const sets = ["payment_status = ?"];
+  const values: (string | number)[] = [payment_status];
+  if (transaction_id !== undefined) {
+    sets.push("transaction_id = ?");
+    values.push(transaction_id);
+  }
+  values.push(id);
+  const sql = `UPDATE orders SET ${sets.join(", ")} WHERE id = ?`;
+  const [result] = await pool.query<ResultSetHeader>(sql, values);
+  if (result.affectedRows === 0) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, USER_NOT_FOUND_ERR);
+  }
+  return true;
+}
+
+async function updatePaymentFields(
+  id: number,
+  fields: Record<string, any>
+): Promise<boolean> {
+  const entries = Object.entries(fields);
+  if (!entries.length) {
+    return true;
+  }
+  const sets = entries.map(([key]) => `${key} = ?`).join(", ");
+  const values = entries.map(([, value]) => value);
+  values.push(id);
+  const sql = `UPDATE orders SET ${sets} WHERE id = ?`;
+  const [result] = await pool.query<ResultSetHeader>(sql, values);
+  if (result.affectedRows === 0) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, USER_NOT_FOUND_ERR);
+  }
+  return true;
+}
+
+/**
  * Delete a order by their id.
  */
 async function _delete(orderId: number): Promise<void> {
@@ -684,6 +726,8 @@ export default {
   getOne,
   addOne,
   updateStatus,
+  updatePaymentStatus,
+  updatePaymentFields,
   updateOne,
   delete: _delete,
   markPaid,

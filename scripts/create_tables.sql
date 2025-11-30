@@ -284,4 +284,21 @@ CREATE TABLE `extra_discount_to_users` (
   KEY `idx_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE `payment_tokens` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `provider` varchar(50) NOT NULL DEFAULT 'GlobalPayments',
+  `token` varchar(255) NOT NULL,
+  `fingerprint` varchar(255) DEFAULT NULL,
+  `brand` varchar(50) DEFAULT NULL,
+  `last4` varchar(4) DEFAULT NULL,
+  `exp_month` varchar(2) DEFAULT NULL,
+  `exp_year` varchar(4) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_user_provider_fingerprint` (`user_id`,`provider`,`fingerprint`),
+  KEY `idx_user_provider` (`user_id`,`provider`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
