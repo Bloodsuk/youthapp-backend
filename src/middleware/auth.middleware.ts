@@ -24,7 +24,7 @@ async function authorization(
 ) {
   console.log("Auth middleware path:", req.path);
   // Get session data
-  const bypassPrefixes = ["/auth", "/app_versions", "/app-versions"];
+  const bypassPrefixes = ["/api/auth", "/auth", "/app_versions", "/app-versions"];
   if (bypassPrefixes.some((prefix) => req.path.startsWith(prefix))) {
     return next();
   }

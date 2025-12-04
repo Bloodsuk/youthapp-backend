@@ -1,5 +1,3 @@
-import { IPlebAvailabilitySchedule } from "./IPlebAvailability";
-
 export interface IPhlebotomist {
   id: number;
   full_name: string;
@@ -30,10 +28,4 @@ export interface IPhlebotomist {
   is_active: number;
   is_email_sent: number;
   password?: string; // Added for authentication
-  
-  // New fields for structured availability and range
-  availability_schedule?: IPlebAvailabilitySchedule | null;
-  max_distance_miles?: number | null;
-  max_distance_km?: number | null;
-  distance_unit?: 'miles' | 'km' | null;
 }

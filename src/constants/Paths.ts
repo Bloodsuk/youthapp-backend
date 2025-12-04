@@ -222,8 +222,8 @@ export default {
     GetAllPlebs: "/plebs/all",
     AssignJob: "/assign",
     Distance: "/distance",
-    GetAvailability: "/availability/:pleb_id",
-    UpdateAvailability: "/availability/:pleb_id",
+    GetAvailability: "/availability/:pleb_id?",
+    UpdateAvailability: "/availability",
   },
   FileUpload: {
     Base: "/file_upload_api",
