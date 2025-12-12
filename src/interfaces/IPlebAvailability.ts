@@ -74,3 +74,22 @@ export interface IPlebAvailabilityResponse {
     unit: 'miles' | 'km';
   };
 }
+
+/**
+ * Result returned when looking up which plebs can cover a booking slot
+ */
+export interface IPlebAvailableForBooking {
+  pleb_id: number;
+  full_name: string;
+  email?: string | null;
+  phone?: string | null;
+  max_distance_miles: number;
+  slot: {
+    day_of_week: string;
+    start_time: string;
+    end_time: string;
+  };
+  distance_miles: number;
+  distance_km: number;
+  distance_text: string;
+}

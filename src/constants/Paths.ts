@@ -142,6 +142,8 @@ export default {
     BookingDetails: "/booking_details",
     GetExtraDiscountPractitionerIds: "/extra_discount_practitioners",
     GetOrdersStarted: "/started",
+    GetAvailablePlebs: "/available_plebs",
+    PhlebSlots: "/phleb-slots",
   },
   Tests: {
     Base: "/tests",

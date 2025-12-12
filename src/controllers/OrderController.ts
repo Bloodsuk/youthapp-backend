@@ -19,6 +19,11 @@ import { ISessionUser } from "@src/interfaces/ISessionUser";
 import { canAssignJobs } from "@src/util/JobAssignmentAuth";
 import GlobalPaymentsService from "@src/services/GlobalPaymentsService";
 import PaymentTokenService from "@src/services/PaymentTokenService";
+import PlebAvailabilityService from "@src/services/PlebAvailabilityService";
+import PlebJobService from "@src/services/PlebJobService";
+import { ICustomer } from "@src/interfaces/ICustomer";
+import PhlebSlotService from "@src/services/PhlebSlotService";
+import PhlebBookingService from "@src/services/PhlebBookingService";
 
 const stripe = new Stripe(EnvVars.Stripe.Secret);
 
@@ -227,6 +232,82 @@ async function getPractitionerOutstandingCredits(req: IReq<IGetPractitionersComm
         })
         .end();
   }
+}
+
+interface IAvailablePlebsReqBody {
+  customer_id: number;
+  booking_date: string;
+  booking_time: string;
+  address?: string;
+  town?: string;
+  postal_code?: string;
+  country?: string;
+}
+
+function buildCustomerAddress(
+  customer: ICustomer,
+  override?: Partial<Pick<ICustomer, "address" | "town" | "postal_code" | "country">>
+): string {
+  const parts = [
+    override?.address ?? customer.address,
+    override?.town ?? customer.town,
+    override?.postal_code ?? customer.postal_code,
+    override?.country ?? customer.country,
+  ]
+    .filter((value) => typeof value === "string" && value.trim().length > 0)
+    .map((value) => value!.trim());
+
+  const address = parts.join(", ");
+  if (!address) {
+    throw new RouteError(
+      HttpStatusCodes.BAD_REQUEST,
+      "Customer address is required to select a pleb"
+    );
+  }
+  return address;
+}
+
+async function ensurePlebIsAvailableForBooking(options: {
+  pleb_id: number;
+  customer: ICustomer;
+  booking: Record<string, any>;
+}) {
+  const { pleb_id, customer, booking } = options;
+
+  if (!booking?.booking_date || !booking?.booking_time) {
+    throw new RouteError(
+      HttpStatusCodes.BAD_REQUEST,
+      "booking_date and booking_time are required when selecting a pleb"
+    );
+  }
+
+  const customerAddress = buildCustomerAddress(customer);
+  const availablePlebs =
+    await PlebAvailabilityService.getAvailablePlebsForBooking({
+      booking_date: booking.booking_date,
+      booking_time: booking.booking_time,
+      customer_address: customerAddress,
+    });
+
+  const selected = availablePlebs.find((pleb) => pleb.pleb_id === pleb_id);
+  if (!selected) {
+    throw new RouteError(
+      HttpStatusCodes.BAD_REQUEST,
+      "Selected pleb is not available for the chosen slot or is out of range"
+    );
+  }
+}
+
+async function assignPlebIfProvided(
+  pleb_id: number | undefined,
+  order_id: number,
+  customer: ICustomer,
+  booking: Record<string, any>,
+  sessionUser: ISessionUser | undefined
+) {
+  if (!pleb_id) return;
+  await ensurePlebIsAvailableForBooking({ pleb_id, customer, booking });
+  await PlebJobService.assignJob(pleb_id, order_id, "Assigned", sessionUser);
 }
 
 /**
@@ -445,6 +526,16 @@ async function markPaidPractitionersCommission(req: IReq<{ commission_ids: numbe
 /**
  * Credit checkout
  */
+interface IPhlebBookingData {
+  slot_times: string;
+  price: string;
+  weekend_surcharge: string;
+  zone: string;
+  shift_type: string;
+  availability?: string;
+  additional_preferences?: string;
+}
+
 interface ICreditCheckoutReqBody {
   customer_id: number;
   test_ids: number[];
@@ -460,6 +551,8 @@ interface ICreditCheckoutReqBody {
   supplements: string;
   enhancing_drugs: string;
   booking: Record<string, any>;
+  pleb_id?: number;
+  phleb_booking?: IPhlebBookingData;
 }
 
 async function creditCheckout(req: IReq<ICreditCheckoutReqBody>, res: IRes) {
@@ -483,8 +576,18 @@ async function creditCheckout(req: IReq<ICreditCheckoutReqBody>, res: IRes) {
     supplements,
     enhancing_drugs,
     booking,
+    pleb_id,
   } = req.body;
   try {
+    if (pleb_id && (!booking?.booking_date || !booking?.booking_time)) {
+      return res
+        .status(HttpStatusCodes.BAD_REQUEST)
+        .json({
+          success: false,
+          error: "booking_date and booking_time are required when selecting a pleb",
+        });
+    }
+
     const customer = await CustomerService.getOne(customer_id);
     if (!customer) {
       return res
@@ -562,6 +665,18 @@ async function creditCheckout(req: IReq<ICreditCheckoutReqBody>, res: IRes) {
       api_royal,
     };
     const id = await OrderService.addOne(order, booking);
+    await assignPlebIfProvided(pleb_id, id, customer, booking, res.locals.sessionUser);
+    
+    // Save phleb booking if provided
+    if (req.body.phleb_booking) {
+      try {
+        await PhlebBookingService.saveBooking(id, req.body.phleb_booking);
+      } catch (bookingError) {
+        // Log error but don't fail the order creation
+        console.error("Failed to save phleb booking:", bookingError);
+      }
+    }
+    
     return res.status(HttpStatusCodes.OK).json({ success: true, order_id: id });
   } catch (error) {
     if (error instanceof RouteError)
@@ -604,6 +719,8 @@ interface IStripeCheckoutReqBody {
   supplements: string;
   enhancing_drugs: string;
   booking: Record<string, any>;
+  pleb_id?: number;
+  phleb_booking?: IPhlebBookingData;
 }
 
 interface IGpPaymentMethodPayload {
@@ -654,8 +771,17 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
     supplements,
     enhancing_drugs,
     booking,
+    pleb_id,
   } = req.body;
   try {
+    if (pleb_id && (!booking?.booking_date || !booking?.booking_time)) {
+      return res
+        .status(HttpStatusCodes.BAD_REQUEST)
+        .json({
+          success: false,
+          error: "booking_date and booking_time are required when selecting a pleb",
+        });
+    }
     const customer = await CustomerService.getOne(customer_id);
     if (!customer) {
       return res
@@ -738,6 +864,18 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
     };
     // Add Order in DB
     const id = await OrderService.addOne(order, booking);
+    await assignPlebIfProvided(pleb_id, id, customer, booking, res.locals.sessionUser);
+    
+    // Save phleb booking if provided
+    if (req.body.phleb_booking) {
+      try {
+        await PhlebBookingService.saveBooking(id, req.body.phleb_booking);
+      } catch (bookingError) {
+        // Log error but don't fail the order creation
+        console.error("Failed to save phleb booking:", bookingError);
+      }
+    }
+    
     const order_number = `#YRV-${order_id}`;
 
     if (id)
@@ -794,6 +932,8 @@ interface IGlobalPaymentsCheckoutReqBody {
   payment_token_id?: number;
   save_payment_method?: boolean;
   currency?: string;
+  pleb_id?: number;
+  phleb_booking?: IPhlebBookingData;
 }
 
 async function globalPaymentsCheckout(
@@ -826,6 +966,7 @@ async function globalPaymentsCheckout(
     payment_token_id,
     save_payment_method,
     currency,
+    pleb_id,
   } = req.body;
 
   if (!payment_method && !payment_token_id) {
@@ -843,6 +984,15 @@ async function globalPaymentsCheckout(
   let usingStoredToken = false;
 
   try {
+    if (pleb_id && (!booking?.booking_date || !booking?.booking_time)) {
+      return res
+        .status(HttpStatusCodes.BAD_REQUEST)
+        .json({
+          success: false,
+          error: "booking_date and booking_time are required when selecting a pleb",
+        });
+    }
+
     const customer = await CustomerService.getOne(customer_id);
     if (!customer) {
       return res
@@ -985,6 +1135,18 @@ async function globalPaymentsCheckout(
     };
 
     const id = await OrderService.addOne(order, booking);
+    await assignPlebIfProvided(pleb_id, id, customer, booking, sessionUser);
+    
+    // Save phleb booking if provided
+    if (req.body.phleb_booking) {
+      try {
+        await PhlebBookingService.saveBooking(id, req.body.phleb_booking);
+      } catch (bookingError) {
+        // Log error but don't fail the order creation
+        console.error("Failed to save phleb booking:", bookingError);
+      }
+    }
+    
     const order_number = `#YRV-${order_id}`;
 
     return res.status(HttpStatusCodes.CREATED).json({
@@ -1591,6 +1753,71 @@ async function getSripeCards(stripe_cust_id: string) {
   return cards;
 }
 
+async function getAvailablePlebs(req: IReq<IAvailablePlebsReqBody>, res: IRes) {
+  if (!res.locals.sessionUser) {
+    return res
+      .status(HttpStatusCodes.UNAUTHORIZED)
+      .json({ success: false, error: "Unauthorized" });
+  }
+
+  try {
+    const {
+      customer_id,
+      booking_date,
+      booking_time,
+      address,
+      town,
+      postal_code,
+      country,
+    } = req.body;
+
+    if (!customer_id) {
+      return res
+        .status(HttpStatusCodes.BAD_REQUEST)
+        .json({ success: false, error: "customer_id is required" });
+    }
+
+    const customer = await CustomerService.getOne(customer_id);
+    if (!customer) {
+      return res
+        .status(HttpStatusCodes.NOT_FOUND)
+        .json({ success: false, error: "Customer not found" });
+    }
+
+    const customerAddress = buildCustomerAddress(customer, {
+      address,
+      town,
+      postal_code,
+      country,
+    });
+
+    const data = await PlebAvailabilityService.getAvailablePlebsForBooking({
+      booking_date,
+      booking_time,
+      customer_address: customerAddress,
+    });
+
+    return res.status(HttpStatusCodes.OK).json({ success: true, data });
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
 async function getBookedTimeSlots(req: IReq, res: IRes) {
   try {
     const booking_date = req.query.booking_date as string;
@@ -1708,6 +1935,47 @@ async function getOrdersWithStartedStatus(req: IReq, res: IRes) {
   }
 }
 
+/**
+ * Get phlebotomist slots by postcode
+ */
+async function getPhlebSlots(req: IReq, res: IRes) {
+  try {
+    const postcode = req.query.postcode as string;
+
+    if (!postcode || postcode.trim() === "") {
+      return res.status(HttpStatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: "Postcode is required"
+      }).end();
+    }
+
+    const { zone, slots } = PhlebSlotService.getSlotsByPostcode(postcode);
+
+    return res.status(HttpStatusCodes.OK).json({
+      success: true,
+      zone,
+      slots
+    }).end();
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
 // **** Export default **** //
 
 export default {
@@ -1734,9 +2002,11 @@ export default {
   deleteGlobalPaymentsToken,
   getPaymentMethods,
   addPaymentMethod,
+  getAvailablePlebs,
   getBookedTimeSlots,
   getBookingDetails,
   getExtraDiscountPractitionerIds,
   GetAllCustomerOrders,
   getOrdersWithStartedStatus,
+  getPhlebSlots,
 } as const;

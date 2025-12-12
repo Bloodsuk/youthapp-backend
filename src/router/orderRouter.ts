@@ -14,6 +14,17 @@ orderRouter.get(
   OrderController.getBookingDetails
 );
 
+// Get phlebotomist slots by postcode
+orderRouter.get(
+  Paths.Orders.PhlebSlots,
+  OrderController.getPhlebSlots
+);
+
+orderRouter.post(
+  Paths.Orders.GetAvailablePlebs,
+  OrderController.getAvailablePlebs
+);
+
 // Get practitioner IDs from extra_discount_to_users table (no auth required for testing)
 orderRouter.get(
   Paths.Orders.GetExtraDiscountPractitionerIds,
