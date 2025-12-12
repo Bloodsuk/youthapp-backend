@@ -484,7 +484,7 @@ async function addOne(order: Record<string, any>, booking: Record<string, any>):
       `UPDATE users SET total_credit_balance = total_credit_balance - ${order.total_val} WHERE id=${order.created_by}`
     );
 
-    if (booking) {
+    if (booking && booking.booking_date && booking.booking_time) {
 
       // booking_date	booking_time	order_id	user_id	date_created
       const bookingData = {

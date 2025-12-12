@@ -577,7 +577,18 @@ async function creditCheckout(req: IReq<ICreditCheckoutReqBody>, res: IRes) {
     enhancing_drugs,
     booking,
     pleb_id,
+    phleb_booking,
   } = req.body;
+  
+  // Extract phleb_booking from nested structure if needed
+  const phlebBookingData = phleb_booking || booking?.phleb_booking;
+  
+  // Separate booking for OrderService (only if it has booking_date and booking_time)
+  // phleb_booking is handled separately and doesn't need booking_date/booking_time
+  const bookingForOrderService: Record<string, any> | undefined = (booking?.booking_date && booking?.booking_time) 
+    ? { booking_date: booking.booking_date, booking_time: booking.booking_time }
+    : undefined;
+  
   try {
     if (pleb_id && (!booking?.booking_date || !booking?.booking_time)) {
       return res
@@ -664,13 +675,13 @@ async function creditCheckout(req: IReq<ICreditCheckoutReqBody>, res: IRes) {
       enhancing_drugs,
       api_royal,
     };
-    const id = await OrderService.addOne(order, booking);
+    const id = await OrderService.addOne(order, bookingForOrderService || {} as Record<string, any>);
     await assignPlebIfProvided(pleb_id, id, customer, booking, res.locals.sessionUser);
     
-    // Save phleb booking if provided
-    if (req.body.phleb_booking) {
+    // Save phleb booking if provided (check both root level and nested in booking)
+    if (phlebBookingData) {
       try {
-        await PhlebBookingService.saveBooking(id, req.body.phleb_booking);
+        await PhlebBookingService.saveBooking(id, phlebBookingData);
       } catch (bookingError) {
         // Log error but don't fail the order creation
         console.error("Failed to save phleb booking:", bookingError);
@@ -772,7 +783,17 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
     enhancing_drugs,
     booking,
     pleb_id,
+    phleb_booking,
   } = req.body;
+  
+  // Extract phleb_booking from nested structure if needed
+  const phlebBookingData = phleb_booking || booking?.phleb_booking;
+  
+  // Separate booking for OrderService (only if it has booking_date and booking_time)
+  // phleb_booking is handled separately and doesn't need booking_date/booking_time
+  const bookingForOrderService: Record<string, any> | undefined = (booking?.booking_date && booking?.booking_time) 
+    ? { booking_date: booking.booking_date, booking_time: booking.booking_time }
+    : undefined;
   
   console.log("stripeCheckout - customer_id received:", customer_id, "type:", typeof customer_id);
   
@@ -870,13 +891,13 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
       enhancing_drugs,
     };
     // Add Order in DB
-    const id = await OrderService.addOne(order, booking);
+    const id = await OrderService.addOne(order, bookingForOrderService || {} as Record<string, any>);
     await assignPlebIfProvided(pleb_id, id, customer, booking, res.locals.sessionUser);
     
-    // Save phleb booking if provided
-    if (req.body.phleb_booking) {
+    // Save phleb booking if provided (check both root level and nested in booking)
+    if (phlebBookingData) {
       try {
-        await PhlebBookingService.saveBooking(id, req.body.phleb_booking);
+        await PhlebBookingService.saveBooking(id, phlebBookingData);
       } catch (bookingError) {
         // Log error but don't fail the order creation
         console.error("Failed to save phleb booking:", bookingError);
@@ -974,7 +995,17 @@ async function globalPaymentsCheckout(
     save_payment_method,
     currency,
     pleb_id,
+    phleb_booking,
   } = req.body;
+
+  // Extract phleb_booking from nested structure if needed
+  const phlebBookingData = phleb_booking || booking?.phleb_booking;
+  
+  // Separate booking for OrderService (only if it has booking_date and booking_time)
+  // phleb_booking is handled separately and doesn't need booking_date/booking_time
+  const bookingForOrderService: Record<string, any> | undefined = (booking?.booking_date && booking?.booking_time) 
+    ? { booking_date: booking.booking_date, booking_time: booking.booking_time }
+    : undefined;
 
   if (!payment_method && !payment_token_id) {
     return res.status(HttpStatusCodes.BAD_REQUEST).json({
@@ -1141,13 +1172,13 @@ async function globalPaymentsCheckout(
       enhancing_drugs,
     };
 
-    const id = await OrderService.addOne(order, booking);
+    const id = await OrderService.addOne(order, bookingForOrderService || {} as Record<string, any>);
     await assignPlebIfProvided(pleb_id, id, customer, booking, sessionUser);
     
-    // Save phleb booking if provided
-    if (req.body.phleb_booking) {
+    // Save phleb booking if provided (check both root level and nested in booking)
+    if (phlebBookingData) {
       try {
-        await PhlebBookingService.saveBooking(id, req.body.phleb_booking);
+        await PhlebBookingService.saveBooking(id, phlebBookingData);
       } catch (bookingError) {
         // Log error but don't fail the order creation
         console.error("Failed to save phleb booking:", bookingError);
