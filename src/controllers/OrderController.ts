@@ -773,24 +773,10 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
     booking,
     pleb_id,
   } = req.body;
+  
+  console.log("stripeCheckout - customer_id received:", customer_id, "type:", typeof customer_id);
+  
   try {
-    // Validate customer_id
-    if (!customer_id) {
-      return res
-        .status(HttpStatusCodes.BAD_REQUEST)
-        .json({ success: false, error: "customer_id is required" });
-    }
-
-    const customerIdNum = typeof customer_id === 'string' ? parseInt(customer_id, 10) : customer_id;
-    
-    if (isNaN(customerIdNum) || customerIdNum <= 0) {
-      return res
-        .status(HttpStatusCodes.BAD_REQUEST)
-        .json({ success: false, error: "Invalid customer_id format" });
-    }
-
-    console.log("stripeCheckout - Looking up customer with ID:", customerIdNum);
-
     if (pleb_id && (!booking?.booking_date || !booking?.booking_time)) {
       return res
         .status(HttpStatusCodes.BAD_REQUEST)
@@ -800,23 +786,13 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
         });
     }
     
-    let customer;
-    try {
-      customer = await CustomerService.getOne(customerIdNum);
-    } catch (error) {
-      if (error instanceof RouteError && error.status === HttpStatusCodes.NOT_FOUND) {
-        console.log("stripeCheckout - Customer not found with ID:", customerIdNum);
-        return res
-          .status(HttpStatusCodes.NOT_FOUND)
-          .json({ success: false, error: "Customer not found" });
-      }
-      throw error;
-    }
+    console.log("stripeCheckout - Attempting to get customer with ID:", customer_id);
+    const customer = await CustomerService.getOne(customer_id);
+    console.log("stripeCheckout - Customer retrieved:", customer ? `ID: ${customer.id}` : "null");
     
     if (!customer) {
-      console.log("stripeCheckout - Customer is null for ID:", customerIdNum);
       return res
-        .status(HttpStatusCodes.NOT_FOUND)
+        .status(HttpStatusCodes.BAD_REQUEST)
         .json({ success: false, error: "Customer not found" });
     }
     const order_placed_by = res.locals.sessionUser.id;
