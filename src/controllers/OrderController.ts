@@ -1936,25 +1936,38 @@ async function getOrdersWithStartedStatus(req: IReq, res: IRes) {
 }
 
 /**
- * Get phlebotomist slots by postcode
+ * Get phlebotomist slots by postcode and/or town
  */
 async function getPhlebSlots(req: IReq, res: IRes) {
   try {
     const postcode = req.query.postcode as string;
+    const town = req.query.town as string;
 
-    if (!postcode || postcode.trim() === "") {
+    // At least one of postcode or town must be provided
+    if ((!postcode || postcode.trim() === "") && (!town || town.trim() === "")) {
       return res.status(HttpStatusCodes.BAD_REQUEST).json({
         success: false,
-        error: "Postcode is required"
+        error: "Postcode or town is required"
       }).end();
     }
 
-    const { zone, slots } = PhlebSlotService.getSlotsByPostcode(postcode);
+    const result = await PhlebSlotService.getSlotsByLocation(postcode, town);
 
+    // If out of area, return error message
+    if (result.zone === "out_of_area" && result.error) {
+      return res.status(HttpStatusCodes.OK).json({
+        success: false,
+        error: result.error.message,
+        showContactButton: result.error.showContactButton,
+        zone: "out_of_area"
+      }).end();
+    }
+
+    // Return slots for valid zones
     return res.status(HttpStatusCodes.OK).json({
       success: true,
-      zone,
-      slots
+      zone: result.zone,
+      slots: result.slots
     }).end();
   } catch (error) {
     if (error instanceof RouteError)
