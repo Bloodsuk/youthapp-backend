@@ -642,8 +642,18 @@ async function creditCheckout(req: IReq<ICreditCheckoutReqBody>, res: IRes) {
       other_charges_total += service.value;
     }
 
+    // Add phleb booking price if provided
+    let phleb_booking_price = 0;
+    if (phlebBookingData) {
+      phleb_booking_price = parseFloat(phlebBookingData.price || "0");
+      // Add weekend surcharge if provided (frontend should include it in price or send separately)
+      if (phlebBookingData.weekend_surcharge) {
+        phleb_booking_price += parseFloat(phlebBookingData.weekend_surcharge || "0");
+      }
+    }
+
     const total_val =
-      cart_total + shipping_charges + other_charges_total - discount;
+      cart_total + shipping_charges + other_charges_total + phleb_booking_price - discount;
 
     const order_id = moment().format("YYMM") + `${mt_rand(55, 55555)}`;
     const order = {
@@ -848,13 +858,24 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
       other_charges_total += service.value;
     }
 
+    // Add phleb booking price if provided
+    let phleb_booking_price = 0;
+    if (phlebBookingData) {
+      phleb_booking_price = parseFloat(phlebBookingData.price || "0");
+      // Add weekend surcharge if provided (frontend should include it in price or send separately)
+      if (phlebBookingData.weekend_surcharge) {
+        phleb_booking_price += parseFloat(phlebBookingData.weekend_surcharge || "0");
+      }
+    }
+
     const total_val =
-      cart_total + shipping_charges + other_charges_total - discount;
+      cart_total + shipping_charges + other_charges_total + phleb_booking_price - discount;
 
     console.log("stripeCheckout - calculation breakdown:", {
       cart_total,
       shipping_charges,
       other_charges_total,
+      phleb_booking_price,
       discount,
       total_val
     }); 
@@ -1064,8 +1085,18 @@ async function globalPaymentsCheckout(
       other_charges_total += service.value;
     }
 
+    // Add phleb booking price if provided
+    let phleb_booking_price = 0;
+    if (phlebBookingData) {
+      phleb_booking_price = parseFloat(phlebBookingData.price || "0");
+      // Add weekend surcharge if provided (frontend should include it in price or send separately)
+      if (phlebBookingData.weekend_surcharge) {
+        phleb_booking_price += parseFloat(phlebBookingData.weekend_surcharge || "0");
+      }
+    }
+
     const total_val =
-      cart_total + shipping_charges + other_charges_total - discount;
+      cart_total + shipping_charges + other_charges_total + phleb_booking_price - discount;
 
     if (total_val <= 0) {
       return res.status(HttpStatusCodes.BAD_REQUEST).json({
@@ -1978,14 +2009,41 @@ async function getOrdersWithStartedStatus(req: IReq, res: IRes) {
  */
 async function getPhlebSlots(req: IReq, res: IRes) {
   try {
-    const postcode = req.query.postcode as string;
-    const town = req.query.town as string;
+    const customer_id = req.query.customer_id as string;
 
-    // At least one of postcode or town must be provided
+    // customer_id is required
+    if (!customer_id || customer_id.trim() === "") {
+      return res.status(HttpStatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: "customer_id is required"
+      }).end();
+    }
+
+    // Fetch customer to get postal_code and town
+    const customerIdNum = parseInt(customer_id, 10);
+    if (isNaN(customerIdNum)) {
+      return res.status(HttpStatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: "Invalid customer_id"
+      }).end();
+    }
+
+    const customer = await CustomerService.getOne(customerIdNum);
+    if (!customer) {
+      return res.status(HttpStatusCodes.NOT_FOUND).json({
+        success: false,
+        error: "Customer not found"
+      }).end();
+    }
+
+    const postcode = customer.postal_code || "";
+    const town = customer.town || "";
+
+    // At least one of postcode or town must be available
     if ((!postcode || postcode.trim() === "") && (!town || town.trim() === "")) {
       return res.status(HttpStatusCodes.BAD_REQUEST).json({
         success: false,
-        error: "Postcode or town is required"
+        error: "Customer postal_code or town is required"
       }).end();
     }
 
@@ -1997,15 +2055,19 @@ async function getPhlebSlots(req: IReq, res: IRes) {
         success: false,
         error: result.error.message,
         showContactButton: result.error.showContactButton,
-        zone: "out_of_area"
+        zone: "out_of_area",
+        postal_code: postcode,
+        town: town
       }).end();
     }
 
-    // Return slots for valid zones
+    // Return slots for valid zones along with postal_code and town
     return res.status(HttpStatusCodes.OK).json({
       success: true,
       zone: result.zone,
-      slots: result.slots
+      slots: result.slots,
+      postal_code: postcode,
+      town: town
     }).end();
   } catch (error) {
     if (error instanceof RouteError)
