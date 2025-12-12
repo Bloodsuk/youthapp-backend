@@ -146,11 +146,11 @@ async function getAll(
 
   const [rows] = await pool.query<RowDataPacket[]>(sql, params);
   const allOrders = rows.map((order) => {
-    const orderData: IOrder = {
+    const orderData = {
       ...order,
       test_ids: order.test_ids,
       practitioner_id: order.practitioner_id,
-    };
+    } as IOrder;
     
     // Add phleb booking if it exists
     if (order.phleb_booking_id) {
@@ -266,11 +266,11 @@ async function getAllCustomerOrder(
 
   const [rows] = await pool.query<RowDataPacket[]>(sql, params);
   const allOrders = rows.map((order) => {
-    const orderData: IOrder = {
+    const orderData = {
       ...order,
       test_ids: order.test_ids,
       practitioner_id: order.practitioner_id,
-    };
+    } as IOrder;
     
     // Add phleb booking if it exists
     if (order.phleb_booking_id) {
@@ -343,11 +343,11 @@ async function getOutstandingCreditOrders(
 `;
   const [rows] = await pool.query<RowDataPacket[]>(sql);
   const allOrders = rows.map((order) => {
-    const orderData: IOrder = {
+    const orderData = {
       ...order,
       test_ids: order.test_ids,
       practitioner_id: order.practitioner_id,
-    };
+    } as IOrder;
     
     // Add phleb booking if it exists
     if (order.phleb_booking_id) {
