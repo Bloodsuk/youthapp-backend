@@ -12,6 +12,7 @@ import MailService from "./MailService";
 import { LIMIT } from "@src/constants/pagination";
 import { IPractitionerCommission } from "@src/interfaces/IPractitionerCommission";
 import { IBooking } from "@src/interfaces/IBooking";
+import PhlebBookingService from "./PhlebBookingService";
 
 // **** Variables **** //
 
@@ -122,10 +123,20 @@ async function getAll(
       users.id AS practitioner_id,
       users.first_name AS practitioner_first_name,
       users.last_name AS practitioner_last_name,
-      users.email AS practitioner_email
+      users.email AS practitioner_email,
+      customer_phleb_bookings.id AS phleb_booking_id,
+      customer_phleb_bookings.slot_times AS phleb_slot_times,
+      customer_phleb_bookings.price AS phleb_price,
+      customer_phleb_bookings.weekend_surcharge AS phleb_weekend_surcharge,
+      customer_phleb_bookings.zone AS phleb_zone,
+      customer_phleb_bookings.shift_type AS phleb_shift_type,
+      customer_phleb_bookings.availability AS phleb_availability,
+      customer_phleb_bookings.additional_preferences AS phleb_additional_preferences,
+      customer_phleb_bookings.created_at AS phleb_created_at
     FROM orders 
     LEFT JOIN customers ON orders.customer_id = customers.id 
     LEFT JOIN users ON orders.created_by = users.id
+    LEFT JOIN customer_phleb_bookings ON orders.id = customer_phleb_bookings.order_id
     WHERE ${whereClauses.join(" AND ")} 
     ORDER BY orders.id DESC 
     ${pagination}
@@ -135,11 +146,29 @@ async function getAll(
 
   const [rows] = await pool.query<RowDataPacket[]>(sql, params);
   const allOrders = rows.map((order) => {
-    return {
+    const orderData: IOrder = {
       ...order,
       test_ids: order.test_ids,
       practitioner_id: order.practitioner_id,
-    } as IOrder;
+    };
+    
+    // Add phleb booking if it exists
+    if (order.phleb_booking_id) {
+      orderData.phleb_booking = {
+        id: order.phleb_booking_id,
+        order_id: order.id,
+        slot_times: order.phleb_slot_times,
+        price: order.phleb_price,
+        weekend_surcharge: order.phleb_weekend_surcharge,
+        zone: order.phleb_zone,
+        shift_type: order.phleb_shift_type,
+        availability: order.phleb_availability,
+        additional_preferences: order.phleb_additional_preferences,
+        created_at: order.phleb_created_at,
+      };
+    }
+    
+    return orderData;
   });
   console.log(rows[0], "rows");
   const totalSql = `
@@ -214,10 +243,20 @@ async function getAllCustomerOrder(
       users.id AS practitioner_id,
       users.first_name AS practitioner_first_name,
       users.last_name AS practitioner_last_name,
-      users.email AS practitioner_email
+      users.email AS practitioner_email,
+      customer_phleb_bookings.id AS phleb_booking_id,
+      customer_phleb_bookings.slot_times AS phleb_slot_times,
+      customer_phleb_bookings.price AS phleb_price,
+      customer_phleb_bookings.weekend_surcharge AS phleb_weekend_surcharge,
+      customer_phleb_bookings.zone AS phleb_zone,
+      customer_phleb_bookings.shift_type AS phleb_shift_type,
+      customer_phleb_bookings.availability AS phleb_availability,
+      customer_phleb_bookings.additional_preferences AS phleb_additional_preferences,
+      customer_phleb_bookings.created_at AS phleb_created_at
     FROM orders 
     LEFT JOIN customers ON orders.customer_id = customers.id 
     LEFT JOIN users ON orders.created_by = users.id
+    LEFT JOIN customer_phleb_bookings ON orders.id = customer_phleb_bookings.order_id
     WHERE ${whereClauses.join(" AND ")} 
     ORDER BY orders.id DESC 
     ${pagination}
@@ -227,11 +266,29 @@ async function getAllCustomerOrder(
 
   const [rows] = await pool.query<RowDataPacket[]>(sql, params);
   const allOrders = rows.map((order) => {
-    return {
+    const orderData: IOrder = {
       ...order,
       test_ids: order.test_ids,
       practitioner_id: order.practitioner_id,
-    } as IOrder;
+    };
+    
+    // Add phleb booking if it exists
+    if (order.phleb_booking_id) {
+      orderData.phleb_booking = {
+        id: order.phleb_booking_id,
+        order_id: order.id,
+        slot_times: order.phleb_slot_times,
+        price: order.phleb_price,
+        weekend_surcharge: order.phleb_weekend_surcharge,
+        zone: order.phleb_zone,
+        shift_type: order.phleb_shift_type,
+        availability: order.phleb_availability,
+        additional_preferences: order.phleb_additional_preferences,
+        created_at: order.phleb_created_at,
+      };
+    }
+    
+    return orderData;
   });
   const totalSql = `
     SELECT COUNT(*) as count
@@ -266,21 +323,49 @@ async function getOutstandingCreditOrders(
     users.id AS practitioner_id,
     users.first_name AS practitioner_first_name,
     users.last_name AS practitioner_last_name,
-    users.email AS practitioner_email
+    users.email AS practitioner_email,
+    customer_phleb_bookings.id AS phleb_booking_id,
+    customer_phleb_bookings.slot_times AS phleb_slot_times,
+    customer_phleb_bookings.price AS phleb_price,
+    customer_phleb_bookings.weekend_surcharge AS phleb_weekend_surcharge,
+    customer_phleb_bookings.zone AS phleb_zone,
+    customer_phleb_bookings.shift_type AS phleb_shift_type,
+    customer_phleb_bookings.availability AS phleb_availability,
+    customer_phleb_bookings.additional_preferences AS phleb_additional_preferences,
+    customer_phleb_bookings.created_at AS phleb_created_at
   FROM orders 
   LEFT JOIN customers ON orders.customer_id = customers.id 
   LEFT JOIN users ON orders.practitioner_id = users.id
+  LEFT JOIN customer_phleb_bookings ON orders.id = customer_phleb_bookings.order_id
   WHERE payment_status = 'Pending' AND checkout_type='Credit'
   ORDER BY orders.id DESC 
   LIMIT ${LIMIT} OFFSET ${LIMIT * (page - 1)}
 `;
   const [rows] = await pool.query<RowDataPacket[]>(sql);
   const allOrders = rows.map((order) => {
-    return {
+    const orderData: IOrder = {
       ...order,
       test_ids: order.test_ids,
       practitioner_id: order.practitioner_id,
-    } as IOrder;
+    };
+    
+    // Add phleb booking if it exists
+    if (order.phleb_booking_id) {
+      orderData.phleb_booking = {
+        id: order.phleb_booking_id,
+        order_id: order.id,
+        slot_times: order.phleb_slot_times,
+        price: order.phleb_price,
+        weekend_surcharge: order.phleb_weekend_surcharge,
+        zone: order.phleb_zone,
+        shift_type: order.phleb_shift_type,
+        availability: order.phleb_availability,
+        additional_preferences: order.phleb_additional_preferences,
+        created_at: order.phleb_created_at,
+      };
+    }
+    
+    return orderData;
   });
   const total = await getTotalCount(
     pool,
@@ -461,6 +546,13 @@ async function getOne(id: number): Promise<IOrder> {
       order.customer = rows2[0] as ICustomer;
     }
   }
+  
+  // Fetch phleb booking if it exists
+  const phlebBooking = await PhlebBookingService.getBookingByOrderId(id);
+  if (phlebBooking) {
+    order.phleb_booking = phlebBooking;
+  }
+  
   return order;
 }
 

@@ -1,4 +1,5 @@
 import { ICustomer } from "./ICustomer";
+import { IPhlebBooking } from "./IPhlebBooking";
 
 export interface IOrder {
   id: number;
@@ -36,5 +37,6 @@ export interface IOrder {
   royal_id: number ;
   trackingNumber: string ;
   supplements: string ;
-  customer?: ICustomer
+  customer?: ICustomer;
+  phleb_booking?: IPhlebBooking;
 }
