@@ -774,6 +774,23 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
     pleb_id,
   } = req.body;
   try {
+    // Validate customer_id
+    if (!customer_id) {
+      return res
+        .status(HttpStatusCodes.BAD_REQUEST)
+        .json({ success: false, error: "customer_id is required" });
+    }
+
+    const customerIdNum = typeof customer_id === 'string' ? parseInt(customer_id, 10) : customer_id;
+    
+    if (isNaN(customerIdNum) || customerIdNum <= 0) {
+      return res
+        .status(HttpStatusCodes.BAD_REQUEST)
+        .json({ success: false, error: "Invalid customer_id format" });
+    }
+
+    console.log("stripeCheckout - Looking up customer with ID:", customerIdNum);
+
     if (pleb_id && (!booking?.booking_date || !booking?.booking_time)) {
       return res
         .status(HttpStatusCodes.BAD_REQUEST)
@@ -782,10 +799,24 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
           error: "booking_date and booking_time are required when selecting a pleb",
         });
     }
-    const customer = await CustomerService.getOne(customer_id);
+    
+    let customer;
+    try {
+      customer = await CustomerService.getOne(customerIdNum);
+    } catch (error) {
+      if (error instanceof RouteError && error.status === HttpStatusCodes.NOT_FOUND) {
+        console.log("stripeCheckout - Customer not found with ID:", customerIdNum);
+        return res
+          .status(HttpStatusCodes.NOT_FOUND)
+          .json({ success: false, error: "Customer not found" });
+      }
+      throw error;
+    }
+    
     if (!customer) {
+      console.log("stripeCheckout - Customer is null for ID:", customerIdNum);
       return res
-        .status(HttpStatusCodes.BAD_REQUEST)
+        .status(HttpStatusCodes.NOT_FOUND)
         .json({ success: false, error: "Customer not found" });
     }
     const order_placed_by = res.locals.sessionUser.id;
