@@ -24,6 +24,7 @@ import PlebJobService from "@src/services/PlebJobService";
 import { ICustomer } from "@src/interfaces/ICustomer";
 import PhlebSlotService from "@src/services/PhlebSlotService";
 import PhlebBookingService from "@src/services/PhlebBookingService";
+import MailService from "@src/services/MailService";
 
 const stripe = new Stripe(EnvVars.Stripe.Secret);
 
@@ -536,6 +537,42 @@ interface IPhlebBookingData {
   additional_preferences?: string;
 }
 
+async function sendPhlebBookingEmails(
+  customer: ICustomer,
+  phlebBookingData: IPhlebBookingData,
+  orderCode: string,
+  orderId: number
+) {
+  try {
+    const customerName =
+      `${customer.fore_name || ""} ${customer.sur_name || ""}`.trim() ||
+      customer.client_code ||
+      "Customer";
+
+    await MailService.sendPhlebBookingNotification(
+      ["revolutionbloods@outlook.com", "info@youth-revisited.co.uk"],
+      {
+        orderId,
+        orderCode,
+        customerName,
+        customerEmail: customer.email,
+        customerPhone: customer.telephone,
+        booking: {
+          shift_type: phlebBookingData.shift_type,
+          slot_times: phlebBookingData.slot_times,
+          price: phlebBookingData.price,
+          weekend_surcharge: phlebBookingData.weekend_surcharge,
+          zone: phlebBookingData.zone,
+          availability: phlebBookingData.availability,
+          additional_preferences: phlebBookingData.additional_preferences,
+        },
+      }
+    );
+  } catch (error) {
+    console.error("Failed to send phleb booking notification email:", error);
+  }
+}
+
 interface ICreditCheckoutReqBody {
   customer_id: number;
   test_ids: number[];
@@ -692,6 +729,7 @@ async function creditCheckout(req: IReq<ICreditCheckoutReqBody>, res: IRes) {
     if (phlebBookingData) {
       try {
         await PhlebBookingService.saveBooking(id, phlebBookingData);
+        await sendPhlebBookingEmails(customer, phlebBookingData, order_id, id);
       } catch (bookingError) {
         // Log error but don't fail the order creation
         console.error("Failed to save phleb booking:", bookingError);
@@ -919,6 +957,7 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
     if (phlebBookingData) {
       try {
         await PhlebBookingService.saveBooking(id, phlebBookingData);
+        await sendPhlebBookingEmails(customer, phlebBookingData, order_id, id);
       } catch (bookingError) {
         // Log error but don't fail the order creation
         console.error("Failed to save phleb booking:", bookingError);
@@ -1210,6 +1249,7 @@ async function globalPaymentsCheckout(
     if (phlebBookingData) {
       try {
         await PhlebBookingService.saveBooking(id, phlebBookingData);
+        await sendPhlebBookingEmails(customer, phlebBookingData, order_id, id);
       } catch (bookingError) {
         // Log error but don't fail the order creation
         console.error("Failed to save phleb booking:", bookingError);

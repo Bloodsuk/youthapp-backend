@@ -865,6 +865,21 @@ interface IJobCompletionPayload extends IOrderIdentifiers {
   newStatus: string;
 }
 
+interface IPhlebBookingNotificationPayload extends IOrderIdentifiers {
+  customerName?: string | null;
+  customerEmail?: string | null;
+  customerPhone?: string | null;
+  booking: {
+    shift_type: string;
+    slot_times: string;
+    price: string;
+    weekend_surcharge?: string;
+    zone: string;
+    availability?: string;
+    additional_preferences?: string;
+  };
+}
+
 const sendAdminJobCompletionEmail = async (
   adminEmails: Recipient,
   payload: IJobCompletionPayload
@@ -927,6 +942,42 @@ const sendCustomerJobCompletionEmail = async (
   );
 };
 
+const sendPhlebBookingNotification = async (
+  toEmails: Recipient,
+  payload: IPhlebBookingNotificationPayload
+): Promise<void> => {
+  const orderRef = formatOrderRef({ orderId: payload.orderId, orderCode: payload.orderCode });
+  const detailRows: INotificationDetail[] = [
+    { label: "Order Reference", value: orderRef },
+    { label: "Customer Name", value: getDetailValue(payload.customerName) },
+    { label: "Customer Email", value: getDetailValue(payload.customerEmail) },
+    { label: "Customer Phone", value: getDetailValue(payload.customerPhone) },
+    { label: "Zone", value: getDetailValue(payload.booking.zone) },
+    { label: "Shift", value: getDetailValue(payload.booking.shift_type) },
+    { label: "Slot", value: getDetailValue(payload.booking.slot_times) },
+    { label: "Price", value: getDetailValue(payload.booking.price) },
+    { label: "Weekend Surcharge", value: getDetailValue(payload.booking.weekend_surcharge) },
+    { label: "Availability", value: getDetailValue(payload.booking.availability) },
+    { label: "Additional Preferences", value: getDetailValue(payload.booking.additional_preferences) },
+  ];
+
+  const html = buildNotificationEmail({
+    title: "New Home Visit Booking",
+    introLines: [
+      "A new home phlebotomy booking has been placed.",
+      "Details are listed below."
+    ],
+    detailRows,
+    outroLines: [
+      "Please coordinate the booking and reach out to the customer if needed."
+    ],
+  });
+
+  await sendEmail(toEmails, `New Home Visit Booking - ${orderRef}`, html, {
+    cc: getAdminCcRecipients(),
+  });
+};
+
 export default {
   getMailConfig,
   addMailConfig,
@@ -947,5 +998,6 @@ export default {
   sendAdminJobStatusUpdateEmail,
   sendCustomerJobStatusUpdateEmail,
   sendAdminJobCompletionEmail,
-  sendCustomerJobCompletionEmail
+  sendCustomerJobCompletionEmail,
+  sendPhlebBookingNotification,
 } as const;
