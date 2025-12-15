@@ -24,8 +24,24 @@ export interface ZoneResult {
 }
 
 // **** Constants **** //
-
-const LONDON_PREFIXES = ['EC', 'WC', 'E', 'N', 'NW', 'SE', 'SW', 'W'];
+//
+// London + Greater London prefixes:
+// - Central London: EC, WC
+// - East: E
+// - North: N, NW
+// - South: SE, SW
+// - West: W
+// - Greater London: HA
+//
+// \"Others\" that share the same pricing as London:
+// SO, PL, EX, TR, TQ, TA, DT, BH, GL, SA, SY, LD, LL, LA
+//
+// Anything else that is a valid UK postcode is treated as Standard zone.
+const LONDON_AND_GREATER_PREFIXES = ['EC', 'WC', 'E', 'N', 'NW', 'SE', 'SW', 'W', 'HA'];
+const OTHER_PREMIUM_PREFIXES = [
+  'SO', 'PL', 'EX', 'TR', 'TQ', 'TA', 'DT', 'BH', 'GL',
+  'SA', 'SY', 'LD', 'LL', 'LA',
+];
 
 const STANDARD_ZONE_SLOTS: Slot[] = [
   {
@@ -134,12 +150,6 @@ async function townExistsInDatabase(town: string): Promise<boolean> {
   }
 }
 
-/**
- * Determine zone based on postcode
- * London Zone: Postcodes starting with EC, WC, E, N, NW, SE, SW, W
- * Standard Zone: Other valid UK postcodes
- * Out of Area: Invalid or non-UK postcodes
- */
 export function getZoneByPostcode(postcode: string): Zone {
   if (!postcode || postcode.trim() === "") {
     return "out_of_area";
@@ -147,8 +157,8 @@ export function getZoneByPostcode(postcode: string): Zone {
 
   const normalized = normalizePostcode(postcode);
 
-  // Check if postcode starts with any London prefix
-  for (const prefix of LONDON_PREFIXES) {
+  // Check if postcode starts with any London or premium prefix
+  for (const prefix of [...LONDON_AND_GREATER_PREFIXES, ...OTHER_PREMIUM_PREFIXES]) {
     if (normalized.startsWith(prefix)) {
       return "london";
     }

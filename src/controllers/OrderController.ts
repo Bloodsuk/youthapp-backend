@@ -550,8 +550,8 @@ async function sendPhlebBookingEmails(
       "Customer";
 
     await MailService.sendPhlebBookingNotification(
-      ["revolutionbloods@outlook.com", "info@youth-revisited.co.uk"],
-      {
+      ['Bloodservices@mail.com', 'info@youth-revisited.co.uk'],     
+       {
         orderId,
         orderCode,
         customerName,
