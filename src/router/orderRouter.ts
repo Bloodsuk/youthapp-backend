@@ -115,7 +115,7 @@ orderRouter.post(
   OrderController.stripeCheckout
 );
 
-// Global Payments Checkout (Create Order + Pre-Auth)
+// Global Payments Checkout (Create Order + Charge Payment)
 orderRouter.post(
   Paths.Orders.GlobalPaymentsCheckout,
   OrderController.globalPaymentsCheckout
@@ -149,6 +149,13 @@ orderRouter.delete(
   OrderController.deleteGlobalPaymentsToken
 );
 
+// Public tokenization endpoint (no auth required) - Mobile app uses this
+orderRouter.post(
+  Paths.Orders.GlobalPaymentsTokenizePublic,
+  OrderController.tokenizeGlobalPaymentsCardPublic
+);
+
+// Authenticated tokenization endpoint (saves to user account)
 orderRouter.post(
   Paths.Orders.GlobalPaymentsTokenize,
   OrderController.tokenizeGlobalPaymentsCard

@@ -999,7 +999,7 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
 }
 
 /**
- * Global Payments Checkout - Creates order and places pre-authorization hold
+ * Global Payments Checkout - Creates order and charges payment immediately
  */
 interface IGlobalPaymentsCheckoutReqBody {
   customer_id: number;
@@ -1016,9 +1016,10 @@ interface IGlobalPaymentsCheckoutReqBody {
   supplements: string;
   enhancing_drugs: string;
   booking: Record<string, any>;
-  payment_method?: IGpPaymentMethodPayload;
-  payment_token_id?: number;
-  save_payment_method?: boolean;
+  // SECURE: Only accept token, not raw card details
+  payment_token: string;  // Token from tokenization endpoint
+  payment_token_id?: number;  // OR use saved token from user account
+  save_payment_method?: boolean;  // Save token to user account for future use
   currency?: string;
   pleb_id?: number;
   phleb_booking?: IPhlebBookingData;
@@ -1050,8 +1051,6 @@ async function globalPaymentsCheckout(
     supplements,
     enhancing_drugs,
     booking,
-    payment_method,
-    payment_token_id,
     save_payment_method,
     currency,
     pleb_id,
@@ -1067,17 +1066,19 @@ async function globalPaymentsCheckout(
     ? { booking_date: booking.booking_date, booking_time: booking.booking_time }
     : undefined;
 
-  if (!payment_method && !payment_token_id) {
+  // SECURE FLOW: Only accept token, not raw card details
+  const { payment_token, payment_token_id } = req.body;
+  
+  if (!payment_token && !payment_token_id) {
     return res.status(HttpStatusCodes.BAD_REQUEST).json({
       success: false,
-      error: "Either payment_method or payment_token_id is required",
+      error: "Either payment_token (from tokenization) or payment_token_id (saved card) is required",
     });
   }
 
-  let authorizationResult: Awaited<
-    ReturnType<typeof GlobalPaymentsService.authorize>
+  let chargeResult: Awaited<
+    ReturnType<typeof GlobalPaymentsService.charge>
   > | null = null;
-  let authorizationTransactionId: string | null = null;
   let savedPaymentTokenId: number | null = null;
   let usingStoredToken = false;
 
@@ -1116,8 +1117,21 @@ async function globalPaymentsCheckout(
       const test = await TestsService.getOne(test_id);
       cart_total += parseFloat(test.price);
     }
+    
+    // Determine api_royal flag based on shipping type (same as Credit checkout)
+    let api_royal = "no";
     const shipping = await ShippingsService.getOne(shipping_type);
+    const shipping_name = shipping["name"];
     const shipping_charges = shipping["value"];
+    if (
+      shipping_name == "Royal Mail Tracked 24" ||
+      shipping_name == "Royal Mail Special Delivery Guaranted by 1PM"
+    ) {
+      api_royal = "yes";
+    } else {
+      api_royal = "no";
+    }
+    
     let other_charges_total = 0;
     for (const service_id of service_ids) {
       const service = await ServicesService.getOne(service_id);
@@ -1147,9 +1161,10 @@ async function globalPaymentsCheckout(
 
     const order_id = moment().format("YYMM") + `${mt_rand(55, 55555)}`;
 
-    // Prepare payment method
+    // Prepare payment method - ONLY use tokens, never raw card details
     let gpPaymentMethod;
     if (payment_token_id) {
+      // Use saved token from user account
       const tokenRecord = await PaymentTokenService.getByIdForUser(
         payment_token_id,
         sessionUser.id
@@ -1164,19 +1179,13 @@ async function globalPaymentsCheckout(
       usingStoredToken = true;
       savedPaymentTokenId = tokenRecord.id;
     } else {
-      gpPaymentMethod = {
-        token: payment_method?.token,
-        number: payment_method?.number,
-        expMonth: payment_method?.exp_month,
-        expYear: payment_method?.exp_year,
-        cvv: payment_method?.cvv,
-        cardHolderName: payment_method?.card_holder_name,
-      };
+      // Use token from tokenization endpoint (no raw card details)
+      gpPaymentMethod = { token: payment_token };
     }
 
-    // Place pre-authorization hold
+    // Charge the card immediately using token
     const shouldSaveToken = !usingStoredToken && (save_payment_method ?? true);
-    authorizationResult = await GlobalPaymentsService.authorize({
+    chargeResult = await GlobalPaymentsService.charge({
       amount: Number(total_val.toFixed(2)),
       currency: currency || EnvVars.GlobalPayments.DefaultCurrency,
       clientTransactionId: order_id,
@@ -1184,46 +1193,44 @@ async function globalPaymentsCheckout(
       requestMultiUseToken: shouldSaveToken,
       paymentMethod: gpPaymentMethod,
     });
-    authorizationTransactionId = authorizationResult.transactionId;
 
-    // Save token if new card was used
-    if (shouldSaveToken && authorizationResult.token) {
-      const masked = authorizationResult.raw.cardDetails?.maskedNumberLast4;
+    // Save token to user account if requested (for future use)
+    if (shouldSaveToken && chargeResult.token && !usingStoredToken) {
+      // Get card info from charge result
+      const masked = chargeResult.raw.cardDetails?.maskedNumberLast4;
       const derivedLast4 = masked ? masked.slice(-4) : null;
       const tokenRecord = await PaymentTokenService.saveOrUpdate(
         sessionUser.id,
         {
-          token: authorizationResult.token,
-          fingerprint: authorizationResult.raw.fingerprint || null,
+          token: chargeResult.token,  // Use the multi-use token from charge response
+          fingerprint: chargeResult.raw.fingerprint || null,
           brand:
-            authorizationResult.raw.cardType ||
-            authorizationResult.raw.cardDetails?.brand ||
+            chargeResult.raw.cardType ||
+            chargeResult.raw.cardDetails?.brand ||
             null,
           last4:
-            authorizationResult.raw.cardLast4 ||
+            chargeResult.raw.cardLast4 ||
             derivedLast4 ||
-            (payment_method?.number
-              ? payment_method.number.slice(-4)
-              : null),
-          exp_month: payment_method?.exp_month || null,
-          exp_year: payment_method?.exp_year || null,
+            null,
+          exp_month: null,  // Not available from token
+          exp_year: null,   // Not available from token
         }
       );
       savedPaymentTokenId = tokenRecord.id;
     }
 
-    // Create order with authorization details
+    // Create order with charge details (includes all fields from Stripe/Credit checkout)
     const order = {
       order_id,
       customer_id,
-      transaction_id: authorizationResult.transactionId,
-      test_ids: test_ids.join(","),
+      transaction_id: chargeResult.transactionId,
+      test_ids: test_ids.join(","), //array to string
       client_id: customer.client_code,
       client_name: customer.fore_name + " " + customer.sur_name,
       shipping_type: shipping_type.toString(),
       other_charges: service_ids.join(","),
       checkout_type: "GlobalPayments",
-      payment_status: "Authorized",
+      payment_status: "Paid",
       order_placed_by,
       created_by: createdBy,
       practitioner_id: prac_id,
@@ -1240,6 +1247,7 @@ async function globalPaymentsCheckout(
       drugs_taken,
       supplements,
       enhancing_drugs,
+      api_royal,
     };
 
     const id = await OrderService.addOne(order, bookingForOrderService || {} as Record<string, any>);
@@ -1262,21 +1270,10 @@ async function globalPaymentsCheckout(
       success: true,
       order_id: id,
       order_number,
-      authorization: authorizationResult,
+      transaction_id: chargeResult.transactionId,
       payment_token_id: savedPaymentTokenId,
     });
   } catch (error) {
-    // Release hold if order creation fails
-    if (authorizationTransactionId) {
-      try {
-        await GlobalPaymentsService.release(authorizationTransactionId);
-      } catch (releaseError) {
-        console.error(
-          "Failed to release Global Payments authorization:",
-          releaseError
-        );
-      }
-    }
     if (error instanceof RouteError)
       return res
         .status(error.status)
@@ -1602,6 +1599,76 @@ async function globalPaymentsRelease(
   }
 }
 
+/**
+ * Public tokenization endpoint - No auth required
+ * Mobile app calls this to tokenize card before checkout
+ * Card details are sent here, tokenized, and only token is returned
+ */
+async function tokenizeGlobalPaymentsCardPublic(
+  req: IReq<IGlobalPaymentsTokenizeReqBody>,
+  res: IRes
+) {
+  const { payment_method } = req.body;
+  
+  if (!payment_method) {
+    return res
+      .status(HttpStatusCodes.BAD_REQUEST)
+      .json({ success: false, error: "payment_method is required" });
+  }
+  
+  // Validate card details are present
+  if (!payment_method.number || !payment_method.exp_month || !payment_method.exp_year) {
+    return res
+      .status(HttpStatusCodes.BAD_REQUEST)
+      .json({ 
+        success: false, 
+        error: "Card number, expiration month, and expiration year are required" 
+      });
+  }
+  
+  try {
+    // Tokenize the card with Global Payments (card details never stored, only tokenized)
+    const tokenizeResult = await GlobalPaymentsService.tokenize({
+      number: payment_method.number,
+      expMonth: payment_method.exp_month,
+      expYear: payment_method.exp_year,
+      cvv: payment_method.cvv,
+      cardHolderName: payment_method.card_holder_name,
+    });
+    
+    // Return only the token - card details are never stored or returned
+    return res.status(HttpStatusCodes.OK).json({
+      success: true,
+      token: tokenizeResult.token,
+      // Return minimal card info for display purposes only
+      card_info: {
+        brand: tokenizeResult.cardType || null,
+        last4: tokenizeResult.cardLast4 || null,
+      },
+    });
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    else
+      return res
+        .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+        .json({
+          success: false,
+          error: "Internal Error: " + error,
+        })
+        .end();
+  }
+}
+
+/**
+ * Authenticated tokenization endpoint - Saves token to user account
+ */
 async function tokenizeGlobalPaymentsCard(
   req: IReq<IGlobalPaymentsTokenizeReqBody>,
   res: IRes
@@ -2150,6 +2217,7 @@ export default {
   globalPaymentsAuthorize,
   globalPaymentsCapture,
   globalPaymentsRelease,
+  tokenizeGlobalPaymentsCardPublic,
   tokenizeGlobalPaymentsCard,
   getGlobalPaymentsTokens,
   deleteGlobalPaymentsToken,

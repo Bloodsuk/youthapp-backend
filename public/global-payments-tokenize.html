@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Secure Payment</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px 30px;
+            max-width: 450px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            animation: slideUp 0.4s ease-out;
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 35px;
+        }
+        
+        .lock-icon {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 28px;
+        }
+        
+        h1 {
+            color: #1a1a1a;
+            margin-bottom: 8px;
+            font-size: 26px;
+            font-weight: 700;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .form-group {
+            margin-bottom: 24px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 10px;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+            letter-spacing: 0.3px;
+        }
+        
+        input {
+            width: 100%;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 16px 18px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: #fafafa;
+            color: #333;
+            font-family: inherit;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        }
+        
+        input::placeholder {
+            color: #999;
+        }
+        
+        .input-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .error {
+            color: #e74c3c;
+            font-size: 12px;
+            margin-top: 8px;
+            display: none;
+            font-weight: 500;
+        }
+        
+        .error.show {
+            display: block;
+            animation: shake 0.4s;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        
+        button {
+            width: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 18px;
+            font-size: 17px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            letter-spacing: 0.5px;
+        }
+        
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+        }
+        
+        button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .loading.show {
+            display: block;
+        }
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            color: #666;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .success {
+            display: none;
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            padding: 18px;
+            border-radius: 12px;
+            margin-top: 20px;
+            text-align: center;
+            font-weight: 600;
+            animation: slideUp 0.4s ease-out;
+        }
+        
+        .success.show {
+            display: block;
+        }
+        
+        .security-note {
+            text-align: center;
+            margin-top: 25px;
+            padding-top: 25px;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .security-note p {
+            color: #999;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        
+        .security-badges {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 10px;
+        }
+        
+        .badge {
+            font-size: 18px;
+            opacity: 0.7;
+        }
+        
+        @media (max-width: 480px) {
+            .container {
+                padding: 30px 20px;
+                border-radius: 16px;
+            }
+            
+            h1 {
+                font-size: 22px;
+            }
+            
+            .input-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="lock-icon">🔒</div>
+            <h1>Secure Payment</h1>
+            <p class="subtitle">Your card details are encrypted and secure</p>
+        </div>
+        
+        <form id="payment-form">
+            <div class="form-group">
+                <label for="card-number">Card Number</label>
+                <input 
+                    type="text" 
+                    id="card-number" 
+                    name="card-number"
+                    placeholder="1234 5678 9012 3456"
+                    maxlength="19"
+                    autocomplete="cc-number"
+                    required
+                />
+                <div class="error" id="card-number-error"></div>
+            </div>
+            
+            <div class="form-group">
+                <div class="input-row">
+                    <div>
+                        <label for="card-expiry">Expiry Date</label>
+                        <input 
+                            type="text" 
+                            id="card-expiry" 
+                            name="card-expiry"
+                            placeholder="MM/YY"
+                            maxlength="5"
+                            autocomplete="cc-exp"
+                            required
+                        />
+                        <div class="error" id="card-expiry-error"></div>
+                    </div>
+                    <div>
+                        <label for="card-cvv">CVV</label>
+                        <input 
+                            type="text" 
+                            id="card-cvv" 
+                            name="card-cvv"
+                            placeholder="123"
+                            maxlength="4"
+                            autocomplete="cc-csc"
+                            required
+                        />
+                        <div class="error" id="card-cvv-error"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="card-holder">Cardholder Name</label>
+                <input 
+                    type="text" 
+                    id="card-holder" 
+                    name="card-holder"
+                    placeholder="John Doe"
+                    autocomplete="cc-name"
+                    required
+                />
+                <div class="error" id="card-holder-error"></div>
+            </div>
+            
+            <button type="submit" id="submit-btn">
+                Continue
+            </button>
+        </form>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p class="loading-text">Securely processing your payment...</p>
+        </div>
+        
+        <div class="success" id="success">
+            ✓ Payment method secured successfully!
+        </div>
+        
+        <div class="security-note">
+            <p>🔐 Your card details are encrypted and never stored on our servers</p>
+            <div class="security-badges">
+                <span class="badge">🔒</span>
+                <span class="badge">🛡️</span>
+                <span class="badge">✓</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Get backend URL from query params or use current origin
+        const urlParams = new URLSearchParams(window.location.search);
+        const backendUrl = urlParams.get('backendUrl') || window.location.origin;
+        const tokenizeUrl = `${backendUrl}/api/orders/global_payments/tokenize/public`;
+
+        // Format card number with spaces
+        const cardNumberInput = document.getElementById('card-number');
+        cardNumberInput.addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\s/g, '');
+            let formattedValue = value.match(/.{1,4}/g)?.join(' ') || value;
+            if (formattedValue.length <= 19) {
+                e.target.value = formattedValue;
+            }
+        });
+
+        // Format expiry date as MM/YY
+        const cardExpiryInput = document.getElementById('card-expiry');
+        cardExpiryInput.addEventListener('input', function(e) {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length >= 2) {
+                value = value.substring(0, 2) + '/' + value.substring(2, 4);
+            }
+            e.target.value = value;
+        });
+
+        // Only allow numbers for CVV
+        const cardCvvInput = document.getElementById('card-cvv');
+        cardCvvInput.addEventListener('input', function(e) {
+            e.target.value = e.target.value.replace(/\D/g, '');
+        });
+
+        // Handle form submission
+        document.getElementById('payment-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submit-btn');
+            const loading = document.getElementById('loading');
+            const success = document.getElementById('success');
+            
+            // Clear previous errors
+            document.querySelectorAll('.error').forEach(el => {
+                el.classList.remove('show');
+                el.textContent = '';
+            });
+            
+            // Get form values
+            const cardNumber = cardNumberInput.value.replace(/\s/g, '');
+            const cardExpiry = cardExpiryInput.value;
+            const cardCvv = cardCvvInput.value;
+            const cardHolder = document.getElementById('card-holder').value.trim();
+            
+            // Validate
+            let hasError = false;
+            
+            if (cardNumber.length < 13 || cardNumber.length > 19) {
+                showError('card-number-error', 'Please enter a valid card number');
+                hasError = true;
+            }
+            
+            if (!/^\d{2}\/\d{2}$/.test(cardExpiry)) {
+                showError('card-expiry-error', 'Please enter a valid expiry date (MM/YY)');
+                hasError = true;
+            } else {
+                const [month, year] = cardExpiry.split('/');
+                const expMonth = parseInt(month);
+                const expYear = parseInt('20' + year);
+                const now = new Date();
+                const currentYear = now.getFullYear();
+                const currentMonth = now.getMonth() + 1;
+                
+                if (expMonth < 1 || expMonth > 12) {
+                    showError('card-expiry-error', 'Please enter a valid month');
+                    hasError = true;
+                } else if (expYear < currentYear || (expYear === currentYear && expMonth < currentMonth)) {
+                    showError('card-expiry-error', 'Card has expired');
+                    hasError = true;
+                }
+            }
+            
+            if (cardCvv.length < 3 || cardCvv.length > 4) {
+                showError('card-cvv-error', 'Please enter a valid CVV');
+                hasError = true;
+            }
+            
+            if (!cardHolder || cardHolder.length < 2) {
+                showError('card-holder-error', 'Please enter cardholder name');
+                hasError = true;
+            }
+            
+            if (hasError) {
+                return;
+            }
+            
+            // Disable button and show loading
+            submitBtn.disabled = true;
+            loading.classList.add('show');
+            success.classList.remove('show');
+            
+            try {
+                // Parse expiry date
+                const [month, year] = cardExpiry.split('/');
+                
+                // Tokenize card via backend
+                const response = await fetch(tokenizeUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        payment_method: {
+                            number: cardNumber,
+                            exp_month: month,
+                            exp_year: '20' + year,
+                            cvv: cardCvv,
+                            card_holder_name: cardHolder
+                        }
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Tokenization failed');
+                }
+                
+                if (data.success && data.token) {
+                    // Send token back to Flutter
+                    sendTokenToFlutter(data.token);
+                    
+                    // Show success message
+                    success.classList.add('show');
+                    loading.classList.remove('show');
+                    
+                    // Close after delay
+                    setTimeout(() => {
+                        closeWebView();
+                    }, 1500);
+                } else {
+                    throw new Error('Tokenization failed: No token received');
+                }
+            } catch (error) {
+                console.error('Tokenization error:', error);
+                
+                // Show error
+                showError('card-number-error', error.message || 'Failed to process payment. Please try again.');
+                
+                // Re-enable button
+                submitBtn.disabled = false;
+                loading.classList.remove('show');
+            }
+        });
+        
+        function showError(elementId, message) {
+            const errorDiv = document.getElementById(elementId);
+            errorDiv.textContent = message;
+            errorDiv.classList.add('show');
+        }
+        
+        function sendTokenToFlutter(token) {
+            // Try multiple methods to communicate with Flutter
+            if (window.flutter_inappwebview) {
+                // For flutter_inappwebview package
+                window.flutter_inappwebview.callHandler('onTokenReceived', token);
+            } else if (window.TokenChannel) {
+                // For standard WebView JavaScript channel
+                window.TokenChannel.postMessage(token);
+            } else if (window.parent && window.parent !== window) {
+                // For iframe communication
+                window.parent.postMessage({
+                    type: 'TOKEN_RECEIVED',
+                    token: token
+                }, '*');
+            } else {
+                // Fallback: Store in localStorage and notify
+                localStorage.setItem('gp_token', token);
+                window.dispatchEvent(new CustomEvent('tokenReceived', { detail: { token } }));
+            }
+        }
+        
+        function closeWebView() {
+            if (window.flutter_inappwebview) {
+                window.flutter_inappwebview.callHandler('closeWebView');
+            } else if (window.TokenChannel) {
+                // Signal to close
+                window.TokenChannel.postMessage('CLOSE');
+            }
+        }
+    </script>
+</body>
+</html>

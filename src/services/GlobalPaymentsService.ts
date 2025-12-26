@@ -292,6 +292,55 @@ async function authorize(
   }
 }
 
+async function charge(
+  params: IAuthorizeParams,
+): Promise<IGpTransactionResult> {
+  try {
+    ensureConfigured();
+    const card = buildCardData(params.paymentMethod);
+    const currency = params.currency || EnvVars.GlobalPayments.DefaultCurrency;
+    
+    // Ensure amount is a number, not string
+    const amount = typeof params.amount === "string" 
+      ? parseFloat(params.amount) 
+      : params.amount;
+    
+    let builder = card.charge(amount).withCurrency(currency);
+    if (params.allowDuplicates !== undefined) {
+      builder = builder.withAllowDuplicates(params.allowDuplicates);
+    }
+    // clientTransactionId: Optional merchant reference
+    // Global Payments requires alphanumeric only, max 50 chars
+    if (params.clientTransactionId) {
+      const sanitized = String(params.clientTransactionId)
+        .replace(/[^a-zA-Z0-9]/g, "") // Remove non-alphanumeric
+        .substring(0, 50); // Max 50 characters
+      if (sanitized.length > 0 && sanitized.length >= 3) {
+        console.log("Global Payments - Setting clientTransactionId:", sanitized);
+        builder = builder.withClientTransactionId(sanitized);
+      } else {
+        console.log("Global Payments - Skipping clientTransactionId (invalid format)");
+      }
+    }
+    if (params.requestMultiUseToken) {
+      builder = builder.withRequestMultiUseToken(true);
+    }
+    
+    console.log("Global Payments - Charge request:", {
+      amount,
+      currency,
+      hasToken: !!params.paymentMethod.token,
+      hasCardNumber: !!params.paymentMethod.number,
+      requestMultiUseToken: params.requestMultiUseToken,
+    });
+    
+    const transaction = await builder.execute(CONFIG_NAME);
+    return formatResult(transaction, "Charged");
+  } catch (error) {
+    handleProviderError(error);
+  }
+}
+
 async function capture(
   params: IFollowUpParams,
 ): Promise<IGpTransactionResult> {
@@ -358,6 +407,7 @@ async function tokenize(
 
 export default {
   authorize,
+  charge,
   capture,
   release,
   void: voidAuthorization,

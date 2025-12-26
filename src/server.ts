@@ -88,6 +88,12 @@ app.get("/customer-signup", (req: Request, res: Response) => {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.sendFile(path.join(process.cwd(), "public", "customer-signup.html"));
 });
+
+// Public Global Payments tokenization page (for Flutter WebView)
+app.get("/global-payments-tokenize", (req: Request, res: Response) => {
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.sendFile(path.join(process.cwd(), "public", "global-payments-tokenize.html"));
+});
 // Authorization middleware
 app.use(authorization);
 

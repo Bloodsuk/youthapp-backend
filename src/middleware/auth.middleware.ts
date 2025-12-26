@@ -25,7 +25,9 @@ async function authorization(
   console.log("Auth middleware path:", req.path);
   // Get session data
   const bypassPrefixes = ["/api/auth", "/auth", "/app_versions", "/app-versions"];
-  if (bypassPrefixes.some((prefix) => req.path.startsWith(prefix))) {
+  // Allow public tokenization endpoint (mobile app needs to tokenize before checkout)
+  const publicTokenizePath = "/api/orders/global_payments/tokenize/public";
+  if (bypassPrefixes.some((prefix) => req.path.startsWith(prefix)) || req.path === publicTokenizePath) {
     return next();
   }
 

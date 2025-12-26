@@ -137,6 +137,7 @@ export default {
     GlobalPaymentsRelease: "/global_payments/release",
     GlobalPaymentsPaymentTokens: "/global_payments/payment_tokens",
     GlobalPaymentsTokenize: "/global_payments/tokenize",
+    GlobalPaymentsTokenizePublic: "/global_payments/tokenize/public",
     PaymentMethods: "/stripe/payment_methods",
     BookedTimeSlots: "/booked_time_slots",
     BookingDetails: "/booking_details",
