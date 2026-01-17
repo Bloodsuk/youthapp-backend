@@ -24,24 +24,10 @@ export interface ZoneResult {
 }
 
 // **** Constants **** //
-//
-// London + Greater London prefixes:
-// - Central London: EC, WC
-// - East: E
-// - North: N, NW
-// - South: SE, SW
-// - West: W
-// - Greater London: HA
-//
-// \"Others\" that share the same pricing as London:
-// SO, PL, EX, TR, TQ, TA, DT, BH, GL, SA, SY, LD, LL, LA
-//
-// Anything else that is a valid UK postcode is treated as Standard zone.
-const LONDON_AND_GREATER_PREFIXES = ['EC', 'WC', 'E', 'N', 'NW', 'SE', 'SW', 'W', 'HA'];
-const OTHER_PREMIUM_PREFIXES = [
-  'SO', 'PL', 'EX', 'TR', 'TQ', 'TA', 'DT', 'BH', 'GL',
-  'SA', 'SY', 'LD', 'LL', 'LA',
-];
+// Zone codes are now stored in database tables:
+// - zone_london: Contains london_codes (EC, WC, E, N, NW, SE, SW, W, HA, TW, etc.)
+// - zone_others: Contains other_codes (SO, PL, EX, TR, TQ, TA, DT, BH, GL, SA, SY, LD, LL, LA)
+// Both tables are treated as "london" zone (same pricing)
 
 const STANDARD_ZONE_SLOTS: Slot[] = [
   {
@@ -150,18 +136,96 @@ async function townExistsInDatabase(town: string): Promise<boolean> {
   }
 }
 
-export function getZoneByPostcode(postcode: string): Zone {
+/**
+ * Extract postcode prefix (letters before first number)
+ * UK postcodes format: [1-2 letters][numbers]...
+ * Examples: E1, EC1, SW1A, NW1, SE1, etc.
+ */
+function extractPostcodePrefix(postcode: string): string[] {
+  if (!postcode || postcode.trim() === "") {
+    return [];
+  }
+
+  const normalized = normalizePostcode(postcode);
+  const prefixes: string[] = [];
+  
+  // Extract all possible prefixes (1-5 characters, stopping at first number)
+  // This handles single letter (E, N, W) and multi-letter (EC, WC, NW, SE, SW, etc.) prefixes
+  for (let i = 1; i <= 5 && i <= normalized.length; i++) {
+    const candidate = normalized.substring(0, i);
+    // Stop if we hit a number
+    if (/\d/.test(candidate)) {
+      break;
+    }
+    prefixes.push(candidate);
+  }
+  
+  return prefixes;
+}
+
+/**
+ * Check if postcode prefix exists in zone_london or zone_others tables
+ * Both tables indicate "london" zone pricing
+ */
+async function isLondonZonePostcode(postcode: string): Promise<boolean> {
+  if (!postcode || postcode.trim() === "") {
+    return false;
+  }
+
+  try {
+    const prefixes = extractPostcodePrefix(postcode);
+    
+    if (prefixes.length === 0) {
+      return false;
+    }
+    
+    // Check all possible prefixes (from longest to shortest) against database
+    // This handles cases like "SW1A" where we check "SW" first, then "S"
+    for (let i = prefixes.length - 1; i >= 0; i--) {
+      const prefix = prefixes[i];
+      
+      // Check zone_london table
+      const [londonRows] = await pool.query<RowDataPacket[]>(
+        "SELECT COUNT(*) as count FROM zone_london WHERE london_codes = ? LIMIT 1",
+        [prefix]
+      );
+      if (londonRows.length > 0 && londonRows[0].count > 0) {
+        return true;
+      }
+      
+      // Check zone_others table
+      const [otherRows] = await pool.query<RowDataPacket[]>(
+        "SELECT COUNT(*) as count FROM zone_others WHERE other_codes = ? LIMIT 1",
+        [prefix]
+      );
+      if (otherRows.length > 0 && otherRows[0].count > 0) {
+        return true;
+      }
+    }
+    
+    return false;
+  } catch (error) {
+    console.error("Error checking zone tables:", error);
+    // On error, fall back to standard zone (safer than blocking)
+    return false;
+  }
+}
+
+/**
+ * Determine zone based on postcode by querying database tables
+ * Returns "london" if postcode prefix is in zone_london or zone_others tables
+ * Returns "standard" if valid UK postcode but not in london tables
+ * Returns "out_of_area" if invalid or non-UK postcode
+ */
+export async function getZoneByPostcode(postcode: string): Promise<Zone> {
   if (!postcode || postcode.trim() === "") {
     return "out_of_area";
   }
 
-  const normalized = normalizePostcode(postcode);
-
-  // Check if postcode starts with any London or premium prefix
-  for (const prefix of [...LONDON_AND_GREATER_PREFIXES, ...OTHER_PREMIUM_PREFIXES]) {
-    if (normalized.startsWith(prefix)) {
-      return "london";
-    }
+  // Check if postcode prefix matches any London zone codes in database
+  const isLondon = await isLondonZonePostcode(postcode);
+  if (isLondon) {
+    return "london";
   }
 
   // Check if it's a valid UK postcode format
@@ -253,7 +317,7 @@ export async function getSlotsByLocation(
         };
       }
       
-      const zone = getZoneByPostcode(postcode);
+      const zone = await getZoneByPostcode(postcode);
       
       if (zone === "out_of_area") {
         return {
@@ -279,8 +343,8 @@ export async function getSlotsByLocation(
         };
       }
       
-      // Valid format but not in DB - determine zone by format
-      const zone = getZoneByPostcode(postcode);
+      // Valid format but not in DB - determine zone by querying zone tables
+      const zone = await getZoneByPostcode(postcode);
       
       if (zone === "out_of_area") {
         // Try town if provided
