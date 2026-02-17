@@ -780,6 +780,8 @@ interface IStripeCheckoutReqBody {
   booking: Record<string, any>;
   pleb_id?: number;
   phleb_booking?: IPhlebBookingData;
+  /** Required when using Payment Intent flow: verify payment before creating order */
+  payment_intent_id?: string;
 }
 
 interface IGpPaymentMethodPayload {
@@ -832,6 +834,7 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
     booking,
     pleb_id,
     phleb_booking,
+    payment_intent_id,
   } = req.body;
   
   // Extract phleb_booking from nested structure if needed
@@ -920,11 +923,40 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
     if (total_val <= 0)
       return res.status(HttpStatusCodes.BAD_REQUEST).json({ success: false, error: "Total calculated amount is 0 or less. Please check your order details again. " });
 
+    let transaction_id = "0";
+    if (payment_intent_id) {
+      try {
+        const paymentIntent = await stripe.paymentIntents.retrieve(payment_intent_id);
+        if (paymentIntent.status !== "succeeded") {
+          return res.status(HttpStatusCodes.BAD_REQUEST).json({
+            success: false,
+            error: `Payment not completed. Status: ${paymentIntent.status}. Please complete the payment before checkout.`,
+          });
+        }
+        const expectedAmountPence = Math.round(total_val * 100);
+        if (paymentIntent.amount !== expectedAmountPence) {
+          return res.status(HttpStatusCodes.BAD_REQUEST).json({
+            success: false,
+            error: "Order amount does not match payment amount. Please restart checkout.",
+          });
+        }
+        transaction_id = typeof paymentIntent.latest_charge === "string"
+          ? paymentIntent.latest_charge
+          : paymentIntent.latest_charge?.id ?? paymentIntent.id;
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        return res.status(HttpStatusCodes.BAD_REQUEST).json({
+          success: false,
+          error: `Invalid or expired payment. ${errMsg}`,
+        });
+      }
+    }
+
     const order_id = moment().format("YYMM") + `${mt_rand(55, 55555)}`;
     const order = {
       order_id,
       customer_id,
-      transaction_id: "0",
+      transaction_id,
       test_ids: test_ids.join(","), //array to string
       client_id: customer.client_code,
       client_name: customer.fore_name + " " + customer.sur_name,
@@ -1811,6 +1843,146 @@ async function getPaymentMethods(req: IReq, res: IRes) {
 interface IAddPaymentMethodReqBody {
   card: Card;
 }
+/**
+ * Create a Stripe Payment Intent - returns client_secret for frontend to confirm payment
+ * Supports either: (1) amount + currency, or (2) full order params to calculate total
+ */
+interface ICreateStripePaymentIntentReqBody {
+  amount?: number;
+  currency?: string;
+  customer_id?: number;
+  test_ids?: number[];
+  shipping_type?: number;
+  service_ids?: number[];
+  discount?: number;
+  phleb_booking?: IPhlebBookingData;
+  booking?: Record<string, any>;
+  /** Where to redirect the customer after payment (required by Stripe at confirmation). */
+  return_url?: string;
+}
+
+async function createStripePaymentIntent(
+  req: IReq<ICreateStripePaymentIntentReqBody>,
+  res: IRes
+) {
+  if (!res.locals.sessionUser) {
+    return res
+      .status(HttpStatusCodes.UNAUTHORIZED)
+      .json({ success: false, error: "Unauthorized" });
+  }
+
+  const {
+    amount: amountProvided,
+    currency = "gbp",
+    customer_id,
+    test_ids = [],
+    shipping_type,
+    service_ids = [],
+    discount = 0,
+    phleb_booking,
+    booking,
+    return_url: returnUrlFromBody,
+  } = req.body;
+
+  try {
+    let total_val: number;
+
+    if (amountProvided !== undefined && amountProvided > 0) {
+      total_val = Number(amountProvided);
+    } else if (customer_id && test_ids.length > 0 && shipping_type !== undefined) {
+      const customer = await CustomerService.getOne(customer_id);
+      if (!customer) {
+        return res
+          .status(HttpStatusCodes.BAD_REQUEST)
+          .json({ success: false, error: "Customer not found" });
+      }
+
+      let cart_total = 0;
+      for (const test_id of test_ids) {
+        const test = await TestsService.getOne(test_id);
+        cart_total += parseFloat(test.price);
+      }
+
+      const shipping = await ShippingsService.getOne(shipping_type);
+      const shipping_charges = shipping["value"];
+
+      let other_charges_total = 0;
+      for (const service_id of service_ids) {
+        const service = await ServicesService.getOne(service_id);
+        other_charges_total += service.value;
+      }
+
+      const phlebBookingData = phleb_booking || booking?.phleb_booking;
+      let phleb_booking_price = 0;
+      if (phlebBookingData) {
+        phleb_booking_price = parseFloat(phlebBookingData.price || "0");
+        if (phlebBookingData.weekend_surcharge) {
+          phleb_booking_price += parseFloat(phlebBookingData.weekend_surcharge || "0");
+        }
+      }
+
+      total_val = cart_total + shipping_charges + other_charges_total + phleb_booking_price - discount;
+    } else {
+      return res.status(HttpStatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: "Either amount or (customer_id, test_ids, shipping_type) is required",
+      });
+    }
+
+    if (total_val <= 0) {
+      return res.status(HttpStatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: "Amount must be greater than zero",
+      });
+    }
+
+    const user_id = res.locals.sessionUser.id;
+    const stripe_cust_id = await getUserStripeId(user_id);
+
+    const amountInSmallestUnit = Math.round(total_val * 100);
+
+    const defaultReturnUrl =
+      process.env.FRONTEND_URL || process.env.APP_URL || "https://example.com";
+    const returnUrl =
+      typeof returnUrlFromBody === "string" && returnUrlFromBody.length > 0
+        ? returnUrlFromBody
+        : `${defaultReturnUrl.replace(/\/$/, "")}/orders/complete`;
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountInSmallestUnit,
+      currency: currency.toLowerCase(),
+      customer: stripe_cust_id,
+      automatic_payment_methods: { enabled: true, allow_redirects: "never" },
+      return_url: returnUrl,
+    });
+
+    return res.status(HttpStatusCodes.CREATED).json({
+      success: true,
+      client_secret: paymentIntent.client_secret,
+      payment_intent_id: paymentIntent.id,
+      amount: total_val,
+      currency: currency.toLowerCase(),
+      return_url: returnUrl,
+    });
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    return res
+      .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+      .json({
+        success: false,
+        error: "Internal Error: " + (error instanceof Error ? error.message : String(error)),
+      })
+      .end();
+  }
+}
+
 async function addPaymentMethod(
   req: IReq<IAddPaymentMethodReqBody>,
   res: IRes
@@ -2223,6 +2395,7 @@ export default {
   deleteGlobalPaymentsToken,
   getPaymentMethods,
   addPaymentMethod,
+  createStripePaymentIntent,
   getAvailablePlebs,
   getBookedTimeSlots,
   getBookingDetails,

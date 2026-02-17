@@ -9,6 +9,7 @@
     "dev": "nodemon",
     "test": "nodemon --config ./spec/nodemon.json",
     "test:no-reloading": "npx ts-node --files -r tsconfig-paths/register ./spec",
+    "test:stripe-flow": "npx ts-node -r tsconfig-paths/register scripts/test-stripe-payment-flow.ts",
     "swagger": "npx ts-node src/swagger.ts"
   },
   "nodemonConfig": {

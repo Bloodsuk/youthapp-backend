@@ -139,6 +139,7 @@ export default {
     GlobalPaymentsTokenize: "/global_payments/tokenize",
     GlobalPaymentsTokenizePublic: "/global_payments/tokenize/public",
     PaymentMethods: "/stripe/payment_methods",
+    StripePaymentIntent: "/stripe/payment_intent",
     BookedTimeSlots: "/booked_time_slots",
     BookingDetails: "/booking_details",
     GetExtraDiscountPractitionerIds: "/extra_discount_practitioners",

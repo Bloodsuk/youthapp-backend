@@ -109,6 +109,11 @@ orderRouter.post(
   Paths.Orders.PaymentMethods,
   OrderController.addPaymentMethod
 );
+// Create Stripe Payment Intent (for client-side payment confirmation)
+orderRouter.post(
+  Paths.Orders.StripePaymentIntent,
+  OrderController.createStripePaymentIntent
+);
 // Stripe Checkout
 orderRouter.post(
   Paths.Orders.StripeCheckout,
