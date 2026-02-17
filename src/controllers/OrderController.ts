@@ -1948,12 +1948,13 @@ async function createStripePaymentIntent(
         ? returnUrlFromBody
         : `${defaultReturnUrl.replace(/\/$/, "")}/orders/complete`;
 
+    // Do not pass return_url here: Stripe only allows it when confirm: true.
+    // The client should pass return_url when confirming (e.g. confirmPayment).
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountInSmallestUnit,
       currency: currency.toLowerCase(),
       customer: stripe_cust_id,
       automatic_payment_methods: { enabled: true, allow_redirects: "never" },
-      return_url: returnUrl,
     });
 
     return res.status(HttpStatusCodes.CREATED).json({
