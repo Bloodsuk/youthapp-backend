@@ -576,7 +576,7 @@ async function sendPhlebBookingEmails(
 interface ICreditCheckoutReqBody {
   customer_id: number;
   test_ids: number[];
-  shipping_type: number;
+  shipping_type?: number;
   service_ids: number[];
   discount: number;
   current_medication: string;
@@ -661,17 +661,20 @@ async function creditCheckout(req: IReq<ICreditCheckoutReqBody>, res: IRes) {
       createdBy = res.locals.sessionUser.practitioner_id || 0; // Clinic's Practitioner
     }
 
+    // Shipping is optional for practitioners
     let api_royal = "no";
-    const shipping = await ShippingsService.getOne(shipping_type);
-    const shipping_name = shipping["name"];
-    const shipping_charges = shipping["value"];
-    if (
-      shipping_name == "Royal Mail Tracked 24" ||
-      shipping_name == "Royal Mail Special Delivery Guaranted by 1PM"
-    ) {
-      api_royal = "yes";
-    } else {
-      api_royal = "no";
+    let shipping_charges = 0;
+    let shipping_name = "";
+    if (shipping_type) {
+      const shipping = await ShippingsService.getOne(shipping_type);
+      shipping_name = shipping["name"];
+      shipping_charges = shipping["value"];
+      if (
+        shipping_name == "Royal Mail Tracked 24" ||
+        shipping_name == "Royal Mail Special Delivery Guaranted by 1PM"
+      ) {
+        api_royal = "yes";
+      }
     }
     let other_charges_total = 0;
     for (const service_id of service_ids) {
@@ -700,7 +703,7 @@ async function creditCheckout(req: IReq<ICreditCheckoutReqBody>, res: IRes) {
       test_ids: test_ids.join(","), //array to string
       client_id: customer.client_code,
       client_name: customer.fore_name + " " + customer.sur_name,
-      shipping_type: shipping_type.toString(),
+      shipping_type: shipping_type ? shipping_type.toString() : "0",
       other_charges: service_ids.join(","),
       checkout_type: "Credit",
       payment_status: "Pending",
@@ -766,7 +769,7 @@ type Card = {
 interface IStripeCheckoutReqBody {
   customer_id: number;
   test_ids: number[];
-  shipping_type: number;
+  shipping_type?: number;
   service_ids: number[];
   discount: number;
   current_medication: string;
@@ -890,9 +893,12 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
       testNames.push(test.test_name);
       testPrices.push(test.price);
     }
-    const shipping = await ShippingsService.getOne(shipping_type);
-    const shipping_charges = shipping["value"];
-    // const shipping_name = shipping["name"];
+    // Shipping is optional for practitioners
+    let shipping_charges = 0;
+    if (shipping_type && Number(shipping_type) > 0) {
+      const shipping = await ShippingsService.getOne(shipping_type);
+      shipping_charges = shipping["value"];
+    }
     let other_charges_total = 0;
     for (const service_id of service_ids) {
       const service = await ServicesService.getOne(service_id);
@@ -960,7 +966,7 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
       test_ids: test_ids.join(","), //array to string
       client_id: customer.client_code,
       client_name: customer.fore_name + " " + customer.sur_name,
-      shipping_type: shipping_type.toString(),
+      shipping_type: shipping_type ? shipping_type.toString() : "0",
       other_charges: service_ids.join(","),
       checkout_type: "Stripe",
       payment_status: "Paid",
@@ -1036,7 +1042,7 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
 interface IGlobalPaymentsCheckoutReqBody {
   customer_id: number;
   test_ids: number[];
-  shipping_type: number;
+  shipping_type?: number;
   service_ids: number[];
   discount: number;
   current_medication: string;
@@ -1150,18 +1156,19 @@ async function globalPaymentsCheckout(
       cart_total += parseFloat(test.price);
     }
     
-    // Determine api_royal flag based on shipping type (same as Credit checkout)
+    // Shipping is optional for practitioners
     let api_royal = "no";
-    const shipping = await ShippingsService.getOne(shipping_type);
-    const shipping_name = shipping["name"];
-    const shipping_charges = shipping["value"];
-    if (
-      shipping_name == "Royal Mail Tracked 24" ||
-      shipping_name == "Royal Mail Special Delivery Guaranted by 1PM"
-    ) {
-      api_royal = "yes";
-    } else {
-      api_royal = "no";
+    let shipping_charges = 0;
+    if (shipping_type) {
+      const shipping = await ShippingsService.getOne(shipping_type);
+      const shipping_name = shipping["name"];
+      shipping_charges = shipping["value"];
+      if (
+        shipping_name == "Royal Mail Tracked 24" ||
+        shipping_name == "Royal Mail Special Delivery Guaranted by 1PM"
+      ) {
+        api_royal = "yes";
+      }
     }
     
     let other_charges_total = 0;
@@ -1259,7 +1266,7 @@ async function globalPaymentsCheckout(
       test_ids: test_ids.join(","), //array to string
       client_id: customer.client_code,
       client_name: customer.fore_name + " " + customer.sur_name,
-      shipping_type: shipping_type.toString(),
+      shipping_type: shipping_type ? shipping_type.toString() : "0",
       other_charges: service_ids.join(","),
       checkout_type: "GlobalPayments",
       payment_status: "Paid",
@@ -1811,9 +1818,10 @@ async function getPaymentMethods(req: IReq, res: IRes) {
       .json({ success: false, error: "Unauthorized" });
   }
   const user_id = res.locals.sessionUser.id;
+  const userLevel = res.locals.sessionUser.user_level;
 
   try {
-    const stripe_cust_id = await getUserStripeId(user_id);
+    const stripe_cust_id = await getUserStripeId(user_id, userLevel);
     const cards = await getSripeCards(stripe_cust_id);
     return res
       .status(HttpStatusCodes.OK)
@@ -1857,8 +1865,6 @@ interface ICreateStripePaymentIntentReqBody {
   discount?: number;
   phleb_booking?: IPhlebBookingData;
   booking?: Record<string, any>;
-  /** Where to redirect the customer after payment (required by Stripe at confirmation). */
-  return_url?: string;
 }
 
 async function createStripePaymentIntent(
@@ -1881,7 +1887,6 @@ async function createStripePaymentIntent(
     discount = 0,
     phleb_booking,
     booking,
-    return_url: returnUrlFromBody,
   } = req.body;
 
   try {
@@ -1889,7 +1894,7 @@ async function createStripePaymentIntent(
 
     if (amountProvided !== undefined && amountProvided > 0) {
       total_val = Number(amountProvided);
-    } else if (customer_id && test_ids.length > 0 && shipping_type !== undefined) {
+    } else if (customer_id && test_ids.length > 0) {
       const customer = await CustomerService.getOne(customer_id);
       if (!customer) {
         return res
@@ -1903,8 +1908,12 @@ async function createStripePaymentIntent(
         cart_total += parseFloat(test.price);
       }
 
-      const shipping = await ShippingsService.getOne(shipping_type);
-      const shipping_charges = shipping["value"];
+      // Shipping is optional for practitioners
+      let shipping_charges = 0;
+      if (shipping_type) {
+        const shipping = await ShippingsService.getOne(shipping_type);
+        shipping_charges = shipping["value"];
+      }
 
       let other_charges_total = 0;
       for (const service_id of service_ids) {
@@ -1925,7 +1934,7 @@ async function createStripePaymentIntent(
     } else {
       return res.status(HttpStatusCodes.BAD_REQUEST).json({
         success: false,
-        error: "Either amount or (customer_id, test_ids, shipping_type) is required",
+        error: "Either amount or (customer_id, test_ids) is required",
       });
     }
 
@@ -1937,19 +1946,11 @@ async function createStripePaymentIntent(
     }
 
     const user_id = res.locals.sessionUser.id;
-    const stripe_cust_id = await getUserStripeId(user_id);
+    const userLevel = res.locals.sessionUser.user_level;
+    const stripe_cust_id = await getUserStripeId(user_id, userLevel, customer_id);
 
     const amountInSmallestUnit = Math.round(total_val * 100);
 
-    const defaultReturnUrl =
-      process.env.FRONTEND_URL || process.env.APP_URL || "https://example.com";
-    const returnUrl =
-      typeof returnUrlFromBody === "string" && returnUrlFromBody.length > 0
-        ? returnUrlFromBody
-        : `${defaultReturnUrl.replace(/\/$/, "")}/orders/complete`;
-
-    // Do not pass return_url here: Stripe only allows it when confirm: true.
-    // The client should pass return_url when confirming (e.g. confirmPayment).
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountInSmallestUnit,
       currency: currency.toLowerCase(),
@@ -1963,7 +1964,6 @@ async function createStripePaymentIntent(
       payment_intent_id: paymentIntent.id,
       amount: total_val,
       currency: currency.toLowerCase(),
-      return_url: returnUrl,
     });
   } catch (error) {
     if (error instanceof RouteError)
@@ -1995,8 +1995,9 @@ async function addPaymentMethod(
       .json({ success: false, error: "Unauthorized" });
   }
   const user_id = res.locals.sessionUser.id;
+  const userLevel = res.locals.sessionUser.user_level;
   try {
-    const stripe_cust_id = await getUserStripeId(user_id);
+    const stripe_cust_id = await getUserStripeId(user_id, userLevel);
     let paymentMethod = await stripe.paymentMethods.create({
       type: "card",
       card,
@@ -2025,53 +2026,72 @@ async function addPaymentMethod(
   }
 }
 
-async function getUserStripeId(user_id: number) {
+async function getUserStripeId(user_id: number, userLevel?: string, customerIdFromBody?: number) {
   try {
-    const user = await UserService.getOne(user_id);
-    let stripe_cust_id = user.stripe_id.length > 0 ? user.stripe_id : null;
-    const user_email = user.email;
-    let existingCustomers = [];
-    // Create or use a preexisting Customer to associate with the payment
-    if (!stripe_cust_id) {
-      //Check if already in Stripe Account with email
-      if (user_email) {
-        const result = await stripe.customers.list({
-          email: user_email,
-          limit: 1,
-        });
-        existingCustomers = result.data;
-        if (existingCustomers && existingCustomers.length > 0) {
-          stripe_cust_id = existingCustomers[0]["id"];
-          if (stripe_cust_id)
-            await UserService.updateOne(user_id, {
-              stripe_id: stripe_cust_id,
-            });
+    let stripe_cust_id: string | null = null;
+    let user_email: string | null = null;
+
+    // For Customer user_level, look up by customer record (customers table)
+    if (userLevel === UserLevels.Customer) {
+      // Use the customer_id from the request body, or fall back to user_id
+      const custId = customerIdFromBody || user_id;
+      const customer = await CustomerService.getOne(custId);
+      if (customer) {
+        user_email = customer.email || null;
+      }
+    } else {
+      // Practitioner/Admin/Moderator — look up from users table
+      const user = await UserService.getOne(user_id);
+      stripe_cust_id = user.stripe_id && user.stripe_id.length > 0 ? user.stripe_id : null;
+      user_email = user.email || null;
+
+      // If user already has a stripe_id, verify it still exists
+      if (stripe_cust_id) {
+        const stripeCustomer = await stripe.customers.retrieve(stripe_cust_id);
+        if (stripeCustomer.deleted) {
+          stripe_cust_id = null; // Will be re-created below
+        } else {
+          return stripe_cust_id;
+        }
+      }
+
+      // Check if already in Stripe by email
+      if (!stripe_cust_id && user_email) {
+        const result = await stripe.customers.list({ email: user_email, limit: 1 });
+        if (result.data.length > 0) {
+          stripe_cust_id = result.data[0].id;
+          await UserService.updateOne(user_id, { stripe_id: stripe_cust_id });
+          return stripe_cust_id;
+        }
+      }
+
+      // Create new Stripe customer for practitioner/admin
+      const newCustomer = user_email
+        ? await stripe.customers.create({ email: user_email })
+        : await stripe.customers.create();
+      stripe_cust_id = newCustomer.id;
+      await UserService.updateOne(user_id, { stripe_id: stripe_cust_id });
+      return stripe_cust_id;
+    }
+
+    // For Customer user_level: find or create Stripe customer by email
+    if (user_email) {
+      const result = await stripe.customers.list({ email: user_email, limit: 1 });
+      if (result.data.length > 0) {
+        stripe_cust_id = result.data[0].id;
+        // Verify it still exists
+        const existing = await stripe.customers.retrieve(stripe_cust_id);
+        if (!existing.deleted) {
+          return stripe_cust_id;
         }
       }
     }
-    // Check again for customer/user exist or not
-    let customer;
-    if (!stripe_cust_id) {
-      //Neither in DB nor in Stripe A/C
-      if (user_email) {
-        customer = await stripe.customers.create({ email: user_email });
-      } else {
-        customer = await stripe.customers.create();
-      }
-      stripe_cust_id = customer.id;
-      if (stripe_cust_id)
-        await UserService.updateOne(user_id, { stripe_id: stripe_cust_id });
-    }
-    const stripeCustomer = await stripe.customers.retrieve(stripe_cust_id);
-    if (stripeCustomer.deleted) {
-      if (user_email) {
-        customer = await stripe.customers.create({ email: user_email });
-      } else {
-        customer = await stripe.customers.create();
-      }
-      stripe_cust_id = customer.id;
-    }
-    return stripe_cust_id;
+
+    // Create new Stripe customer
+    const newCustomer = user_email
+      ? await stripe.customers.create({ email: user_email })
+      : await stripe.customers.create();
+    return newCustomer.id;
   } catch (error) {
     throw new RouteError(HttpStatusCodes.BAD_REQUEST, "Stripe Error: " + error);
   }
