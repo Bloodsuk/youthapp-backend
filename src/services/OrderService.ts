@@ -150,6 +150,14 @@ async function getAll(
       ...order,
       test_ids: order.test_ids,
       practitioner_id: order.practitioner_id,
+      // Explicitly set joined customer/practitioner fields so they are always in the API response
+      customer_email: order.customer_email ?? undefined,
+      customer_fore_name: order.customer_fore_name ?? undefined,
+      customer_sur_name: order.customer_sur_name ?? undefined,
+      customer_date_of_birth: order.customer_date_of_birth ?? undefined,
+      practitioner_first_name: order.practitioner_first_name ?? undefined,
+      practitioner_last_name: order.practitioner_last_name ?? undefined,
+      practitioner_email: order.practitioner_email ?? undefined,
     } as IOrder;
     
     // Add phleb booking if it exists
@@ -270,6 +278,13 @@ async function getAllCustomerOrder(
       ...order,
       test_ids: order.test_ids,
       practitioner_id: order.practitioner_id,
+      // Explicitly set joined customer/practitioner fields so they are always in the API response
+      customer_email: order.customer_email ?? undefined,
+      customer_fore_name: order.customer_fore_name ?? undefined,
+      customer_sur_name: order.customer_sur_name ?? undefined,
+      practitioner_first_name: order.practitioner_first_name ?? undefined,
+      practitioner_last_name: order.practitioner_last_name ?? undefined,
+      practitioner_email: order.practitioner_email ?? undefined,
     } as IOrder;
     
     // Add phleb booking if it exists
@@ -347,6 +362,12 @@ async function getOutstandingCreditOrders(
       ...order,
       test_ids: order.test_ids,
       practitioner_id: order.practitioner_id,
+      customer_email: order.customer_email ?? undefined,
+      customer_fore_name: order.customer_fore_name ?? undefined,
+      customer_sur_name: order.customer_sur_name ?? undefined,
+      practitioner_first_name: order.practitioner_first_name ?? undefined,
+      practitioner_last_name: order.practitioner_last_name ?? undefined,
+      practitioner_email: order.practitioner_email ?? undefined,
     } as IOrder;
     
     // Add phleb booking if it exists

@@ -37,6 +37,16 @@ export interface IOrder {
   royal_id: number ;
   trackingNumber: string ;
   supplements: string ;
+  /** Populated when order is loaded with customer join (list APIs). */
   customer?: ICustomer;
+  /** From JOIN customers: customer email (list APIs). */
+  customer_email?: string;
+  customer_fore_name?: string;
+  customer_sur_name?: string;
+  customer_date_of_birth?: string;
+  /** From JOIN users (practitioner). */
+  practitioner_first_name?: string;
+  practitioner_last_name?: string;
+  practitioner_email?: string;
   phleb_booking?: IPhlebBooking;
 }

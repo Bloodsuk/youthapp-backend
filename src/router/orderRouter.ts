@@ -114,6 +114,26 @@ orderRouter.post(
   Paths.Orders.StripePaymentIntent,
   OrderController.createStripePaymentIntent
 );
+// Create Stripe SetupIntent (save card - PCI-safe, returns client_secret)
+orderRouter.post(
+  Paths.Orders.StripeSetupIntent,
+  OrderController.createStripeSetupIntent
+);
+// Attach Stripe PaymentMethod by id (frontend creates via Stripe.js, sends only id)
+orderRouter.post(
+  Paths.Orders.StripeAttachPaymentMethod,
+  OrderController.attachStripePaymentMethod
+);
+// Detach (delete) saved card – DELETE /stripe/payment_methods/:id
+orderRouter.delete(
+  Paths.Orders.StripePaymentMethodById,
+  OrderController.detachStripePaymentMethod
+);
+// Update billing details on saved card – PATCH /stripe/payment_methods/:id
+orderRouter.patch(
+  Paths.Orders.StripePaymentMethodById,
+  OrderController.updateStripePaymentMethod
+);
 // Stripe Checkout
 orderRouter.post(
   Paths.Orders.StripeCheckout,

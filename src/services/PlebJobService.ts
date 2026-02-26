@@ -182,13 +182,23 @@ const getPlebJobContext = async (jobId: number): Promise<IPlebJobContext | null>
     country: row.country,
   });
 
+  // Support different DB driver casings (e.g. pleb_email vs Pleb_email)
+  const rawPlebEmail = row.pleb_email ?? (row as Record<string, unknown>)["Pleb_email"];
+  const plebEmail = normalizeString(rawPlebEmail);
+  if (row.pleb_id != null && !plebEmail) {
+    console.warn(
+      "[PlebJob] Phlebotomist has no email in DB for job",
+      { jobId, pleb_id: row.pleb_id, order_id: row.order_id }
+    );
+  }
+
   return {
     jobId: Number(row.job_id),
     plebId: row.pleb_id !== null ? Number(row.pleb_id) : null,
     orderId: Number(row.order_id),
     orderCode: normalizeString(row.order_code),
     plebName: normalizeString(row.pleb_name),
-    plebEmail: normalizeString(row.pleb_email),
+    plebEmail,
     plebPhone: normalizeString(row.pleb_phone),
     customerName: normalizeString(row.customer_name),
     customerEmail: normalizeString(row.customer_email),
@@ -281,6 +291,24 @@ async function updateStatus(id: number, jobStatus: string, trackingNumber?: stri
           })
         );
       }
+      if (updatedContext.plebEmail) {
+        console.log("[PlebJob] Sending completion email to phlebotomist", {
+          jobId: id,
+          orderRef: orderIdentifiers.orderCode ?? orderIdentifiers.orderId,
+          to: updatedContext.plebEmail,
+        });
+        notifications.push(
+          MailService.sendPlebJobCompletionEmail(updatedContext.plebEmail, {
+            ...orderIdentifiers,
+            plebName,
+            customerName: updatedContext.customerName,
+            trackingNumber: updatedContext.trackingNumber,
+            newStatus: trimmedStatus,
+          })
+        );
+      } else {
+        console.warn("[PlebJob] Skipping phlebotomist completion email: no email for job", id);
+      }
     } else {
       if (adminEmails.length > 0) {
         notifications.push(
@@ -302,6 +330,23 @@ async function updateStatus(id: number, jobStatus: string, trackingNumber?: stri
           })
         );
       }
+      if (updatedContext.plebEmail) {
+        console.log("[PlebJob] Sending status update email to phlebotomist", {
+          jobId: id,
+          orderRef: orderIdentifiers.orderCode ?? orderIdentifiers.orderId,
+          to: updatedContext.plebEmail,
+        });
+        notifications.push(
+          MailService.sendPlebJobStatusUpdateEmail(updatedContext.plebEmail, {
+            ...orderIdentifiers,
+            plebName,
+            customerName: updatedContext.customerName,
+            newStatus: trimmedStatus,
+          })
+        );
+      } else {
+        console.warn("[PlebJob] Skipping phlebotomist status email: no email for job", id);
+      }
     }
 
     for (const notification of notifications) {
@@ -310,14 +355,16 @@ async function updateStatus(id: number, jobStatus: string, trackingNumber?: stri
       } catch (notificationError) {
         console.error(
           "❌ Failed to send pleb job status notification:",
-          notificationError instanceof Error ? notificationError.message : notificationError
+          notificationError instanceof Error ? notificationError.message : notificationError,
+          notificationError instanceof Error ? notificationError.stack : ""
         );
       }
     }
   } catch (error) {
     console.error(
       "❌ Failed to send pleb job status notifications:",
-      error instanceof Error ? error.message : error
+      error instanceof Error ? error.message : error,
+      error instanceof Error ? error.stack : ""
     );
   }
 
@@ -390,6 +437,11 @@ async function assignJob(
       }
 
       if (jobContext.plebEmail) {
+        console.log("[PlebJob] Sending assignment email to phlebotomist", {
+          jobId: jobContext.jobId,
+          orderRef: orderIdentifiers.orderCode ?? orderIdentifiers.orderId,
+          to: jobContext.plebEmail,
+        });
         notifications.push(
           MailService.sendPlebJobAssignmentEmail(jobContext.plebEmail, {
             ...orderIdentifiers,
@@ -400,6 +452,8 @@ async function assignJob(
             jobStatus: currentStatus,
           })
         );
+      } else {
+        console.warn("[PlebJob] Skipping phlebotomist assignment email: no email for job", jobContext.jobId);
       }
 
       if (jobContext.customerEmail) {
@@ -419,14 +473,16 @@ async function assignJob(
         } catch (notificationError) {
           console.error(
             "❌ Failed to send job assignment notification:",
-            notificationError instanceof Error ? notificationError.message : notificationError
+            notificationError instanceof Error ? notificationError.message : notificationError,
+            notificationError instanceof Error ? notificationError.stack : ""
           );
         }
       }
     } catch (error) {
       console.error(
         "❌ Failed to send job assignment notifications:",
-        error instanceof Error ? error.message : error
+        error instanceof Error ? error.message : error,
+        error instanceof Error ? error.stack : ""
       );
     }
   }

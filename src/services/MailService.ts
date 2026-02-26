@@ -475,6 +475,26 @@ const sendPhlebotomistCredentialsEmail = async (name: string, email: string, pas
 
 type Recipient = string | string[];
 
+const mapStatusForEmail = (dbStatus: string): string => {
+  const normalized = dbStatus.trim().toLowerCase();
+  switch (normalized) {
+    case "assigned":
+      return "Booked In";
+    case "cancelled":
+      return "Cancelled";
+    case "delivered":
+    case "completed":
+    case "deliver":
+    case "deliever":
+      return "Visit Completed";
+    case "picked up":
+    case "in transit":
+      return "Booking Confirmed";
+    default:
+      return dbStatus;
+  }
+};
+
 interface INotificationDetail {
   label: string;
   value?: string | null;
@@ -615,6 +635,9 @@ const sendEmail = async (
 ): Promise<void> => {
   const recipients = toArray(to);
   if (recipients.length === 0) {
+    console.warn("[MailService] sendEmail: no valid recipients (to was empty or invalid)", {
+      to: typeof to === "string" ? to : Array.isArray(to) ? to : String(to),
+    });
     return;
   }
 
@@ -642,13 +665,22 @@ const sendEmail = async (
         : toArray(options.cc)
       : cc;
 
-  await transporter.sendMail({
-    from,
-    to: recipients,
-    cc: ccOption,
-    subject,
-    html,
-  });
+  try {
+    await transporter.sendMail({
+      from,
+      to: recipients,
+      cc: ccOption,
+      subject,
+      html,
+    });
+  } catch (err) {
+    console.error("[MailService] sendMail failed", {
+      to: recipients,
+      subject,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
 };
 
 interface IOrderIdentifiers {
@@ -700,7 +732,7 @@ const sendPlebJobAssignmentEmail = async (
     ],
   });
 
-  await sendEmail(email, `Job Assigned: ${orderRef}`, html);
+  await sendEmail(email, `Job Assigned: ${orderRef}`, html, { cc: null });
 };
 
 interface IAdminAssignmentPayload extends IOrderIdentifiers {
@@ -719,15 +751,15 @@ const sendAdminJobAssignmentEmail = async (
 
   const detailRows: INotificationDetail[] = [
     { label: "Order Reference", value: orderRef },
-    { label: "Pleb", value: getDetailValue(payload.plebName) },
-    { label: "Pleb Phone", value: getDetailValue(payload.plebPhone) },
+    { label: "Phlebotomist", value: getDetailValue(payload.plebName) },
+    { label: "Phlebotomist Phone", value: getDetailValue(payload.plebPhone) },
     { label: "Customer", value: getDetailValue(payload.customerName) },
     { label: "Customer Phone", value: getDetailValue(payload.customerPhone) },
     { label: "Customer Address", value: getDetailValue(payload.customerAddress) },
   ];
 
   const html = buildNotificationEmail({
-    title: "Job Assigned to Pleb",
+    title: "Job Assigned to Phlebotomist",
     greeting: "Hello Admin,",
     introLines: [
       `${payload.plebName} has been assigned to order ${orderRef}.`,
@@ -762,7 +794,7 @@ const sendCustomerJobAssignmentEmail = async (
   const detailRows: INotificationDetail[] = [
     { label: "Order Reference", value: orderRef },
     { label: "Assigned Phlebotomist", value: payload.plebName },
-    { label: "Pleb Phone", value: payload.plebPhone },
+    { label: "Phlebotomist Phone", value: payload.plebPhone },
   ];
 
   const html = buildNotificationEmail({
@@ -777,7 +809,7 @@ const sendCustomerJobAssignmentEmail = async (
     ],
   });
 
-  await sendEmail(email, `Your Phlebotomist: ${payload.plebName}`, html);
+  await sendEmail(email, `Your Phlebotomist: ${payload.plebName}`, html, { cc: null });
 };
 
 interface IJobStatusPayload extends IOrderIdentifiers {
@@ -791,19 +823,20 @@ const sendAdminJobStatusUpdateEmail = async (
   payload: IJobStatusPayload
 ): Promise<void> => {
   const orderRef = formatOrderRef(payload);
+  const displayStatus = mapStatusForEmail(payload.newStatus);
 
   const detailRows: INotificationDetail[] = [
     { label: "Order Reference", value: orderRef },
-    { label: "Pleb", value: payload.plebName },
-    { label: "New Status", value: payload.newStatus },
+    { label: "Phlebotomist", value: payload.plebName },
+    { label: "New Status", value: displayStatus },
     { label: "Tracking Number", value: payload.trackingNumber },
   ];
 
   const html = buildNotificationEmail({
-    title: "Pleb Job Status Updated",
+    title: "Job Status Updated",
     greeting: "Hello Admin,",
     introLines: [
-      `${payload.plebName} updated the status for order ${orderRef}.`,
+      `${payload.plebName} updated the status for order ${orderRef} to "${displayStatus}".`,
     ],
     detailRows,
     outroLines: [
@@ -813,7 +846,7 @@ const sendAdminJobStatusUpdateEmail = async (
 
   await sendEmail(
     adminEmails,
-    `Job Status Updated (${payload.newStatus}): ${orderRef}`,
+    `Job Status Updated (${displayStatus}): ${orderRef}`,
     html,
     {
       cc: getAdminCcRecipients(),
@@ -832,6 +865,7 @@ const sendCustomerJobStatusUpdateEmail = async (
   payload: ICustomerJobStatusPayload
 ): Promise<void> => {
   const orderRef = formatOrderRef(payload);
+  const displayStatus = mapStatusForEmail(payload.newStatus);
   const greeting =
     payload.customerName && payload.customerName.trim().length > 0
       ? `Hello ${payload.customerName},`
@@ -839,23 +873,22 @@ const sendCustomerJobStatusUpdateEmail = async (
 
   const detailRows: INotificationDetail[] = [
     { label: "Order Reference", value: orderRef },
-    { label: "Pleb", value: payload.plebName },
-    { label: "New Status", value: payload.newStatus },
+    { label: "Status", value: displayStatus },
   ];
 
   const html = buildNotificationEmail({
-    title: "Job Status Update",
+    title: "Order Status Update",
     greeting,
     introLines: [
-      `${payload.plebName} has updated the status of your order (${orderRef}) to "${payload.newStatus}".`,
+      `Your order (${orderRef}) status has been updated to "${displayStatus}".`,
     ],
     detailRows,
     outroLines: [
-      "We will keep you updated as the job progresses.",
+      "We will keep you updated as your order progresses. If you have any questions, please don't hesitate to contact us.",
     ],
   });
 
-  await sendEmail(email, `Status Update: ${payload.newStatus} for ${orderRef}`, html);
+  await sendEmail(email, `Order Update: ${displayStatus} - ${orderRef}`, html, { cc: null });
 };
 
 interface IJobCompletionPayload extends IOrderIdentifiers {
@@ -885,19 +918,20 @@ const sendAdminJobCompletionEmail = async (
   payload: IJobCompletionPayload
 ): Promise<void> => {
   const orderRef = formatOrderRef(payload);
+  const displayStatus = mapStatusForEmail(payload.newStatus);
 
   const detailRows: INotificationDetail[] = [
     { label: "Order Reference", value: orderRef },
-    { label: "Pleb", value: payload.plebName },
-    { label: "Status", value: payload.newStatus },
+    { label: "Phlebotomist", value: payload.plebName },
+    { label: "Status", value: displayStatus },
     { label: "Tracking Number", value: payload.trackingNumber },
   ];
 
   const html = buildNotificationEmail({
-    title: "Job Marked as Completed",
+    title: "Visit Completed",
     greeting: "Hello Admin,",
     introLines: [
-      `${payload.plebName} marked order ${orderRef} as "${payload.newStatus}".`,
+      `${payload.plebName} marked order ${orderRef} as "${displayStatus}".`,
     ],
     detailRows,
     outroLines: [
@@ -905,7 +939,7 @@ const sendAdminJobCompletionEmail = async (
     ],
   });
 
-  await sendEmail(adminEmails, `Job Completed: ${orderRef}`, html, {
+  await sendEmail(adminEmails, `Visit Completed: ${orderRef}`, html, {
     cc: getAdminCcRecipients(),
   });
 };
@@ -915,31 +949,98 @@ const sendCustomerJobCompletionEmail = async (
   payload: IJobCompletionPayload
 ): Promise<void> => {
   const orderRef = formatOrderRef(payload);
+  const displayStatus = mapStatusForEmail(payload.newStatus);
   const greeting =
     payload.customerName && payload.customerName.trim().length > 0
       ? `Hello ${payload.customerName},`
       : "Hello,";
 
   const html = buildNotificationEmail({
-    title: "Blood Sample Collected",
+    title: "Visit Completed",
     greeting,
     introLines: [
-      `${payload.plebName} has updated your order (${orderRef}) to "${payload.newStatus}".`,
+      `Your order (${orderRef}) has been marked as "${displayStatus}".`,
       "The blood sample has been collected successfully.",
       "Thank you for your cooperation. We will notify you once your results are available.",
     ],
     detailRows: [
       { label: "Order Reference", value: orderRef },
-      { label: "Status", value: payload.newStatus },
+      { label: "Status", value: displayStatus },
       { label: "Tracking Number", value: payload.trackingNumber },
     ],
   });
 
   await sendEmail(
     email,
-    `Blood Sample Collected for ${orderRef}`,
-    html
+    `Visit Completed - ${orderRef}`,
+    html,
+    { cc: null }
   );
+};
+
+interface IPlebStatusPayload extends IOrderIdentifiers {
+  plebName: string;
+  newStatus: string;
+  customerName?: string | null;
+  trackingNumber?: string | null;
+}
+
+const sendPlebJobStatusUpdateEmail = async (
+  email: string,
+  payload: IPlebStatusPayload
+): Promise<void> => {
+  const orderRef = formatOrderRef(payload);
+  const displayStatus = mapStatusForEmail(payload.newStatus);
+
+  const detailRows: INotificationDetail[] = [
+    { label: "Order Reference", value: orderRef },
+    { label: "Customer", value: getDetailValue(payload.customerName) },
+    { label: "Status", value: displayStatus },
+  ];
+
+  const html = buildNotificationEmail({
+    title: "Job Status Update",
+    greeting: `Hi ${payload.plebName},`,
+    introLines: [
+      `The status for order ${orderRef} has been updated to "${displayStatus}".`,
+    ],
+    detailRows,
+    outroLines: [
+      "Please log in to your portal for full details and keep the status updated as you progress.",
+    ],
+  });
+
+  await sendEmail(email, `Job Update: ${displayStatus} - ${orderRef}`, html, { cc: null });
+};
+
+const sendPlebJobCompletionEmail = async (
+  email: string,
+  payload: IPlebStatusPayload
+): Promise<void> => {
+  const orderRef = formatOrderRef(payload);
+  const displayStatus = mapStatusForEmail(payload.newStatus);
+
+  const detailRows: INotificationDetail[] = [
+    { label: "Order Reference", value: orderRef },
+    { label: "Customer", value: getDetailValue(payload.customerName) },
+    { label: "Status", value: displayStatus },
+    { label: "Tracking Number", value: payload.trackingNumber },
+  ];
+
+  const html = buildNotificationEmail({
+    title: "Visit Completed",
+    greeting: `Hi ${payload.plebName},`,
+    introLines: [
+      `Order ${orderRef} has been marked as "${displayStatus}".`,
+      "Thank you for completing this visit.",
+    ],
+    detailRows,
+    outroLines: [
+      "Please ensure all paperwork and samples are handled as required.",
+    ],
+  });
+
+  await sendEmail(email, `Visit Completed - ${orderRef}`, html, { cc: null });
 };
 
 const sendPhlebBookingNotification = async (
@@ -999,5 +1100,7 @@ export default {
   sendCustomerJobStatusUpdateEmail,
   sendAdminJobCompletionEmail,
   sendCustomerJobCompletionEmail,
+  sendPlebJobStatusUpdateEmail,
+  sendPlebJobCompletionEmail,
   sendPhlebBookingNotification,
 } as const;

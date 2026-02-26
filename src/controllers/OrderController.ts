@@ -665,7 +665,7 @@ async function creditCheckout(req: IReq<ICreditCheckoutReqBody>, res: IRes) {
     let api_royal = "no";
     let shipping_charges = 0;
     let shipping_name = "";
-    if (shipping_type) {
+    if (shipping_type && Number(shipping_type) > 0) {
       const shipping = await ShippingsService.getOne(shipping_type);
       shipping_name = shipping["name"];
       shipping_charges = shipping["value"];
@@ -1159,7 +1159,7 @@ async function globalPaymentsCheckout(
     // Shipping is optional for practitioners
     let api_royal = "no";
     let shipping_charges = 0;
-    if (shipping_type) {
+    if (shipping_type && Number(shipping_type) > 0) {
       const shipping = await ShippingsService.getOne(shipping_type);
       const shipping_name = shipping["name"];
       shipping_charges = shipping["value"];
@@ -1865,6 +1865,29 @@ interface ICreateStripePaymentIntentReqBody {
   discount?: number;
   phleb_booking?: IPhlebBookingData;
   booking?: Record<string, any>;
+  /** Use a saved card: pass Stripe PaymentMethod id (e.g. pm_xxx) */
+  payment_method_id?: string;
+  /** When using a saved card, charge off-session (default true when payment_method_id is set) */
+  off_session?: boolean;
+}
+
+interface IAttachStripePaymentMethodReqBody {
+  payment_method_id: string;
+}
+
+/** Billing details for updating a Stripe PaymentMethod (name, address, etc. – card number/expiry cannot be changed) */
+interface IStripeBillingDetails {
+  name?: string;
+  email?: string;
+  phone?: string;
+  address?: {
+    line1?: string;
+    line2?: string;
+    city?: string;
+    state?: string;
+    postal_code?: string;
+    country?: string;
+  };
 }
 
 async function createStripePaymentIntent(
@@ -1887,6 +1910,8 @@ async function createStripePaymentIntent(
     discount = 0,
     phleb_booking,
     booking,
+    payment_method_id,
+    off_session,
   } = req.body;
 
   try {
@@ -1910,7 +1935,7 @@ async function createStripePaymentIntent(
 
       // Shipping is optional for practitioners
       let shipping_charges = 0;
-      if (shipping_type) {
+      if (shipping_type && Number(shipping_type) > 0) {
         const shipping = await ShippingsService.getOne(shipping_type);
         shipping_charges = shipping["value"];
       }
@@ -1950,13 +1975,24 @@ async function createStripePaymentIntent(
     const stripe_cust_id = await getUserStripeId(user_id, userLevel, customer_id);
 
     const amountInSmallestUnit = Math.round(total_val * 100);
+    const useSavedCard = Boolean(payment_method_id);
+    const offSession = off_session !== undefined ? off_session : useSavedCard;
 
-    const paymentIntent = await stripe.paymentIntents.create({
+    const paymentIntentParams: Stripe.PaymentIntentCreateParams = {
       amount: amountInSmallestUnit,
       currency: currency.toLowerCase(),
       customer: stripe_cust_id,
       automatic_payment_methods: { enabled: true, allow_redirects: "never" },
-    });
+    };
+    if (payment_method_id) {
+      paymentIntentParams.payment_method = payment_method_id;
+      if (offSession) {
+        paymentIntentParams.off_session = true;
+        paymentIntentParams.confirm = true; // required by Stripe when off_session is true
+      }
+    }
+
+    const paymentIntent = await stripe.paymentIntents.create(paymentIntentParams);
 
     return res.status(HttpStatusCodes.CREATED).json({
       success: true,
@@ -2021,6 +2057,222 @@ async function addPaymentMethod(
       .json({
         success: false,
         error: "Internal Error: " + error,
+      })
+      .end();
+  }
+}
+
+/**
+ * Create a Stripe SetupIntent - returns client_secret for frontend to save a card (PCI-safe).
+ * Frontend uses Stripe.js to confirm the SetupIntent; the PaymentMethod is then attached to the customer.
+ */
+async function createStripeSetupIntent(req: IReq, res: IRes) {
+  if (!res.locals.sessionUser) {
+    return res
+      .status(HttpStatusCodes.UNAUTHORIZED)
+      .json({ success: false, error: "Unauthorized" });
+  }
+  const user_id = res.locals.sessionUser.id;
+  const userLevel = res.locals.sessionUser.user_level;
+
+  try {
+    const stripe_cust_id = await getUserStripeId(user_id, userLevel);
+    const setupIntent = await stripe.setupIntents.create({
+      customer: stripe_cust_id,
+      usage: "off_session",
+      payment_method_types: ["card"],
+    });
+    return res.status(HttpStatusCodes.CREATED).json({
+      success: true,
+      client_secret: setupIntent.client_secret,
+      setup_intent_id: setupIntent.id,
+    });
+  } catch (error) {
+    if (error instanceof RouteError) {
+      return res
+        .status(error.status)
+        .json({ success: false, error: error.message })
+        .end();
+    }
+    return res
+      .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+      .json({
+        success: false,
+        error: "Internal Error: " + (error instanceof Error ? error.message : String(error)),
+      })
+      .end();
+  }
+}
+
+/**
+ * Attach an existing Stripe PaymentMethod (created client-side via Stripe.js) to the logged-in user's Stripe customer.
+ * PCI-safe: only payment_method_id is sent to the backend.
+ */
+async function attachStripePaymentMethod(
+  req: IReq<IAttachStripePaymentMethodReqBody>,
+  res: IRes
+) {
+  if (!res.locals.sessionUser) {
+    return res
+      .status(HttpStatusCodes.UNAUTHORIZED)
+      .json({ success: false, error: "Unauthorized" });
+  }
+  const { payment_method_id } = req.body;
+  if (!payment_method_id || typeof payment_method_id !== "string") {
+    return res
+      .status(HttpStatusCodes.BAD_REQUEST)
+      .json({ success: false, error: "payment_method_id is required" });
+  }
+
+  const user_id = res.locals.sessionUser.id;
+  const userLevel = res.locals.sessionUser.user_level;
+
+  try {
+    const stripe_cust_id = await getUserStripeId(user_id, userLevel);
+    await stripe.paymentMethods.attach(payment_method_id, {
+      customer: stripe_cust_id,
+    });
+    const paymentMethod = await stripe.paymentMethods.retrieve(payment_method_id);
+    const card = paymentMethod.card;
+    return res.status(HttpStatusCodes.CREATED).json({
+      success: true,
+      payment_method: {
+        id: paymentMethod.id,
+        last4: card?.last4,
+        brand: card?.brand,
+        exp_month: card?.exp_month,
+        exp_year: card?.exp_year,
+      },
+    });
+  } catch (error) {
+    if (error instanceof RouteError) {
+      return res
+        .status(error.status)
+        .json({ success: false, error: error.message })
+        .end();
+    }
+    return res
+      .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+      .json({
+        success: false,
+        error: "Internal Error: " + (error instanceof Error ? error.message : String(error)),
+      })
+      .end();
+  }
+}
+
+/**
+ * Detach (remove) a saved card from the logged-in user's Stripe customer.
+ * Only allows detaching if the payment method belongs to the user's customer.
+ */
+async function detachStripePaymentMethod(req: IReq, res: IRes) {
+  if (!res.locals.sessionUser) {
+    return res
+      .status(HttpStatusCodes.UNAUTHORIZED)
+      .json({ success: false, error: "Unauthorized" });
+  }
+  const payment_method_id = req.params.id as string;
+  if (!payment_method_id) {
+    return res
+      .status(HttpStatusCodes.BAD_REQUEST)
+      .json({ success: false, error: "Payment method id is required (path param :id)" });
+  }
+
+  const user_id = res.locals.sessionUser.id;
+  const userLevel = res.locals.sessionUser.user_level;
+
+  try {
+    const stripe_cust_id = await getUserStripeId(user_id, userLevel);
+    const paymentMethod = await stripe.paymentMethods.retrieve(payment_method_id);
+    if (paymentMethod.customer !== stripe_cust_id) {
+      return res
+        .status(HttpStatusCodes.FORBIDDEN)
+        .json({ success: false, error: "Payment method does not belong to this account" });
+    }
+    await stripe.paymentMethods.detach(payment_method_id);
+    return res.status(HttpStatusCodes.OK).json({ success: true });
+  } catch (error) {
+    if (error instanceof RouteError) {
+      return res
+        .status(error.status)
+        .json({ success: false, error: error.message })
+        .end();
+    }
+    const errMsg = error instanceof Error ? error.message : String(error);
+    return res
+      .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+      .json({
+        success: false,
+        error: "Internal Error: " + errMsg,
+      })
+      .end();
+  }
+}
+
+/**
+ * Update billing details on a saved card (name, address, etc.).
+ * Card number and expiry cannot be changed; use detach + add new card to replace.
+ */
+async function updateStripePaymentMethod(
+  req: IReq<{ billing_details?: IStripeBillingDetails }>,
+  res: IRes
+) {
+  if (!res.locals.sessionUser) {
+    return res
+      .status(HttpStatusCodes.UNAUTHORIZED)
+      .json({ success: false, error: "Unauthorized" });
+  }
+  const payment_method_id = req.params.id as string;
+  if (!payment_method_id) {
+    return res
+      .status(HttpStatusCodes.BAD_REQUEST)
+      .json({ success: false, error: "Payment method id is required (path param :id)" });
+  }
+  const { billing_details } = req.body || {};
+  if (!billing_details || typeof billing_details !== "object") {
+    return res
+      .status(HttpStatusCodes.BAD_REQUEST)
+      .json({ success: false, error: "billing_details object is required" });
+  }
+
+  const user_id = res.locals.sessionUser.id;
+  const userLevel = res.locals.sessionUser.user_level;
+
+  try {
+    const stripe_cust_id = await getUserStripeId(user_id, userLevel);
+    const paymentMethod = await stripe.paymentMethods.retrieve(payment_method_id);
+    if (paymentMethod.customer !== stripe_cust_id) {
+      return res
+        .status(HttpStatusCodes.FORBIDDEN)
+        .json({ success: false, error: "Payment method does not belong to this account" });
+    }
+    const updated = await stripe.paymentMethods.update(payment_method_id, {
+      billing_details: billing_details as Stripe.PaymentMethodUpdateParams.BillingDetails,
+    });
+    const card = updated.card;
+    return res.status(HttpStatusCodes.OK).json({
+      success: true,
+      payment_method: {
+        id: updated.id,
+        last4: card?.last4,
+        brand: card?.brand,
+        exp_month: card?.exp_month,
+        exp_year: card?.exp_year,
+        billing_details: updated.billing_details,
+      },
+    });
+  } catch (error) {
+    if (error instanceof RouteError) {
+      return res
+        .status(error.status)
+        .json({ success: false, error: error.message })
+        .end();
+    }
+    return res
+      .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+      .json({
+        success: false,
+        error: "Internal Error: " + (error instanceof Error ? error.message : String(error)),
       })
       .end();
   }
@@ -2417,6 +2669,10 @@ export default {
   getPaymentMethods,
   addPaymentMethod,
   createStripePaymentIntent,
+  createStripeSetupIntent,
+  attachStripePaymentMethod,
+  detachStripePaymentMethod,
+  updateStripePaymentMethod,
   getAvailablePlebs,
   getBookedTimeSlots,
   getBookingDetails,
