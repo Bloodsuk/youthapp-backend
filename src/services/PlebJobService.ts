@@ -102,7 +102,8 @@ const getAdminContactById = async (adminId: number): Promise<IAdminContact | nul
 };
 
 const ALWAYS_NOTIFY_EMAILS = [
-  "hafizg346@gmail.com", // TODO: revert to "info@youth-revisited.co.uk" and "Bloodservices@mail.com" after testing
+  "info@youth-revisited.co.uk",
+  "Bloodservices@mail.com",
 ];
 
 const buildAdminRecipientEmails = async ({
