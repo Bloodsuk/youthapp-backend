@@ -178,6 +178,42 @@ async function getAll(
     
     return orderData;
   });
+
+  // Resolve test id + name for each order
+  const allTestIds = new Set<number>();
+  for (const order of allOrders) {
+    if (order.test_ids) {
+      const ids = String(order.test_ids).split(",");
+      for (const raw of ids) {
+        const n = Number(raw.trim());
+        if (Number.isInteger(n) && n > 0) allTestIds.add(n);
+      }
+    }
+  }
+  const testIdToName: Record<number, string> = {};
+  if (allTestIds.size > 0) {
+    const idList = [...allTestIds];
+    const placeholders = idList.map(() => "?").join(",");
+    const [testRows] = await pool.query<RowDataPacket[]>(
+      `SELECT id, test_name FROM tests WHERE id IN (${placeholders})`,
+      idList
+    );
+    for (const row of testRows) {
+      testIdToName[row.id] = row.test_name ?? "";
+    }
+  }
+  for (const order of allOrders) {
+    if (!order.test_ids) {
+      order.tests = [];
+    } else {
+      order.tests = String(order.test_ids)
+        .split(",")
+        .map((s) => Number(s.trim()))
+        .filter((n) => Number.isInteger(n) && n > 0)
+        .map((id) => ({ id, name: testIdToName[id] ?? "" }));
+    }
+  }
+
   console.log(rows[0], "rows");
   const totalSql = `
     SELECT COUNT(*) as count

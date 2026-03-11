@@ -24,6 +24,18 @@ async function getAll(): Promise<IShipping[]> {
 }
 
 /**
+ * Get shipping types by IDs.
+ */
+async function getByIds(ids: number[]): Promise<IShipping[]> {
+  if (ids.length === 0) return [];
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT * FROM shiping_types WHERE id IN (?)",
+    [ids]
+  );
+  return rows.map((row) => row as IShipping);
+}
+
+/**
  * Get one shipping_type.
  */
 async function getOne(id: number): Promise<IShipping> {
@@ -95,6 +107,7 @@ async function _delete(shippingId: number): Promise<void> {
 
 export default {
   getAll,
+  getByIds,
   getOne,
   addOne,
   updateOne,

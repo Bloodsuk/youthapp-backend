@@ -316,6 +316,12 @@ async function assignPlebIfProvided(
  */
 async function getById(req: IReq, res: IRes) {
   const id = parseInt(req.params.id);
+  if (isNaN(id)) {
+    return res
+      .status(HttpStatusCodes.BAD_REQUEST)
+      .json({ success: false, error: "Invalid order id" })
+      .end();
+  }
   try {
     const order = await OrderService.getOne(id);
     return res

@@ -37,6 +37,8 @@ export interface IOrder {
   royal_id: number ;
   trackingNumber: string ;
   supplements: string ;
+  /** Populated for list APIs: test id and name for each test in test_ids. */
+  tests?: { id: number; name: string }[];
   /** Populated when order is loaded with customer join (list APIs). */
   customer?: ICustomer;
   /** From JOIN customers: customer email (list APIs). */

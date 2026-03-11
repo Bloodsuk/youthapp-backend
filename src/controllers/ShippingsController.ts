@@ -4,6 +4,8 @@ import { IReq, IRes } from "@src/types/express/misc";
 import { RouteError } from "@src/other/classes";
 import ShippingsService from "@src/services/ShippingsService";
 import { IShipping } from "@src/interfaces/IShipping";
+import { ISessionUser } from "@src/interfaces/ISessionUser";
+import { UserLevels } from "@src/constants/enums";
 
 // **** Functions **** //
 
@@ -11,8 +13,23 @@ import { IShipping } from "@src/interfaces/IShipping";
  * Get all shipping_types.
  */
 async function getAll(req: IReq, res: IRes) {
+  const sessionUser = res.locals.sessionUser as ISessionUser | undefined;
+
+  if (sessionUser?.user_level === UserLevels.Practitioner) {
+    const testIdsParam = req.query.test_ids as string | undefined;
+    const testIds = testIdsParam
+      ? testIdsParam.split(",").map(Number)
+      : [];
+    const hasProduct319 = testIds.includes(319);
+    const shippingIds = [2, 8, hasProduct319 ? 9 : 7];
+    const shipping_types = await ShippingsService.getByIds(shippingIds);
+    return res.status(HttpStatusCodes.OK).json({ shipping_types });
+  }
+
   const shipping_types = await ShippingsService.getAll();
-  return res.status(HttpStatusCodes.OK).json({ shipping_types });
+  return res.status(HttpStatusCodes.OK).json({
+    shipping_types: shipping_types.filter((s) => s.id !== 9 && s.id !== 8),
+  });
 }
 
 /**

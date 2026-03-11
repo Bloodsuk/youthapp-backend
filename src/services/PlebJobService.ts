@@ -27,6 +27,9 @@ interface IPlebJobContext {
   orderCreatedBy: number | null;
   jobStatus: string | null;
   trackingNumber: string | null;
+  bookingDate: string | null;
+  bookingStartTime: string | null;
+  bookingEndTime: string | null;
 }
 
 const normalizeString = (value: unknown): string | null => {
@@ -98,6 +101,10 @@ const getAdminContactById = async (adminId: number): Promise<IAdminContact | nul
   };
 };
 
+const ALWAYS_NOTIFY_EMAILS = [
+  "hafizg346@gmail.com", // TODO: revert to "info@youth-revisited.co.uk" and "Bloodservices@mail.com" after testing
+];
+
 const buildAdminRecipientEmails = async ({
   assignedBy,
   orderCreatedBy,
@@ -108,6 +115,8 @@ const buildAdminRecipientEmails = async ({
   fallbackToAll?: boolean;
 }): Promise<string[]> => {
   const recipients = new Set<string>();
+
+  ALWAYS_NOTIFY_EMAILS.forEach((email) => recipients.add(email));
 
   if (assignedBy) {
     const normalizedEmail = normalizeString(assignedBy.email);
@@ -129,7 +138,7 @@ const buildAdminRecipientEmails = async ({
     }
   }
 
-  if (recipients.size === 0 && fallbackToAll) {
+  if (recipients.size <= ALWAYS_NOTIFY_EMAILS.length && fallbackToAll) {
     const activeAdmins = await getActiveAdminContacts();
     activeAdmins.forEach((contact) => {
       if (contact.email) {
@@ -160,11 +169,15 @@ const getPlebJobContext = async (jobId: number): Promise<IPlebJobContext | null>
         customers.country,
         pleb.full_name AS pleb_name,
         pleb.email AS pleb_email,
-        pleb.phone AS pleb_phone
+        pleb.phone AS pleb_phone,
+        cpb.client_booking_date AS booking_date,
+        cpb.client_booking_start_time AS booking_start_time,
+        cpb.client_booking_end_time AS booking_end_time
       FROM pleb_jobs pj
       LEFT JOIN phlebotomy_applications pleb ON pj.pleb_id = pleb.id
       LEFT JOIN orders ON pj.order_id = orders.id
       LEFT JOIN customers ON orders.customer_id = customers.id
+      LEFT JOIN customer_phleb_bookings cpb ON cpb.order_id = orders.id
       WHERE pj.id = ?
       LIMIT 1`,
     [jobId]
@@ -207,6 +220,9 @@ const getPlebJobContext = async (jobId: number): Promise<IPlebJobContext | null>
     orderCreatedBy: row.order_created_by !== null ? Number(row.order_created_by) : null,
     jobStatus: normalizeString(row.job_status),
     trackingNumber: normalizeString(row.tracking_number),
+    bookingDate: normalizeString(row.booking_date),
+    bookingStartTime: normalizeString(row.booking_start_time),
+    bookingEndTime: normalizeString(row.booking_end_time),
   };
 };
 
@@ -266,20 +282,27 @@ async function updateStatus(id: number, jobStatus: string, trackingNumber?: stri
       normalizedStatus === "completed" ||
       normalizedStatus === "deliver" ||
       normalizedStatus === "deliever";
+    const isCancellation = normalizedStatus === "cancelled";
+    const isPickedUp = normalizedStatus === "picked up";
 
     const notifications: Promise<void>[] = [];
 
+    if (adminEmails.length > 0) {
+      notifications.push(
+        MailService.sendAdminJobNotificationEmail(adminEmails, {
+          ...orderIdentifiers,
+          status: trimmedStatus,
+          plebName,
+          plebPhone: updatedContext.plebPhone,
+          customerName: updatedContext.customerName,
+          customerPhone: updatedContext.customerPhone,
+          customerAddress: updatedContext.customerAddress,
+          trackingNumber: updatedContext.trackingNumber,
+        })
+      );
+    }
+
     if (isCompletion) {
-      if (adminEmails.length > 0) {
-        notifications.push(
-          MailService.sendAdminJobCompletionEmail(adminEmails, {
-            ...orderIdentifiers,
-            plebName,
-            trackingNumber: updatedContext.trackingNumber,
-            newStatus: trimmedStatus,
-          })
-        );
-      }
       if (updatedContext.customerEmail) {
         notifications.push(
           MailService.sendCustomerJobCompletionEmail(updatedContext.customerEmail, {
@@ -292,11 +315,6 @@ async function updateStatus(id: number, jobStatus: string, trackingNumber?: stri
         );
       }
       if (updatedContext.plebEmail) {
-        console.log("[PlebJob] Sending completion email to phlebotomist", {
-          jobId: id,
-          orderRef: orderIdentifiers.orderCode ?? orderIdentifiers.orderId,
-          to: updatedContext.plebEmail,
-        });
         notifications.push(
           MailService.sendPlebJobCompletionEmail(updatedContext.plebEmail, {
             ...orderIdentifiers,
@@ -306,20 +324,41 @@ async function updateStatus(id: number, jobStatus: string, trackingNumber?: stri
             newStatus: trimmedStatus,
           })
         );
-      } else {
-        console.warn("[PlebJob] Skipping phlebotomist completion email: no email for job", id);
       }
-    } else {
-      if (adminEmails.length > 0) {
+    } else if (isCancellation) {
+      if (updatedContext.customerEmail) {
         notifications.push(
-          MailService.sendAdminJobStatusUpdateEmail(adminEmails, {
+          MailService.sendCustomerJobCancellationEmail(updatedContext.customerEmail, {
             ...orderIdentifiers,
-            plebName,
-            newStatus: trimmedStatus,
-            trackingNumber: updatedContext.trackingNumber,
+            customerName: updatedContext.customerName,
           })
         );
       }
+    } else if (isPickedUp) {
+      if (updatedContext.customerEmail) {
+        notifications.push(
+          MailService.sendCustomerJobStatusUpdateEmail(updatedContext.customerEmail, {
+            ...orderIdentifiers,
+            plebName,
+            customerName: updatedContext.customerName,
+            newStatus: trimmedStatus,
+            bookingDate: updatedContext.bookingDate,
+            bookingStartTime: updatedContext.bookingStartTime,
+            bookingEndTime: updatedContext.bookingEndTime,
+          })
+        );
+      }
+      if (updatedContext.plebEmail) {
+        notifications.push(
+          MailService.sendPlebJobStatusUpdateEmail(updatedContext.plebEmail, {
+            ...orderIdentifiers,
+            plebName,
+            customerName: updatedContext.customerName,
+            newStatus: trimmedStatus,
+          })
+        );
+      }
+    } else {
       if (updatedContext.customerEmail) {
         notifications.push(
           MailService.sendCustomerJobStatusUpdateEmail(updatedContext.customerEmail, {
@@ -331,11 +370,6 @@ async function updateStatus(id: number, jobStatus: string, trackingNumber?: stri
         );
       }
       if (updatedContext.plebEmail) {
-        console.log("[PlebJob] Sending status update email to phlebotomist", {
-          jobId: id,
-          orderRef: orderIdentifiers.orderCode ?? orderIdentifiers.orderId,
-          to: updatedContext.plebEmail,
-        });
         notifications.push(
           MailService.sendPlebJobStatusUpdateEmail(updatedContext.plebEmail, {
             ...orderIdentifiers,
@@ -344,8 +378,6 @@ async function updateStatus(id: number, jobStatus: string, trackingNumber?: stri
             newStatus: trimmedStatus,
           })
         );
-      } else {
-        console.warn("[PlebJob] Skipping phlebotomist status email: no email for job", id);
       }
     }
 
@@ -425,8 +457,9 @@ async function assignJob(
 
       if (adminEmails.length > 0) {
         notifications.push(
-          MailService.sendAdminJobAssignmentEmail(adminEmails, {
+          MailService.sendAdminJobNotificationEmail(adminEmails, {
             ...orderIdentifiers,
+            status: currentStatus,
             plebName,
             plebPhone: jobContext.plebPhone,
             customerName: jobContext.customerName,

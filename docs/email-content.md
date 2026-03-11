@@ -1,92 +1,132 @@
 # Email Notification Content
 
-This document describes the subject lines and core body copy for the automated emails that are sent during the pleb job lifecycle. Dynamic values are shown in curly braces.
+This document describes the subject lines and core body copy for the automated emails sent during the pleb job lifecycle. Dynamic values are shown in curly braces.
 
-## 1. Admin – Job Assigned
-- **Subject:** `Job Assigned: {orderRef} → {plebName}`
+## Status Mapping
+
+| DB Status | Display Name |
+|-----------|-------------|
+| Assigned | Allocated |
+| Picked Up | Booked In |
+| Delivered / Completed | Sample Posted |
+| Cancelled | Cancelled |
+
+## Admin Recipients
+
+Every status-change email is sent to admin via a unified notification. The following addresses **always** receive admin emails:
+
+- `info@youth-revisited.co.uk`
+- `Bloodservices@mail.com`
+
+Plus any dynamically resolved admin (order creator, assigning user, or all active admins as fallback).
+
+---
+
+## 1. Customer – Allocated (Assigned)
+
+- **Subject:** `Your Appointment Has Been Allocated – Order {orderRef}`
+- **Greeting:** `Dear {customerName},`
+- **Body:**
+  - We are pleased to inform you that your appointment has now been allocated to a member of our clinical team.
+  - **Appointment Details:**
+    - Order Reference: `{orderRef}`
+    - Status: Allocated
+  - **Assigned Phlebotomist:**
+    - Name: `{plebName}`
+    - Contact Number: `{plebPhone}`
+  - Your assigned phlebotomist will confirm a time and date for your upcoming appointment and attend your appointment as scheduled. If you need to communicate any important information prior to the visit, please feel free to contact them directly.
+- **Sign-off:** Kind regards, Youth Revisited Team
+
+## 2. Customer – Booked In (Picked Up)
+
+- **Subject:** `Your appointment has been confirmed – Order {orderRef}`
+- **Greeting:** `Dear {customerName},`
+- **Body:**
+  - We are pleased to confirm that your phlebotomy visit has now been booked in.
+  - **Order Details:**
+    - Order Reference: `{orderRef}`
+    - Status: Booked In
+    - Appointment Date & Time: `{bookingDate}, {bookingStartTime} – {bookingEndTime}` *(shown when available)*
+- **Sign-off:** Kind regards, Youth Revisited Team
+
+## 3. Customer – Sample Posted (Delivered)
+
+- **Subject:** `Your sample has been Posted – Order {orderRef}`
+- **Greeting:** `Dear {customerName},`
+- **Body:**
+  - We are pleased to confirm that your sample has been posted back to the Laboratory.
+  - **Order Summary:**
+    - Order Reference: `{orderRef}`
+    - Status: Posted
+    - Tracking Number: `{trackingNumber}` *(shown when available)*
+  - Your visit has been successfully finalised. Your sample has been posted to the Laboratory today and if any follow-up is required, a member of our team will be in touch.
+  - We truly appreciate your trust in Youth Revisited. If you require any further assistance, please don't hesitate to contact us.
+- **Sign-off:** Warm regards, Youth Revisited Team
+
+## 4. Customer – Cancelled
+
+- **Subject:** `Update Regarding Your Order – Order {orderRef}`
+- **Greeting:** `Dear {customerName},`
+- **Body:**
+  - We regret to inform you that your visit has been cancelled.
+  - **Order Details:**
+    - Order Reference: `{orderRef}`
+    - Status: Cancelled
+  - If this cancellation was not requested by you, or if you would like to reschedule, please contact our support team.
+  - We apologise for any inconvenience this may cause and remain committed to providing you with the highest standard of care.
+- **Sign-off:** Kind regards, Youth Revisited Team
+
+---
+
+## 5. Admin – Unified Status Notification
+
+Sent on every status change (assignment, picked up, delivered, cancelled).
+
+- **Subject:** `Order Update ({displayStatus}): {orderRef}`
 - **Greeting:** `Hello Admin,`
 - **Body:**
-  - `{plebName} has been assigned to order {orderRef}.`
-  - Detail table includes:
-    - Order Reference `{orderRef}`
-    - Pleb `{plebName}`
-    - Pleb Phone `{plebPhone}`
-    - Customer `{customerName}`
-    - Customer Phone `{customerPhone}`
-    - Customer Address `{customerAddress}`
-  - Closing line: `You can review the assignment details in the admin dashboard.`
+  - Order `{orderRef}` status has been updated to `{displayStatus}`.
+  - **Appointment Details:**
+    - Order Reference: `{orderRef}`
+    - Status: `{displayStatus}`
+    - Phlebotomist: `{plebName}`
+    - Phlebotomist Phone: `{plebPhone}`
+    - Customer: `{customerName}`
+    - Customer Phone: `{customerPhone}`
+    - Customer Address: `{customerAddress}`
+    - Tracking Number: `{trackingNumber}` *(shown when available)*
+  - You can review the details in the admin dashboard.
+- **Sign-off:** Kind regards, Youth Revisited Team
 
-## 2. Pleb – Job Assigned
+---
+
+## 6. Phlebotomist – Job Assigned
+
 - **Subject:** `Job Assigned: {orderRef}`
 - **Greeting:** `Hi {plebName},`
 - **Body:**
-  - `A new job has been assigned to you.`
-  - `Order {orderRef} is ready for you to review.`
-  - Detail table includes:
-    - Order Reference `{orderRef}`
-    - Customer `{customerName}`
-    - Customer Phone `{customerPhone}`
-    - Customer Address `{customerAddress}`
-    - Starting Status `{jobStatus}`
-  - Closing line: `Please log in to your phlebotomist portal for full job details and keep the status updated as you progress.`
+  - A new job has been assigned to you.
+  - Order `{orderRef}` is ready for you to review.
+  - Details: Order Reference, Customer, Customer Phone, Customer Address, Starting Status
+  - Please log in to your phlebotomist portal for full job details and keep the status updated as you progress.
 
-## 3. Customer – Job Assigned
-- **Subject:** `Your Phlebotomist: {plebName}`
-- **Greeting:** `Hello {customerName},` *(falls back to `Hello,` if the name is unavailable)*
+## 7. Phlebotomist – Status Update
+
+- **Subject:** `Job Update: {displayStatus} - {orderRef}`
+- **Greeting:** `Hi {plebName},`
 - **Body:**
-  - `{plebName} has been assigned to carry out your blood draw for order {orderRef}.`
-  - Detail table includes:
-    - Order Reference `{orderRef}`
-    - Assigned Phlebotomist `{plebName}`
-    - Pleb Phone `{plebPhone}`
-  - Closing line: `They will reach out if any additional coordination is required.`
+  - The status for order `{orderRef}` has been updated to `{displayStatus}`.
+  - Details: Order Reference, Customer, Status
 
-## 4. Admin – Job Status Updated
-- **Subject:** `Job Status Updated ({newStatus}): {orderRef}`
-- **Greeting:** `Hello Admin,`
+## 8. Phlebotomist – Completion
+
+- **Subject:** `Visit Completed - {orderRef}`
+- **Greeting:** `Hi {plebName},`
 - **Body:**
-  - `{plebName} updated the status for order {orderRef}.`
-  - Detail table includes:
-    - Order Reference `{orderRef}`
-    - Pleb `{plebName}`
-    - New Status `{newStatus}`
-    - Tracking Number `{trackingNumber}`
-  - Closing line: `Please review if any additional action is needed.`
+  - Order `{orderRef}` has been marked as `{displayStatus}`.
+  - Thank you for completing this visit.
+  - Details: Order Reference, Customer, Status, Tracking Number
 
-## 5. Customer – Job Status Updated
-- **Subject:** `Status Update: {newStatus} for {orderRef}`
-- **Greeting:** `Hello {customerName},` *(falls back to `Hello,` if the name is unavailable)*
-- **Body:**
-  - `{plebName} has updated the status of your order ({orderRef}) to "{newStatus}".`
-  - Detail table includes:
-    - Order Reference `{orderRef}`
-    - Pleb `{plebName}`
-    - New Status `{newStatus}`
-  - Closing line: `We will keep you updated as the job progresses.`
+---
 
-## 6. Admin – Job Completed
-- **Subject:** `Job Completed: {orderRef}`
-- **Greeting:** `Hello Admin,`
-- **Body:**
-  - `{plebName} marked order {orderRef} as "{newStatus}".`
-  - Detail table includes:
-    - Order Reference `{orderRef}`
-    - Pleb `{plebName}`
-    - Status `{newStatus}`
-    - Tracking Number `{trackingNumber}`
-  - Closing line: `Please ensure the logistics follow-up is handled promptly.`
-
-## 7. Customer – Job Completed
-- **Subject:** `Blood Sample Collected for {orderRef}`
-- **Greeting:** `Hello {customerName},` *(falls back to `Hello,` if the name is unavailable)*
-- **Body:**
-  - `{plebName} has updated your order ({orderRef}) to "{newStatus}".`
-  - `The blood sample has been collected successfully.`
-  - `Thank you for your cooperation. We will notify you once your results are available.`
-  - Detail table includes:
-    - Order Reference `{orderRef}`
-    - Status `{newStatus}`
-    - Tracking Number `{trackingNumber}`
-
-All emails end with the signature: `Regards, Youth Revisited Team`.
-
+All emails use the Youth Revisited branded template with blue (#07274a) header containing the logo, white body, and blue footer with contact info and privacy/help links.
