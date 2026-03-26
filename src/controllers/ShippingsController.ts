@@ -15,20 +15,36 @@ import { UserLevels } from "@src/constants/enums";
 async function getAll(req: IReq, res: IRes) {
   const sessionUser = res.locals.sessionUser as ISessionUser | undefined;
 
+  // If any Home Visit or Grimsby Clinic service is selected, shipping is not needed
+  const serviceIdsParam = req.query.service_ids as string | undefined;
+  const serviceIds = serviceIdsParam
+    ? serviceIdsParam.split(",").map(Number)
+    : [];
+  const NO_SHIPPING_SERVICE_IDS = [2, 5, 6, 11, 12, 13];
+  if (serviceIds.some((id) => NO_SHIPPING_SERVICE_IDS.includes(id))) {
+    return res
+      .status(HttpStatusCodes.OK)
+      .json({ shipping_types: [], shipping_blocked: true });
+  }
+
+  const HIDDEN_SHIPPING_IDS = [3, 8, 9, 10];
+
   if (sessionUser?.user_level === UserLevels.Practitioner) {
     const testIdsParam = req.query.test_ids as string | undefined;
     const testIds = testIdsParam
       ? testIdsParam.split(",").map(Number)
       : [];
     const hasProduct319 = testIds.includes(319);
-    const shippingIds = [2, 8, hasProduct319 ? 9 : 7];
+    const shippingIds = [2, hasProduct319 ? 9 : 7];
     const shipping_types = await ShippingsService.getByIds(shippingIds);
     return res.status(HttpStatusCodes.OK).json({ shipping_types });
   }
 
   const shipping_types = await ShippingsService.getAll();
   return res.status(HttpStatusCodes.OK).json({
-    shipping_types: shipping_types.filter((s) => s.id !== 9 && s.id !== 8),
+    shipping_types: shipping_types.filter(
+      (s) => !HIDDEN_SHIPPING_IDS.includes(s.id)
+    ),
   });
 }
 

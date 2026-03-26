@@ -1113,6 +1113,210 @@ const sendPhlebBookingNotification = async (
   });
 };
 
+// ---- Home Visit Booking Email (to Peter / Bloodservices) ----
+
+interface IHomeVisitEmailPayload {
+  orderCode: string;
+  testNames: string;
+  practitionerPhone: string;
+  clientName: string;
+  customerEmail: string;
+  customerPhone: string;
+  customerAddress: string;
+  customerPostcode: string;
+  totalVal: number;
+  slotTimes?: string;
+  shiftType?: string;
+  zone?: string;
+  price?: string;
+  weekendSurcharge?: number;
+  availability?: string;
+  additionalPreferences?: string;
+}
+
+const buildHomeVisitEmailHtml = (p: IHomeVisitEmailPayload): string => {
+  const formatCurrency = (val: number): string => `\u00A3${val.toFixed(2)}`;
+
+  let bookingItems = "";
+  if (p.slotTimes)
+    bookingItems += `<li style="margin:5px;"><strong>Booking Time:</strong> ${htmlEscape(p.slotTimes)}</li>`;
+  if (p.shiftType)
+    bookingItems += `<li style="margin:5px;"><strong>Shift Type:</strong> ${htmlEscape(p.shiftType)}</li>`;
+  if (p.zone)
+    bookingItems += `<li style="margin:5px;"><strong>Zone:</strong> ${htmlEscape(p.zone)}</li>`;
+  if (p.price)
+    bookingItems += `<li style="margin:5px;"><strong>Booking Amount:</strong> ${htmlEscape(formatCurrency(parseFloat(p.price)))}</li>`;
+  if (p.weekendSurcharge && p.weekendSurcharge > 0)
+    bookingItems += `<li style="margin:5px;"><strong>Weekend Surcharge:</strong> ${htmlEscape(formatCurrency(p.weekendSurcharge))}</li>`;
+
+  let optionalItems = "";
+  if (p.availability && p.availability.trim() !== "")
+    optionalItems += `<li style="margin:5px;"><strong>Availability:</strong> ${htmlEscape(p.availability)}</li>`;
+  if (p.additionalPreferences && p.additionalPreferences.trim() !== "")
+    optionalItems += `<li style="margin:5px;"><strong>Additional Preferences:</strong> ${htmlEscape(p.additionalPreferences)}</li>`;
+
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"/></head>
+<body style="background-color: #f4f4f4; margin: 0; padding: 0;">
+<table border="0" cellpadding="0" cellspacing="0" width="100%">
+  <tr><td align="center">
+    <table bgcolor="#07274a" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 700px;">
+      <tr><td align="center" valign="top" style="padding: 10px;">
+        <img src="https://www.youth-revisited.co.uk/wp-content/uploads/2022/02/logo.png" alt="Youth Revisited" style="max-width:200px;height:auto;display:block;">
+      </td></tr>
+    </table>
+  </td></tr>
+  <tr><td align="center" style="padding: 0px 10px;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 700px;">
+      <tr><td bgcolor="#ffffff" align="center" valign="top"
+        style="padding: 40px 20px 20px 20px; border-radius: 4px 4px 0px 0px;
+        color: #111111; font-family: Lato, Helvetica, Arial, sans-serif;
+        font-size: 25px; font-weight: 600;">
+        New Home Phlebotomy Booking (From App)
+      </td></tr>
+    </table>
+  </td></tr>
+  <tr><td bgcolor="#f4f4f4" align="center" style="padding: 0 10px;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 700px;">
+      <tr><td bgcolor="#ffffff" align="left"
+        style="padding: 20px 30px; color: #666666;
+        font-family: Lato, Helvetica, Arial, sans-serif;
+        font-size: 16px; line-height: 24px;">
+        <p style="margin:5px;">A new Home Phlebotomy booking has been placed.</p>
+        <ul style="padding-left:20px;">
+          <li style="margin:5px;"><strong>Order ID:</strong> ${htmlEscape(p.orderCode)}</li>
+          <li style="margin:5px;"><strong>Blood Test:</strong> ${htmlEscape(p.testNames)}</li>
+          <li style="margin:5px;"><strong>Practitioner Phone:</strong> ${htmlEscape(p.practitionerPhone || "NA")}</li>
+          <li style="margin:5px;"><strong>Customer Name:</strong> ${htmlEscape(p.clientName)}</li>
+          <li style="margin:5px;"><strong>Customer Email:</strong> ${htmlEscape(p.customerEmail)}</li>
+          <li style="margin:5px;"><strong>Customer Phone:</strong> ${htmlEscape(p.customerPhone)}</li>
+          <li style="margin:5px;"><strong>Customer Address:</strong> ${htmlEscape(p.customerAddress)}</li>
+          <li style="margin:5px;"><strong>Customer Postcode:</strong> ${htmlEscape(p.customerPostcode)}</li>
+          ${bookingItems}
+          <li style="margin:5px;"><strong>Total Order Amount:</strong> ${htmlEscape(formatCurrency(p.totalVal))}</li>
+          ${optionalItems}
+        </ul>
+        <p style="margin:5px;">Thank you.</p>
+      </td></tr>
+    </table>
+  </td></tr>
+  <tr><td bgcolor="#f4f4f4" align="center" style="padding: 10px;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 700px;">
+      <tr><td bgcolor="#07274a" align="center"
+        style="padding: 30px; border-radius: 4px;
+        color: #ffffff; font-family: Lato, Helvetica, Arial, sans-serif; font-size: 15px;">
+        <h2 style="color:#ffffff; margin:0; font-size:18px;">Get in Touch</h2>
+        <p style="margin:5px 0;">This email was sent by: info@youth-revisited.co.uk</p>
+        <p style="margin:5px 0;">For any questions please send an email to info@youth-revisited.co.uk</p>
+        <p style="margin:5px 0;">
+          <a href="https://www.youth-revisited.co.uk/privacy-policy/" target="_blank" style="color:#ffffff; text-decoration:none;">Privacy Policy</a> |
+          <a href="https://www.youth-revisited.co.uk/contactus/" target="_blank" style="color:#ffffff; text-decoration:none;">Help Center</a>
+        </p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body></html>`;
+};
+
+const sendHomeVisitBookingEmail = async (
+  payload: IHomeVisitEmailPayload
+): Promise<void> => {
+  const subject = `New Home Phlebotomy Booking - Order ${payload.orderCode}`;
+  const html = buildHomeVisitEmailHtml(payload);
+  await sendEmail("Bloodservices@mail.com", subject, html, { cc: null });
+};
+
+// ---- New Order from App Email (to Jade + info) ----
+
+interface INewOrderEmailPayload {
+  clientName: string;
+  customerEmail: string;
+  customerPhone: string;
+  fullAddress: string;
+  practitionerName: string;
+  testNames: string;
+  otherChargesNames: string;
+  otherChargesAmount: string;
+  checkoutType: string;
+  totalVal: string;
+  orderId: string;
+}
+
+const buildNewOrderFromAppHtml = (p: INewOrderEmailPayload): string => {
+  const year = new Date().getFullYear();
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8"/></head>
+<body style="background-color: #f4f4f4; margin: 0; padding: 0;">
+<table border="0" cellpadding="0" cellspacing="0" width="100%">
+  <tr><td align="center">
+    <table bgcolor="#06274a" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 700px;">
+      <tr><td align="center" valign="top" style="padding: 15px;">
+        <img src="https://www.youth-revisited.co.uk/wp-content/uploads/2025/04/logo-300x59-1.png"
+          alt="Youth Revisited" style="max-width:200px; height:auto; display:block;">
+      </td></tr>
+    </table>
+  </td></tr>
+  <tr><td align="center" style="padding: 0px 10px;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 700px;">
+      <tr><td bgcolor="#ffffff" align="center"
+        style="padding: 30px 20px 20px 20px; border-radius: 4px 4px 0px 0px;
+        color: #06274a; font-family: Arial, sans-serif;
+        font-size: 24px; font-weight: bold;">
+        New Order from App
+      </td></tr>
+    </table>
+  </td></tr>
+  <tr><td bgcolor="#f4f4f4" align="center" style="padding: 0 10px;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 700px;">
+      <tr><td bgcolor="#ffffff" align="left"
+        style="padding: 20px 30px 30px 30px;
+        color: #555555; font-family: Arial, sans-serif;
+        font-size: 16px; line-height: 24px;">
+        <p style="margin: 5px 0 15px 0;">A new order from app has been placed. Details are below:</p>
+        <ul style="padding-left:20px; margin:0;">
+          <li><strong>Customer Name:</strong> ${htmlEscape(p.clientName)}</li>
+          <li><strong>Customer Email:</strong> ${htmlEscape(p.customerEmail)}</li>
+          <li><strong>Customer Phone:</strong> ${htmlEscape(p.customerPhone)}</li>
+          <li><strong>Customer Address:</strong> ${htmlEscape(p.fullAddress)}</li>
+          <li><strong>Practitioner:</strong> ${htmlEscape(p.practitionerName)}</li>
+          <li><strong>Tests:</strong> ${htmlEscape(p.testNames)}</li>
+          <li><strong>Other Charges:</strong> ${htmlEscape(p.otherChargesNames || "NA")}</li>
+          <li><strong>Other Charges Amount:</strong> ${htmlEscape(p.otherChargesAmount || "NA")}</li>
+          <li><strong>Checkout Type:</strong> ${htmlEscape(p.checkoutType)}</li>
+          <li><strong>Amount Paid:</strong> \u00A3${htmlEscape(p.totalVal)}</li>
+        </ul>
+        <div style="text-align:center; margin-top:30px;">
+          <a href="https://www.practitioner.youth-revisited.co.uk/view-order.php?order_id=${htmlEscape(p.orderId)}"
+            style="background-color:#06274a; color:#ffffff;
+            padding:12px 25px; text-decoration:none;
+            border-radius:4px; display:inline-block;
+            font-weight:bold;">
+            View Order Details
+          </a>
+        </div>
+      </td></tr>
+    </table>
+  </td></tr>
+  <tr><td bgcolor="#06274a" align="center" style="padding: 20px; color:#ffffff; font-family: Arial, sans-serif; font-size: 13px;">
+    &copy; ${year} Youth Revisited. All rights reserved.
+  </td></tr>
+</table>
+</body></html>`;
+};
+
+const sendNewOrderFromAppEmail = async (
+  payload: INewOrderEmailPayload
+): Promise<void> => {
+  const html = buildNewOrderFromAppHtml(payload);
+  await sendEmail(
+    ["info@youth-revisited.co.uk", "Jadebradley.work@gmail.com"],
+    "New Order from App",
+    html,
+    { cc: null }
+  );
+};
+
 export default {
   getMailConfig,
   addMailConfig,
@@ -1136,4 +1340,6 @@ export default {
   sendPlebJobStatusUpdateEmail,
   sendPlebJobCompletionEmail,
   sendPhlebBookingNotification,
+  sendHomeVisitBookingEmail,
+  sendNewOrderFromAppEmail,
 } as const;

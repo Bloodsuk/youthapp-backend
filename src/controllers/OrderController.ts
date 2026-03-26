@@ -579,6 +579,113 @@ async function sendPhlebBookingEmails(
   }
 }
 
+const HOME_VISIT_SERVICE_IDS = [2, 6, 11, 12, 13];
+
+async function sendPostOrderEmails(params: {
+  customer: ICustomer;
+  orderCode: string;
+  testNames: string[];
+  serviceIds: number[];
+  createdBy: number;
+  totalVal: number;
+  otherChargesTotal: number;
+  checkoutType: string;
+  phlebBookingData?: IPhlebBookingData | null;
+}) {
+  const {
+    customer,
+    orderCode,
+    testNames,
+    serviceIds,
+    createdBy,
+    totalVal,
+    otherChargesTotal,
+    checkoutType,
+    phlebBookingData,
+  } = params;
+
+  const clientName =
+    `${customer.fore_name || ""} ${customer.sur_name || ""}`.trim() || "Customer";
+  const fullAddress = [customer.address, customer.town, customer.postal_code, customer.country]
+    .filter((p) => p && p.trim())
+    .join(", ");
+
+  let practitionerName = "";
+  let practitionerPhone = "";
+  if (createdBy && createdBy > 0) {
+    try {
+      const user = await UserService.getOne(createdBy);
+      practitionerName =
+        `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.username || "";
+      practitionerPhone = (user as Record<string, any>).phone || "";
+    } catch {
+      /* practitioner lookup failed - continue with empty values */
+    }
+  }
+
+  // Resolve other charge names
+  let serviceNames: string[] = [];
+  for (const sid of serviceIds) {
+    try {
+      const svc = await ServicesService.getOne(sid);
+      serviceNames.push(svc.name);
+    } catch {
+      /* skip unknown service */
+    }
+  }
+
+  // 1) Home Visit email to Peter if any home visit service is selected
+  const hasHomeVisitService = serviceIds.some((id) =>
+    HOME_VISIT_SERVICE_IDS.includes(id)
+  );
+  if (hasHomeVisitService) {
+    try {
+      await MailService.sendHomeVisitBookingEmail({
+        orderCode,
+        testNames: testNames.join(", "),
+        practitionerPhone,
+        clientName,
+        customerEmail: customer.email || "",
+        customerPhone: customer.telephone || "",
+        customerAddress: fullAddress,
+        customerPostcode: customer.postal_code || "",
+        totalVal,
+        slotTimes: phlebBookingData?.slot_times,
+        shiftType: phlebBookingData?.shift_type,
+        zone: phlebBookingData?.zone,
+        price: phlebBookingData?.price,
+        weekendSurcharge: phlebBookingData?.weekend_surcharge
+          ? parseFloat(phlebBookingData.weekend_surcharge)
+          : undefined,
+        availability: phlebBookingData?.availability,
+        additionalPreferences: phlebBookingData?.additional_preferences,
+      });
+    } catch (err) {
+      console.error("Failed to send Home Visit email to Peter:", err);
+    }
+  }
+
+  // 2) New Order from App email on every order
+  try {
+    await MailService.sendNewOrderFromAppEmail({
+      clientName,
+      customerEmail: customer.email || "",
+      customerPhone: customer.telephone || "",
+      fullAddress,
+      practitionerName,
+      testNames: testNames.join(", "),
+      otherChargesNames: serviceNames.join(", ") || "NA",
+      otherChargesAmount:
+        otherChargesTotal > 0 ? `\u00A3${otherChargesTotal.toFixed(2)}` : "NA",
+      checkoutType,
+      totalVal: totalVal.toFixed(2),
+      orderId: orderCode,
+    });
+  } catch (err) {
+    console.error("Failed to send New Order from App email:", err);
+  }
+}
+
 interface ICreditCheckoutReqBody {
   customer_id: number;
   test_ids: number[];
@@ -649,9 +756,11 @@ async function creditCheckout(req: IReq<ICreditCheckoutReqBody>, res: IRes) {
         .json({ success: false, error: "Customer not found" });
     }
     let cart_total = 0;
+    const testNames: string[] = [];
     for (const test_id of test_ids) {
       const test = await TestsService.getOne(test_id);
       cart_total += parseFloat(test.price);
+      testNames.push(test.test_name);
     }
     const order_placed_by = res.locals.sessionUser.id;
     const prac_id = customer.created_by;
@@ -662,12 +771,9 @@ async function creditCheckout(req: IReq<ICreditCheckoutReqBody>, res: IRes) {
     ) {
       createdBy = res.locals.sessionUser.id;
     } else {
-      //Only if Moderator(Clinic) gets $_SESSION['practitioner_id'],
-      //customer do not has a value for $_SESSION['practitioner_id']
-      createdBy = res.locals.sessionUser.practitioner_id || 0; // Clinic's Practitioner
+      createdBy = res.locals.sessionUser.practitioner_id || 0;
     }
 
-    // Shipping is optional for practitioners
     let api_royal = "no";
     let shipping_charges = 0;
     let shipping_name = "";
@@ -688,11 +794,9 @@ async function creditCheckout(req: IReq<ICreditCheckoutReqBody>, res: IRes) {
       other_charges_total += service.value;
     }
 
-    // Add phleb booking price if provided
     let phleb_booking_price = 0;
     if (phlebBookingData) {
       phleb_booking_price = parseFloat(phlebBookingData.price || "0");
-      // Add weekend surcharge if provided (frontend should include it in price or send separately)
       if (phlebBookingData.weekend_surcharge) {
         phleb_booking_price += parseFloat(phlebBookingData.weekend_surcharge || "0");
       }
@@ -706,7 +810,7 @@ async function creditCheckout(req: IReq<ICreditCheckoutReqBody>, res: IRes) {
       order_id,
       customer_id,
       transaction_id: "0",
-      test_ids: test_ids.join(","), //array to string
+      test_ids: test_ids.join(","),
       client_id: customer.client_code,
       client_name: customer.fore_name + " " + customer.sur_name,
       shipping_type: shipping_type ? shipping_type.toString() : "0",
@@ -734,16 +838,25 @@ async function creditCheckout(req: IReq<ICreditCheckoutReqBody>, res: IRes) {
     const id = await OrderService.addOne(order, bookingForOrderService || {} as Record<string, any>);
     await assignPlebIfProvided(pleb_id, id, customer, booking, res.locals.sessionUser);
     
-    // Save phleb booking if provided (check both root level and nested in booking)
     if (phlebBookingData) {
       try {
         await PhlebBookingService.saveBooking(id, phlebBookingData);
-        await sendPhlebBookingEmails(customer, phlebBookingData, order_id, id);
       } catch (bookingError) {
-        // Log error but don't fail the order creation
         console.error("Failed to save phleb booking:", bookingError);
       }
     }
+
+    await sendPostOrderEmails({
+      customer,
+      orderCode: order_id,
+      testNames,
+      serviceIds: service_ids,
+      createdBy,
+      totalVal: total_val,
+      otherChargesTotal: other_charges_total,
+      checkoutType: "Credit",
+      phlebBookingData,
+    });
     
     return res.status(HttpStatusCodes.OK).json({ success: true, order_id: id });
   } catch (error) {
@@ -993,20 +1106,28 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
       supplements,
       enhancing_drugs,
     };
-    // Add Order in DB
     const id = await OrderService.addOne(order, bookingForOrderService || {} as Record<string, any>);
     await assignPlebIfProvided(pleb_id, id, customer, booking, res.locals.sessionUser);
     
-    // Save phleb booking if provided (check both root level and nested in booking)
     if (phlebBookingData) {
       try {
         await PhlebBookingService.saveBooking(id, phlebBookingData);
-        await sendPhlebBookingEmails(customer, phlebBookingData, order_id, id);
       } catch (bookingError) {
-        // Log error but don't fail the order creation
         console.error("Failed to save phleb booking:", bookingError);
       }
     }
+
+    await sendPostOrderEmails({
+      customer,
+      orderCode: order_id,
+      testNames,
+      serviceIds: service_ids,
+      createdBy,
+      totalVal: total_val,
+      otherChargesTotal: other_charges_total,
+      checkoutType: "Stripe",
+      phlebBookingData,
+    });
     
     const order_number = `#YRV-${order_id}`;
 
@@ -1155,14 +1276,14 @@ async function globalPaymentsCheckout(
       createdBy = sessionUser.practitioner_id || 0;
     }
 
-    // Calculate totals
     let cart_total = 0;
+    const testNames: string[] = [];
     for (const test_id of test_ids) {
       const test = await TestsService.getOne(test_id);
       cart_total += parseFloat(test.price);
+      testNames.push(test.test_name);
     }
     
-    // Shipping is optional for practitioners
     let api_royal = "no";
     let shipping_charges = 0;
     if (shipping_type && Number(shipping_type) > 0) {
@@ -1183,11 +1304,9 @@ async function globalPaymentsCheckout(
       other_charges_total += service.value;
     }
 
-    // Add phleb booking price if provided
     let phleb_booking_price = 0;
     if (phlebBookingData) {
       phleb_booking_price = parseFloat(phlebBookingData.price || "0");
-      // Add weekend surcharge if provided (frontend should include it in price or send separately)
       if (phlebBookingData.weekend_surcharge) {
         phleb_booking_price += parseFloat(phlebBookingData.weekend_surcharge || "0");
       }
@@ -1298,16 +1417,25 @@ async function globalPaymentsCheckout(
     const id = await OrderService.addOne(order, bookingForOrderService || {} as Record<string, any>);
     await assignPlebIfProvided(pleb_id, id, customer, booking, sessionUser);
     
-    // Save phleb booking if provided (check both root level and nested in booking)
     if (phlebBookingData) {
       try {
         await PhlebBookingService.saveBooking(id, phlebBookingData);
-        await sendPhlebBookingEmails(customer, phlebBookingData, order_id, id);
       } catch (bookingError) {
-        // Log error but don't fail the order creation
         console.error("Failed to save phleb booking:", bookingError);
       }
     }
+
+    await sendPostOrderEmails({
+      customer,
+      orderCode: order_id,
+      testNames,
+      serviceIds: service_ids,
+      createdBy,
+      totalVal: total_val,
+      otherChargesTotal: other_charges_total,
+      checkoutType: "Global Payments",
+      phlebBookingData,
+    });
     
     const order_number = `#YRV-${order_id}`;
 
@@ -2567,6 +2695,19 @@ async function getOrdersWithStartedStatus(req: IReq, res: IRes) {
  */
 async function getPhlebSlots(req: IReq, res: IRes) {
   try {
+    // Services that always use Standard Zone pricing (no postcode check)
+    const STANDARD_ZONE_ONLY_SERVICES = [11, 12, 13];
+    const serviceId = parseInt(req.query.service_id as string || "0", 10);
+
+    if (STANDARD_ZONE_ONLY_SERVICES.includes(serviceId)) {
+      const slots = PhlebSlotService.getSlotsByZone("standard");
+      return res.status(HttpStatusCodes.OK).json({
+        success: true,
+        zone: "standard",
+        slots,
+      }).end();
+    }
+
     const customer_id = req.query.customer_id as string;
 
     // customer_id is required
