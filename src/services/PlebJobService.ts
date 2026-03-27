@@ -269,7 +269,7 @@ async function updateStatus(id: number, jobStatus: string, trackingNumber?: stri
   try {
     const adminEmails = await buildAdminRecipientEmails({
       orderCreatedBy: context.orderCreatedBy,
-      fallbackToAll: true,
+      fallbackToAll: false,
     });
     const plebName = updatedContext.plebName ?? "Phlebotomist";
     const orderIdentifiers = {

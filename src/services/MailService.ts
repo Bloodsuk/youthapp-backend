@@ -846,10 +846,9 @@ const sendCustomerJobAssignmentEmail = async (
       { label: "Status", value: "Allocated" },
       { label: "Assigned Phlebotomist", isSectionHeader: true },
       { label: "Name", value: payload.plebName },
-      { label: "Contact Number", value: payload.plebPhone },
     ],
     outroLines: [
-      "Your assigned phlebotomist will confirm a time and date for your upcoming appointment and attend your appointment as scheduled. If you need to communicate any important information prior to the visit, please feel free to contact them directly.",
+      "Your assigned phlebotomist will confirm a time and date for your upcoming appointment and attend your appointment as scheduled.",
     ],
   });
 
