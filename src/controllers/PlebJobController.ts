@@ -248,18 +248,29 @@ async function assignJob(req: IReq<{ pleb_id: number; order_id: number; job_stat
 async function getDistance(req: IReq<{ pleb_id: number; order_id: number }>, res: IRes) {
   const { pleb_id, order_id } = req.body;
 
-  if (!pleb_id || !order_id) {
+  const pid = Number(pleb_id);
+  const oid = Number(order_id);
+  if (
+    pleb_id === undefined ||
+    pleb_id === null ||
+    order_id === undefined ||
+    order_id === null ||
+    !Number.isInteger(pid) ||
+    pid < 1 ||
+    !Number.isInteger(oid) ||
+    oid < 1
+  ) {
     return res.status(HttpStatusCodes.BAD_REQUEST).json({
       success: false,
-      error: "pleb_id and order_id are required"
+      error: "Valid phlebotomist ID and order ID are required to calculate distance.",
     }).end();
   }
 
   try {
-    const result = await PlebJobService.getDistanceBetweenPlebAndCustomer(Number(pleb_id), Number(order_id));
+    const result = await PlebJobService.getDistanceBetweenPlebAndCustomer(pid, oid);
     return res.status(HttpStatusCodes.OK).json({ success: true, data: result }).end();
   } catch (error) {
-    if (error instanceof RouteError)
+    if (error instanceof RouteError) {
       return res
         .status(error.status)
         .json({
@@ -267,14 +278,15 @@ async function getDistance(req: IReq<{ pleb_id: number; order_id: number }>, res
           error: error.message,
         })
         .end();
-    else
-      return res
-        .status(HttpStatusCodes.BAD_REQUEST)
-        .json({
-          success: false,
-          error: "Error calculating distance: " + (error as Error).message,
-        })
-        .end();
+    }
+    console.error("[getDistance] Unexpected error:", error);
+    return res
+      .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+      .json({
+        success: false,
+        error: "Something went wrong while calculating distance. Please try again.",
+      })
+      .end();
   }
 }
 

@@ -4,7 +4,10 @@ import { IPlebJob } from "@src/interfaces/IPlebJob";
 import { UserLevels } from "@src/constants/enums";
 import type { ISessionUser } from "@src/interfaces/ISessionUser";
 import { canAssignJobs } from "@src/util/JobAssignmentAuth";
+import { RouteError } from "@src/other/classes";
+import HttpStatusCodes from "@src/constants/HttpStatusCodes";
 import MailService from "./MailService";
+import { Errors as PlebAvailabilityErrors } from "./PlebAvailabilityService";
 import fetch from "node-fetch";
 
 interface IAdminContact {
@@ -533,14 +536,20 @@ async function getDistanceBetweenPlebAndCustomer(plebId: number, orderId: number
   duration_text: string;
   duration_value: number;
 }> {
+  const E = PlebAvailabilityErrors;
+
   // Get pleb coordinates
   const [plebRows] = await pool.query<RowDataPacket[]>(
     "SELECT lat, lng, full_name, email FROM phlebotomy_applications WHERE id = ?",
     [plebId]
   );
-  if (plebRows.length === 0) throw new Error("Pleb not found");
+  if (plebRows.length === 0) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, E.PlebNotFound);
+  }
   const pleb = plebRows[0];
-  if (!pleb.lat || !pleb.lng) throw new Error("Pleb lat/lng not set");
+  if (!pleb.lat || !pleb.lng) {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, E.DistancePlebLocationNotSet);
+  }
 
   // Build customer address from order
   const [orderRows] = await pool.query<RowDataPacket[]>(
@@ -555,7 +564,9 @@ async function getDistanceBetweenPlebAndCustomer(plebId: number, orderId: number
     WHERE orders.id = ?`,
     [orderId]
   );
-  if (orderRows.length === 0) throw new Error("Order not found");
+  if (orderRows.length === 0) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, E.DistanceOrderNotFound);
+  }
   const cAddress = (orderRows[0].c_address ?? '').toString().trim();
   const cTown = (orderRows[0].c_town ?? '').toString().trim();
   const cPostal = (orderRows[0].c_postal_code ?? '').toString().trim();
@@ -563,11 +574,13 @@ async function getDistanceBetweenPlebAndCustomer(plebId: number, orderId: number
   const clientName = (orderRows[0].client_name ?? '').toString().trim();
   const addressParts = [cAddress, cTown, cPostal, cCountry].filter((s) => s.length > 0);
   const customerAddress = addressParts.length > 0 ? addressParts.join(', ') : clientName || null;
-  if (!customerAddress) throw new Error("Customer address not available");
+  if (!customerAddress) {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, E.MissingCustomerAddress);
+  }
 
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey || apiKey.trim() === "") {
-    throw new Error("GOOGLE_MAPS_API_KEY not configured");
+    throw new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, E.GoogleMapsNotConfigured);
   }
   const maskedKey = `${apiKey.slice(0, 3)}***${apiKey.slice(-3)}`;
   console.log("[Distance] Inputs:", JSON.stringify({
@@ -594,23 +607,45 @@ async function getDistanceBetweenPlebAndCustomer(plebId: number, orderId: number
     resp = await fetch(url);
   } catch (networkErr) {
     console.error("[Distance] Network error calling Google API:", networkErr);
-    throw new Error("Network error calling Google API");
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, E.DistanceMapsNetworkError);
   }
   console.log("[Distance] HTTP Status:", resp.status);
-  if (!resp.ok) throw new Error(`Google API error: ${resp.status}`);
+  if (!resp.ok) {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, E.DistanceMapsHttpError);
+  }
   const data = await resp.json();
   console.log("[Distance] Google API status:", data.status, data.error_message || "");
-  if (data.status !== 'OK') {
-    const apiError = typeof data.error_message === 'string' ? `: ${data.error_message}` : '';
-    throw new Error(`Google API status ${data.status}${apiError}`);
+  if (data.status !== "OK") {
+    const top = data.status as string;
+    if (
+      top === "OVER_QUERY_LIMIT" ||
+      top === "OVER_DAILY_LIMIT" ||
+      top === "REQUEST_DENIED"
+    ) {
+      throw new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, E.DistanceMapsQuotaOrAccess);
+    }
+    if (top === "INVALID_REQUEST") {
+      throw new RouteError(HttpStatusCodes.BAD_REQUEST, E.DistanceGeocodeFailed);
+    }
+    throw new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, E.DistanceMapsUnknownError);
   }
   if (!data.rows?.[0]?.elements?.[0]) {
     console.error("[Distance] Malformed response, rows/elements missing:", JSON.stringify(data));
-    throw new Error("No distance elements returned by Google API");
+    throw new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, E.DistanceMapsInvalidResponse);
   }
-  if (data.rows[0].elements[0].status !== 'OK') {
-    console.warn("[Distance] Element status:", data.rows[0].elements[0].status, data.rows[0].elements[0]);
-    throw new Error(`Distance element status ${data.rows[0].elements[0].status}`);
+  const elementStatus = data.rows[0].elements[0].status as string;
+  if (elementStatus !== "OK") {
+    console.warn("[Distance] Element status:", elementStatus, data.rows[0].elements[0]);
+    if (elementStatus === "NOT_FOUND") {
+      throw new RouteError(HttpStatusCodes.BAD_REQUEST, E.DistanceGeocodeFailed);
+    }
+    if (elementStatus === "ZERO_RESULTS") {
+      throw new RouteError(HttpStatusCodes.BAD_REQUEST, E.DistanceNoDrivingRoute);
+    }
+    if (elementStatus === "MAX_ROUTE_LENGTH_EXCEEDED") {
+      throw new RouteError(HttpStatusCodes.BAD_REQUEST, E.DistanceRouteTooLong);
+    }
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, E.DistanceLookupFailed);
   }
   const el = data.rows[0].elements[0];
   return {

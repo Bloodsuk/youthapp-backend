@@ -26,8 +26,22 @@ export const Errors = {
   MissingBookingDate: "booking_date is required",
   MissingBookingTime: "booking_time is required",
   MissingCustomerAddress: "A valid customer address is required",
-  GoogleMapsNotConfigured: "GOOGLE_MAPS_API_KEY is not configured",
+  GoogleMapsNotConfigured: "Distance lookup is not available right now. Please try again later.",
   DistanceLookupFailed: "Failed to calculate distance to customer address",
+  DistanceOrderNotFound: "Order not found.",
+  DistancePlebLocationNotSet:
+    "This phlebotomist has no map location set. Add latitude and longitude on their profile, then try again.",
+  DistanceMapsNetworkError: "Could not reach the maps service. Check your connection and try again.",
+  DistanceMapsHttpError: "The maps service returned an error. Please try again in a few minutes.",
+  DistanceMapsInvalidResponse: "Could not read distance from the maps service. Please try again.",
+  DistanceGeocodeFailed:
+    "The phlebotomist's location or the customer address could not be found on the map. Check both are complete and correct.",
+  DistanceNoDrivingRoute:
+    "No driving route was found between the phlebotomist and this address. The address may be incomplete or not reachable by road from their location.",
+  DistanceRouteTooLong: "The driving route is too long for the maps service to calculate. Check that the addresses are correct.",
+  DistanceMapsQuotaOrAccess:
+    "Distance lookup is temporarily limited. Please try again later or contact support if this continues.",
+  DistanceMapsUnknownError: "The maps service had a problem. Please try again shortly.",
 } as const;
 
 // **** Validation Functions **** //
@@ -108,19 +122,44 @@ async function getDistanceToAddress(
   }
 
   const data = await resp.json();
-  if (
-    data.status !== "OK" ||
-    !data.rows?.[0]?.elements?.[0] ||
-    data.rows[0].elements[0].status !== "OK"
-  ) {
-    const message =
-      data.error_message ||
-      data.rows?.[0]?.elements?.[0]?.status ||
-      "UNKNOWN";
+  if (data.status !== "OK") {
+    const top = data.status as string;
+    if (
+      top === "OVER_QUERY_LIMIT" ||
+      top === "OVER_DAILY_LIMIT" ||
+      top === "REQUEST_DENIED"
+    ) {
+      throw new RouteError(
+        HttpStatusCodes.INTERNAL_SERVER_ERROR,
+        Errors.DistanceMapsQuotaOrAccess
+      );
+    }
+    if (top === "INVALID_REQUEST") {
+      throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.DistanceGeocodeFailed);
+    }
     throw new RouteError(
-      HttpStatusCodes.BAD_REQUEST,
-      `${Errors.DistanceLookupFailed}: ${message}`
+      HttpStatusCodes.INTERNAL_SERVER_ERROR,
+      Errors.DistanceMapsUnknownError
     );
+  }
+  if (!data.rows?.[0]?.elements?.[0]) {
+    throw new RouteError(
+      HttpStatusCodes.INTERNAL_SERVER_ERROR,
+      Errors.DistanceMapsInvalidResponse
+    );
+  }
+  const elementStatus = data.rows[0].elements[0].status as string;
+  if (elementStatus !== "OK") {
+    if (elementStatus === "NOT_FOUND") {
+      throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.DistanceGeocodeFailed);
+    }
+    if (elementStatus === "ZERO_RESULTS") {
+      throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.DistanceNoDrivingRoute);
+    }
+    if (elementStatus === "MAX_ROUTE_LENGTH_EXCEEDED") {
+      throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.DistanceRouteTooLong);
+    }
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.DistanceLookupFailed);
   }
 
   const element = data.rows[0].elements[0];

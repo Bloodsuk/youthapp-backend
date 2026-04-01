@@ -35,7 +35,7 @@ async function getAll(req: IReq, res: IRes) {
       ? testIdsParam.split(",").map(Number)
       : [];
     const hasProduct319 = testIds.includes(319);
-    const shippingIds = [2, hasProduct319 ? 9 : 7];
+    const shippingIds = [2, 6, hasProduct319 ? 9 : 7];
     const shipping_types = await ShippingsService.getByIds(shippingIds);
     return res.status(HttpStatusCodes.OK).json({ shipping_types });
   }
