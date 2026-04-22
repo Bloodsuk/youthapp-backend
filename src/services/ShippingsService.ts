@@ -103,6 +103,17 @@ async function _delete(shippingId: number): Promise<void> {
   }
 }
 
+/**
+ * Check if a practitioner is allowed to use credit pay.
+ */
+async function isCreditPayAllowed(practitionerId: number): Promise<boolean> {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT 1 FROM allow_credit_pay_to_practitioner WHERE practitioner_id = ? AND is_allowed = 1 LIMIT 1",
+    [practitionerId]
+  );
+  return rows.length > 0;
+}
+
 // **** Export default **** //
 
 export default {
@@ -112,4 +123,5 @@ export default {
   addOne,
   updateOne,
   delete: _delete,
+  isCreditPayAllowed,
 } as const;

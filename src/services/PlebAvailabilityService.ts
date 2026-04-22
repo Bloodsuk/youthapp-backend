@@ -8,6 +8,13 @@ import {
   IPlebAvailabilityUpdateRequest,
   IPlebAvailabilityResponse,
   IPlebAvailableForBooking,
+  IPlebDateAvailabilitySlot,
+  IPlebDateSlotCreateRequest,
+  IPlebDateSlotUpdateRequest,
+  IPlebDaySlotCreateRequest,
+  IPlebDaySlotUpdateRequest,
+  IPlebCalendarDay,
+  IPlebCalendarResponse,
 } from "@src/interfaces/IPlebAvailability";
 import fetch from "node-fetch";
 import moment from "moment";
@@ -42,6 +49,8 @@ export const Errors = {
   DistanceMapsQuotaOrAccess:
     "Distance lookup is temporarily limited. Please try again later or contact support if this continues.",
   DistanceMapsUnknownError: "The maps service had a problem. Please try again shortly.",
+  DaySlotNotFound: "Day slot not found",
+  InvalidDayOfWeek: "Invalid day_of_week. Must be Monday-Sunday",
 } as const;
 
 // **** Validation Functions **** //
@@ -301,7 +310,7 @@ async function getAvailabilityAndRange(
 ): Promise<IPlebAvailabilityResponse> {
   await validatePleb(plebId);
 
-  // Get all availability slots
+  // Get weekly recurring availability slots (specific_date IS NULL)
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT 
       id,
@@ -314,7 +323,7 @@ async function getAvailabilityAndRange(
       max_distance_km,
       unit
     FROM pleb_availability 
-    WHERE pleb_id = ?
+    WHERE pleb_id = ? AND specific_date IS NULL
     ORDER BY 
       FIELD(day_of_week, 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'),
       start_time ASC`,
@@ -403,9 +412,9 @@ async function updateAvailabilityAndRange(
   await connection.beginTransaction();
 
   try {
-    // Delete all existing slots for this pleb
+    // Delete only weekly recurring slots (preserve date-specific entries)
     await connection.query<ResultSetHeader>(
-      "DELETE FROM pleb_availability WHERE pleb_id = ?",
+      "DELETE FROM pleb_availability WHERE pleb_id = ? AND specific_date IS NULL",
       [plebId]
     );
 
@@ -460,6 +469,638 @@ async function updateAvailabilityAndRange(
   }
 }
 
+// **** Date-Specific Availability CRUD **** //
+
+/**
+ * Get date-specific availability slots for a pleb within a date range
+ */
+async function getDateAvailability(
+  plebId: number,
+  startDate: string,
+  endDate: string
+): Promise<IPlebDateAvailabilitySlot[]> {
+  await validatePleb(plebId);
+
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT id, pleb_id, specific_date, start_time, end_time, is_available,
+            max_distance_miles, max_distance_km, unit, notes, created_at, updated_at
+     FROM pleb_availability
+     WHERE pleb_id = ? AND specific_date IS NOT NULL AND specific_date >= ? AND specific_date <= ?
+     ORDER BY specific_date ASC, start_time ASC`,
+    [plebId, startDate, endDate]
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    pleb_id: row.pleb_id,
+    specific_date: moment(row.specific_date).format("YYYY-MM-DD"),
+    start_time: String(row.start_time).substring(0, 5),
+    end_time: String(row.end_time).substring(0, 5),
+    is_available: Number(row.is_available),
+    max_distance_miles: Number(row.max_distance_miles),
+    max_distance_km: Number(row.max_distance_km),
+    unit: row.unit || "miles",
+    notes: row.notes || null,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }));
+}
+
+/**
+ * Add one or more date-specific availability slots
+ */
+async function addDateSlots(
+  plebId: number,
+  data: IPlebDateSlotCreateRequest
+): Promise<{ ids: number[] }> {
+  await validatePleb(plebId);
+
+  const { slots, service_range } = data;
+
+  if (!slots || !Array.isArray(slots) || slots.length === 0) {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, "At least one slot is required");
+  }
+
+  if (!service_range || !service_range.max_distance || service_range.max_distance <= 0) {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.InvalidDistance);
+  }
+
+  if (service_range.unit !== "miles" && service_range.unit !== "km") {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.InvalidUnit);
+  }
+
+  let maxDistanceMiles = service_range.max_distance;
+  if (service_range.unit === "km") {
+    maxDistanceMiles = service_range.max_distance / 1.60934;
+  }
+
+  // Validate all slots
+  for (let i = 0; i < slots.length; i++) {
+    const slot = slots[i];
+
+    if (!slot.specific_date) {
+      throw new RouteError(HttpStatusCodes.BAD_REQUEST, `Slot ${i + 1}: specific_date is required`);
+    }
+
+    const parsedDate = moment(slot.specific_date, "YYYY-MM-DD", true);
+    if (!parsedDate.isValid()) {
+      throw new RouteError(HttpStatusCodes.BAD_REQUEST, `Slot ${i + 1}: Invalid date format. Use YYYY-MM-DD`);
+    }
+
+    if (!slot.start_time || !slot.end_time) {
+      throw new RouteError(HttpStatusCodes.BAD_REQUEST, `Slot ${i + 1}: start_time and end_time are required`);
+    }
+
+    if (!isValidTimeFormat(slot.start_time) || !isValidTimeFormat(slot.end_time)) {
+      throw new RouteError(HttpStatusCodes.BAD_REQUEST, `Slot ${i + 1}: ${Errors.InvalidTimeFormat}`);
+    }
+
+    if (timeToMinutes(slot.start_time) >= timeToMinutes(slot.end_time)) {
+      throw new RouteError(HttpStatusCodes.BAD_REQUEST, `Slot ${i + 1}: ${Errors.InvalidTimeRange}`);
+    }
+  }
+
+  // Check for overlaps within the submitted slots (same date)
+  const slotsByDate = new Map<string, Array<{ start_time: string; end_time: string; index: number }>>();
+  for (let i = 0; i < slots.length; i++) {
+    const slot = slots[i];
+    const dateKey = slot.specific_date;
+    if (!slotsByDate.has(dateKey)) {
+      slotsByDate.set(dateKey, []);
+    }
+    slotsByDate.get(dateKey)!.push({
+      start_time: normalizeTime(slot.start_time),
+      end_time: normalizeTime(slot.end_time),
+      index: i,
+    });
+  }
+
+  for (const [dateKey, dateSlots] of slotsByDate) {
+    for (let i = 0; i < dateSlots.length; i++) {
+      for (let j = i + 1; j < dateSlots.length; j++) {
+        if (timeRangesOverlap(
+          dateSlots[i].start_time, dateSlots[i].end_time,
+          dateSlots[j].start_time, dateSlots[j].end_time
+        )) {
+          throw new RouteError(
+            HttpStatusCodes.BAD_REQUEST,
+            `Slots ${dateSlots[i].index + 1} and ${dateSlots[j].index + 1} overlap on ${dateKey}`
+          );
+        }
+      }
+    }
+
+    // Check overlaps with existing slots on same dates
+    const [existing] = await pool.query<RowDataPacket[]>(
+      `SELECT start_time, end_time FROM pleb_availability
+       WHERE pleb_id = ? AND specific_date = ? AND is_available = 1`,
+      [plebId, dateKey]
+    );
+
+    for (const newSlot of dateSlots) {
+      for (const existRow of existing) {
+        const existStart = String(existRow.start_time).substring(0, 5);
+        const existEnd = String(existRow.end_time).substring(0, 5);
+        if (timeRangesOverlap(newSlot.start_time, newSlot.end_time, existStart, existEnd)) {
+          throw new RouteError(
+            HttpStatusCodes.BAD_REQUEST,
+            `Slot ${newSlot.index + 1} overlaps with an existing slot on ${dateKey}`
+          );
+        }
+      }
+    }
+  }
+
+  // Insert all slots
+  const ids: number[] = [];
+  for (const slot of slots) {
+    const startTime = normalizeTime(slot.start_time) + ":00";
+    const endTime = normalizeTime(slot.end_time) + ":00";
+    const isAvailable = slot.is_available !== false ? 1 : 0;
+
+    const [result] = await pool.query<ResultSetHeader>(
+      `INSERT INTO pleb_availability
+       (pleb_id, specific_date, start_time, end_time, is_available, max_distance_miles, unit, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        plebId,
+        slot.specific_date,
+        startTime,
+        endTime,
+        isAvailable,
+        maxDistanceMiles.toFixed(2),
+        service_range.unit,
+        slot.notes || null,
+      ]
+    );
+    ids.push(result.insertId);
+  }
+
+  return { ids };
+}
+
+/**
+ * Update a single date-specific availability slot
+ */
+async function updateDateSlot(
+  plebId: number,
+  slotId: number,
+  data: IPlebDateSlotUpdateRequest
+): Promise<void> {
+  await validatePleb(plebId);
+
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT id, specific_date, start_time, end_time FROM pleb_availability WHERE id = ? AND pleb_id = ? AND specific_date IS NOT NULL",
+    [slotId, plebId]
+  );
+
+  if (rows.length === 0) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, "Date slot not found");
+  }
+
+  const existing = rows[0];
+  const newDate = data.specific_date || moment(existing.specific_date).format("YYYY-MM-DD");
+  const newStartTime = data.start_time ? normalizeTime(data.start_time) : String(existing.start_time).substring(0, 5);
+  const newEndTime = data.end_time ? normalizeTime(data.end_time) : String(existing.end_time).substring(0, 5);
+
+  if (data.specific_date) {
+    const parsedDate = moment(data.specific_date, "YYYY-MM-DD", true);
+    if (!parsedDate.isValid()) {
+      throw new RouteError(HttpStatusCodes.BAD_REQUEST, "Invalid date format. Use YYYY-MM-DD");
+    }
+  }
+
+  if (data.start_time && !isValidTimeFormat(data.start_time)) {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.InvalidTimeFormat);
+  }
+  if (data.end_time && !isValidTimeFormat(data.end_time)) {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.InvalidTimeFormat);
+  }
+
+  if (timeToMinutes(newStartTime) >= timeToMinutes(newEndTime)) {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.InvalidTimeRange);
+  }
+
+  // Check overlap with other date slots (exclude current)
+  const [otherSlots] = await pool.query<RowDataPacket[]>(
+    `SELECT start_time, end_time FROM pleb_availability
+     WHERE pleb_id = ? AND specific_date = ? AND id != ? AND is_available = 1`,
+    [plebId, newDate, slotId]
+  );
+
+  for (const row of otherSlots) {
+    const existStart = String(row.start_time).substring(0, 5);
+    const existEnd = String(row.end_time).substring(0, 5);
+    if (timeRangesOverlap(newStartTime, newEndTime, existStart, existEnd)) {
+      throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.OverlappingSlots);
+    }
+  }
+
+  const updates: string[] = [];
+  const values: any[] = [];
+
+  if (data.specific_date) {
+    updates.push("specific_date = ?");
+    values.push(data.specific_date);
+  }
+  if (data.start_time) {
+    updates.push("start_time = ?");
+    values.push(newStartTime + ":00");
+  }
+  if (data.end_time) {
+    updates.push("end_time = ?");
+    values.push(newEndTime + ":00");
+  }
+  if (data.is_available !== undefined) {
+    updates.push("is_available = ?");
+    values.push(data.is_available ? 1 : 0);
+  }
+  if (data.notes !== undefined) {
+    updates.push("notes = ?");
+    values.push(data.notes || null);
+  }
+  if (data.service_range) {
+    if (data.service_range.max_distance <= 0) {
+      throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.InvalidDistance);
+    }
+    let miles = data.service_range.max_distance;
+    if (data.service_range.unit === "km") {
+      miles = data.service_range.max_distance / 1.60934;
+    }
+    updates.push("max_distance_miles = ?");
+    values.push(miles.toFixed(2));
+    updates.push("unit = ?");
+    values.push(data.service_range.unit);
+  }
+
+  if (updates.length === 0) {
+    return;
+  }
+
+  values.push(slotId, plebId);
+  await pool.query<ResultSetHeader>(
+    `UPDATE pleb_availability SET ${updates.join(", ")} WHERE id = ? AND pleb_id = ? AND specific_date IS NOT NULL`,
+    values
+  );
+}
+
+/**
+ * Delete a single date-specific availability slot (hard delete)
+ */
+async function deleteDateSlot(plebId: number, slotId: number): Promise<void> {
+  await validatePleb(plebId);
+
+  const [result] = await pool.query<ResultSetHeader>(
+    "DELETE FROM pleb_availability WHERE id = ? AND pleb_id = ? AND specific_date IS NOT NULL",
+    [slotId, plebId]
+  );
+
+  if (result.affectedRows === 0) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, "Date slot not found");
+  }
+}
+
+// **** Per Day (day-of-week) Availability CRUD **** //
+
+const VALID_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+/**
+ * Get all day-of-week (Per Day) availability slots for a pleb
+ */
+async function getDayAvailability(
+  plebId: number
+): Promise<IPlebAvailabilitySlot[]> {
+  await validatePleb(plebId);
+
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT id, pleb_id, day_of_week, start_time, end_time, is_available,
+            max_distance_miles, max_distance_km, unit, created_at, updated_at
+     FROM pleb_availability
+     WHERE pleb_id = ? AND specific_date IS NULL
+     ORDER BY FIELD(day_of_week, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'),
+              start_time ASC`,
+    [plebId]
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    pleb_id: row.pleb_id,
+    day_of_week: row.day_of_week,
+    start_time: String(row.start_time).substring(0, 5),
+    end_time: String(row.end_time).substring(0, 5),
+    is_available: Number(row.is_available),
+    max_distance_miles: Number(row.max_distance_miles),
+    max_distance_km: Number(row.max_distance_km),
+    unit: row.unit || "miles",
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }));
+}
+
+/**
+ * Add a single day-of-week availability slot
+ */
+async function addDaySlot(
+  plebId: number,
+  data: IPlebDaySlotCreateRequest
+): Promise<{ id: number }> {
+  await validatePleb(plebId);
+
+  const { day_of_week, start_time, end_time, is_available, service_range } = data;
+
+  if (!day_of_week || !VALID_DAYS.includes(day_of_week)) {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.InvalidDayOfWeek);
+  }
+
+  if (!start_time || !end_time) {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, "start_time and end_time are required");
+  }
+
+  if (!isValidTimeFormat(start_time) || !isValidTimeFormat(end_time)) {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.InvalidTimeFormat);
+  }
+
+  const normStart = normalizeTime(start_time);
+  const normEnd = normalizeTime(end_time);
+
+  if (timeToMinutes(normStart) >= timeToMinutes(normEnd)) {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.InvalidTimeRange);
+  }
+
+  if (!service_range || !service_range.max_distance || service_range.max_distance <= 0) {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.InvalidDistance);
+  }
+
+  if (service_range.unit !== "miles" && service_range.unit !== "km") {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.InvalidUnit);
+  }
+
+  let maxDistanceMiles = service_range.max_distance;
+  if (service_range.unit === "km") {
+    maxDistanceMiles = service_range.max_distance / 1.60934;
+  }
+
+  // Check overlap with existing day slots on same day_of_week
+  const [existing] = await pool.query<RowDataPacket[]>(
+    `SELECT start_time, end_time FROM pleb_availability
+     WHERE pleb_id = ? AND specific_date IS NULL AND day_of_week = ? AND is_available = 1`,
+    [plebId, day_of_week]
+  );
+
+  for (const row of existing) {
+    const existStart = String(row.start_time).substring(0, 5);
+    const existEnd = String(row.end_time).substring(0, 5);
+    if (timeRangesOverlap(normStart, normEnd, existStart, existEnd)) {
+      throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.OverlappingSlots);
+    }
+  }
+
+  const isAvail = is_available !== false ? 1 : 0;
+
+  const [result] = await pool.query<ResultSetHeader>(
+    `INSERT INTO pleb_availability
+     (pleb_id, day_of_week, start_time, end_time, is_available, max_distance_miles, unit)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [plebId, day_of_week, normStart + ":00", normEnd + ":00", isAvail, maxDistanceMiles.toFixed(2), service_range.unit]
+  );
+
+  return { id: result.insertId };
+}
+
+/**
+ * Update a single day-of-week availability slot
+ */
+async function updateDaySlot(
+  plebId: number,
+  slotId: number,
+  data: IPlebDaySlotUpdateRequest
+): Promise<void> {
+  await validatePleb(plebId);
+
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT id, day_of_week, start_time, end_time FROM pleb_availability WHERE id = ? AND pleb_id = ? AND specific_date IS NULL",
+    [slotId, plebId]
+  );
+
+  if (rows.length === 0) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, Errors.DaySlotNotFound);
+  }
+
+  const existing = rows[0];
+  const newDayOfWeek = data.day_of_week || existing.day_of_week;
+  const newStartTime = data.start_time ? normalizeTime(data.start_time) : String(existing.start_time).substring(0, 5);
+  const newEndTime = data.end_time ? normalizeTime(data.end_time) : String(existing.end_time).substring(0, 5);
+
+  if (data.day_of_week && !VALID_DAYS.includes(data.day_of_week)) {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.InvalidDayOfWeek);
+  }
+
+  if (data.start_time && !isValidTimeFormat(data.start_time)) {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.InvalidTimeFormat);
+  }
+  if (data.end_time && !isValidTimeFormat(data.end_time)) {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.InvalidTimeFormat);
+  }
+
+  if (timeToMinutes(newStartTime) >= timeToMinutes(newEndTime)) {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.InvalidTimeRange);
+  }
+
+  // Check overlap with other day slots on the same day_of_week (exclude current)
+  const [otherSlots] = await pool.query<RowDataPacket[]>(
+    `SELECT start_time, end_time FROM pleb_availability
+     WHERE pleb_id = ? AND specific_date IS NULL AND day_of_week = ? AND id != ? AND is_available = 1`,
+    [plebId, newDayOfWeek, slotId]
+  );
+
+  for (const row of otherSlots) {
+    const existStart = String(row.start_time).substring(0, 5);
+    const existEnd = String(row.end_time).substring(0, 5);
+    if (timeRangesOverlap(newStartTime, newEndTime, existStart, existEnd)) {
+      throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.OverlappingSlots);
+    }
+  }
+
+  const updates: string[] = [];
+  const values: any[] = [];
+
+  if (data.day_of_week) {
+    updates.push("day_of_week = ?");
+    values.push(data.day_of_week);
+  }
+  if (data.start_time) {
+    updates.push("start_time = ?");
+    values.push(newStartTime + ":00");
+  }
+  if (data.end_time) {
+    updates.push("end_time = ?");
+    values.push(newEndTime + ":00");
+  }
+  if (data.is_available !== undefined) {
+    updates.push("is_available = ?");
+    values.push(data.is_available ? 1 : 0);
+  }
+  if (data.service_range) {
+    if (data.service_range.max_distance <= 0) {
+      throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.InvalidDistance);
+    }
+    let miles = data.service_range.max_distance;
+    if (data.service_range.unit === "km") {
+      miles = data.service_range.max_distance / 1.60934;
+    }
+    updates.push("max_distance_miles = ?");
+    values.push(miles.toFixed(2));
+    updates.push("unit = ?");
+    values.push(data.service_range.unit);
+  }
+
+  if (updates.length === 0) {
+    return;
+  }
+
+  values.push(slotId, plebId);
+  await pool.query<ResultSetHeader>(
+    `UPDATE pleb_availability SET ${updates.join(", ")} WHERE id = ? AND pleb_id = ? AND specific_date IS NULL`,
+    values
+  );
+}
+
+/**
+ * Delete a single day-of-week availability slot (hard delete)
+ */
+async function deleteDaySlot(plebId: number, slotId: number): Promise<void> {
+  await validatePleb(plebId);
+
+  const [result] = await pool.query<ResultSetHeader>(
+    "DELETE FROM pleb_availability WHERE id = ? AND pleb_id = ? AND specific_date IS NULL",
+    [slotId, plebId]
+  );
+
+  if (result.affectedRows === 0) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, Errors.DaySlotNotFound);
+  }
+}
+
+// **** Calendar View **** //
+
+/**
+ * Get merged calendar view for a month (date-specific overrides weekly recurring)
+ */
+async function getCalendarView(
+  plebId: number,
+  month: number,
+  year: number
+): Promise<IPlebCalendarResponse> {
+  await validatePleb(plebId);
+
+  const startOfMonth = moment({ year, month: month - 1, day: 1 });
+  const endOfMonth = startOfMonth.clone().endOf("month");
+  const daysInMonth = endOfMonth.date();
+
+  // Fetch weekly recurring slots (where specific_date IS NULL)
+  const [weeklyRows] = await pool.query<RowDataPacket[]>(
+    `SELECT id, day_of_week, start_time, end_time, is_available, max_distance_miles, max_distance_km, unit
+     FROM pleb_availability WHERE pleb_id = ? AND specific_date IS NULL
+     ORDER BY FIELD(day_of_week, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'), start_time ASC`,
+    [plebId]
+  );
+
+  // Group weekly slots by day name
+  const weeklyByDay = new Map<string, Array<{ id: number; start_time: string; end_time: string; is_available: boolean }>>();
+  let serviceRange = { max_distance_miles: 0, max_distance_km: 0, unit: "miles" as "miles" | "km" };
+
+  for (const row of weeklyRows) {
+    const day = row.day_of_week as string;
+    if (!weeklyByDay.has(day)) {
+      weeklyByDay.set(day, []);
+    }
+    weeklyByDay.get(day)!.push({
+      id: row.id,
+      start_time: String(row.start_time).substring(0, 5),
+      end_time: String(row.end_time).substring(0, 5),
+      is_available: Number(row.is_available) === 1,
+    });
+    if (serviceRange.max_distance_miles === 0) {
+      serviceRange = {
+        max_distance_miles: Number(row.max_distance_miles),
+        max_distance_km: Number(row.max_distance_km),
+        unit: row.unit || "miles",
+      };
+    }
+  }
+
+  // Fetch date-specific slots for this month (where specific_date IS NOT NULL)
+  const [dateRows] = await pool.query<RowDataPacket[]>(
+    `SELECT id, specific_date, start_time, end_time, is_available, max_distance_miles, max_distance_km, unit, notes
+     FROM pleb_availability
+     WHERE pleb_id = ? AND specific_date IS NOT NULL AND specific_date >= ? AND specific_date <= ?
+     ORDER BY specific_date ASC, start_time ASC`,
+    [plebId, startOfMonth.format("YYYY-MM-DD"), endOfMonth.format("YYYY-MM-DD")]
+  );
+
+  // Group date-specific slots by date
+  const dateByDay = new Map<string, Array<{ id: number; start_time: string; end_time: string; is_available: boolean; notes: string | null }>>();
+  for (const row of dateRows) {
+    const dateKey = moment(row.specific_date).format("YYYY-MM-DD");
+    if (!dateByDay.has(dateKey)) {
+      dateByDay.set(dateKey, []);
+    }
+    dateByDay.get(dateKey)!.push({
+      id: row.id,
+      start_time: String(row.start_time).substring(0, 5),
+      end_time: String(row.end_time).substring(0, 5),
+      is_available: Number(row.is_available) === 1,
+      notes: row.notes || null,
+    });
+    if (serviceRange.max_distance_miles === 0) {
+      serviceRange = {
+        max_distance_miles: Number(row.max_distance_miles),
+        max_distance_km: Number(row.max_distance_km),
+        unit: row.unit || "miles",
+      };
+    }
+  }
+
+  // Build calendar days
+  const days: IPlebCalendarDay[] = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const currentDate = startOfMonth.clone().date(d);
+    const dateStr = currentDate.format("YYYY-MM-DD");
+    const dayOfWeek = currentDate.format("dddd");
+
+    if (dateByDay.has(dateStr)) {
+      days.push({
+        date: dateStr,
+        day_of_week: dayOfWeek,
+        source: "date_specific",
+        slots: dateByDay.get(dateStr)!,
+      });
+    } else if (weeklyByDay.has(dayOfWeek) && weeklyByDay.get(dayOfWeek)!.length > 0) {
+      days.push({
+        date: dateStr,
+        day_of_week: dayOfWeek,
+        source: "weekly_recurring",
+        slots: weeklyByDay.get(dayOfWeek)!.map((s) => ({ ...s, notes: null })),
+      });
+    } else {
+      days.push({
+        date: dateStr,
+        day_of_week: dayOfWeek,
+        source: "none",
+        slots: [],
+      });
+    }
+  }
+
+  return {
+    pleb_id: plebId,
+    month,
+    year,
+    service_range: serviceRange,
+    days,
+  };
+}
+
 type IPlebAvailabilityRow = RowDataPacket & {
   pleb_id: number;
   full_name: string;
@@ -474,7 +1115,8 @@ type IPlebAvailabilityRow = RowDataPacket & {
 };
 
 /**
- * Find active plebs who are available for a specific booking slot and within their travel range
+ * Find active plebs who are available for a specific booking slot and within their travel range.
+ * Checks date-specific availability first; falls back to weekly recurring if no date entries exist.
  */
 async function getAvailablePlebsForBooking(params: {
   booking_date: string;
@@ -507,8 +1149,40 @@ async function getAvailablePlebsForBooking(params: {
   const dayOfWeek = bookingDate.format("dddd");
   const normalizedTime = normalizeBookingTime(booking_time);
   const sqlTime = `${normalizedTime}:00`;
+  const dateStr = bookingDate.format("YYYY-MM-DD");
 
-  const [rows] = await pool.query<RowDataPacket[]>(
+  // Step 1: Check date-specific availability for the exact date
+  const [dateRows] = await pool.query<RowDataPacket[]>(
+    `SELECT 
+      pleb.id AS pleb_id,
+      pleb.full_name,
+      pleb.email,
+      pleb.phone,
+      pleb.lat,
+      pleb.lng,
+      ? AS day_of_week,
+      avail.start_time,
+      avail.end_time,
+      avail.max_distance_miles
+    FROM phlebotomy_applications pleb
+    INNER JOIN pleb_availability avail ON pleb.id = avail.pleb_id
+    WHERE pleb.is_active = 1
+      AND avail.is_available = 1
+      AND avail.specific_date = ?
+      AND avail.start_time <= ?
+      AND avail.end_time > ?`,
+    [dayOfWeek, dateStr, sqlTime, sqlTime]
+  );
+
+  // Track which plebs have date-specific entries (even if not matching time)
+  const [plebsWithDateEntries] = await pool.query<RowDataPacket[]>(
+    `SELECT DISTINCT pleb_id FROM pleb_availability WHERE specific_date = ?`,
+    [dateStr]
+  );
+  const plebsWithDateOverrides = new Set(plebsWithDateEntries.map((r) => Number(r.pleb_id)));
+
+  // Step 2: Check weekly recurring for plebs that DON'T have date-specific entries
+  const [weeklyRows] = await pool.query<RowDataPacket[]>(
     `SELECT 
       pleb.id AS pleb_id,
       pleb.full_name,
@@ -524,14 +1198,21 @@ async function getAvailablePlebsForBooking(params: {
     INNER JOIN pleb_availability avail ON pleb.id = avail.pleb_id
     WHERE pleb.is_active = 1
       AND avail.is_available = 1
+      AND avail.specific_date IS NULL
       AND avail.day_of_week = ?
       AND avail.start_time <= ?
       AND avail.end_time > ?`,
     [dayOfWeek, sqlTime, sqlTime]
   );
 
+  // Merge: date-specific rows + weekly rows (only for plebs without date overrides)
+  const allRows = [
+    ...dateRows,
+    ...weeklyRows.filter((row) => !plebsWithDateOverrides.has(Number(row.pleb_id))),
+  ];
+
   const uniqueRows = new Map<number, IPlebAvailabilityRow>();
-  rows.forEach((row) => {
+  allRows.forEach((row) => {
     const plebId = Number((row as IPlebAvailabilityRow).pleb_id);
     if (!uniqueRows.has(plebId)) {
       uniqueRows.set(plebId, row as IPlebAvailabilityRow);
@@ -586,6 +1267,15 @@ async function getAvailablePlebsForBooking(params: {
 export default {
   getAvailabilityAndRange,
   updateAvailabilityAndRange,
+  getDateAvailability,
+  addDateSlots,
+  updateDateSlot,
+  deleteDateSlot,
+  getDayAvailability,
+  addDaySlot,
+  updateDaySlot,
+  deleteDaySlot,
+  getCalendarView,
   getAvailablePlebsForBooking,
   Errors,
 } as const;

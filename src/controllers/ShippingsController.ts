@@ -36,8 +36,11 @@ async function getAll(req: IReq, res: IRes) {
       : [];
     const hasProduct319 = testIds.includes(319);
     const shippingIds = [2, 6, hasProduct319 ? 9 : 7];
-    const shipping_types = await ShippingsService.getByIds(shippingIds);
-    return res.status(HttpStatusCodes.OK).json({ shipping_types });
+    const [shipping_types, allow_credit_pay] = await Promise.all([
+      ShippingsService.getByIds(shippingIds),
+      ShippingsService.isCreditPayAllowed(sessionUser.id),
+    ]);
+    return res.status(HttpStatusCodes.OK).json({ shipping_types, allow_credit_pay });
   }
 
   const shipping_types = await ShippingsService.getAll();

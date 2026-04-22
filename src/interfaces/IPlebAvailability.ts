@@ -93,3 +93,118 @@ export interface IPlebAvailableForBooking {
   distance_km: number;
   distance_text: string;
 }
+
+// **** Date-Specific Availability Interfaces **** //
+
+/**
+ * A single date-specific availability slot (DB row)
+ */
+export interface IPlebDateAvailabilitySlot {
+  id?: number;
+  pleb_id: number;
+  specific_date: string; // YYYY-MM-DD
+  start_time: string;    // HH:mm or HH:mm:ss
+  end_time: string;      // HH:mm or HH:mm:ss
+  is_available: number;  // 0 or 1
+  max_distance_miles: number;
+  max_distance_km?: number;
+  unit: 'miles' | 'km';
+  notes?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/**
+ * Request body for creating date-specific slot(s)
+ */
+export interface IPlebDateSlotCreateRequest {
+  slots: Array<{
+    specific_date: string; // YYYY-MM-DD
+    start_time: string;
+    end_time: string;
+    is_available?: boolean;
+    notes?: string;
+  }>;
+  service_range: {
+    max_distance: number;
+    unit: 'miles' | 'km';
+  };
+  pleb_id?: number; // Only required for admin
+}
+
+/**
+ * Request body for updating a single date-specific slot
+ */
+export interface IPlebDateSlotUpdateRequest {
+  specific_date?: string;
+  start_time?: string;
+  end_time?: string;
+  is_available?: boolean;
+  notes?: string;
+  service_range?: {
+    max_distance: number;
+    unit: 'miles' | 'km';
+  };
+}
+
+// **** Per Day (day-of-week) Availability Interfaces **** //
+
+/**
+ * Request body for creating a single day-of-week slot
+ */
+export interface IPlebDaySlotCreateRequest {
+  day_of_week: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
+  start_time: string;  // HH:mm
+  end_time: string;    // HH:mm
+  is_available?: boolean;
+  service_range: {
+    max_distance: number;
+    unit: 'miles' | 'km';
+  };
+  pleb_id?: number; // Only required for admin
+}
+
+/**
+ * Request body for updating a single day-of-week slot
+ */
+export interface IPlebDaySlotUpdateRequest {
+  day_of_week?: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
+  start_time?: string;
+  end_time?: string;
+  is_available?: boolean;
+  service_range?: {
+    max_distance: number;
+    unit: 'miles' | 'km';
+  };
+}
+
+/**
+ * A single day entry in the calendar view
+ */
+export interface IPlebCalendarDay {
+  date: string;       // YYYY-MM-DD
+  day_of_week: string;
+  source: 'date_specific' | 'weekly_recurring' | 'none';
+  slots: Array<{
+    id?: number;
+    start_time: string;
+    end_time: string;
+    is_available: boolean;
+    notes?: string | null;
+  }>;
+}
+
+/**
+ * Response structure for the calendar view
+ */
+export interface IPlebCalendarResponse {
+  pleb_id: number;
+  month: number;
+  year: number;
+  service_range: {
+    max_distance_miles: number;
+    max_distance_km: number;
+    unit: 'miles' | 'km';
+  };
+  days: IPlebCalendarDay[];
+}
