@@ -239,10 +239,59 @@ async function getAll(): Promise<IPlebJob[]> {
 
 async function getByPlebId(plebId: number): Promise<IPlebJob[]> {
   const [rows] = await pool.query<RowDataPacket[]>(
-    "SELECT id, tracking_number, pleb_id, order_id, job_status, created_at FROM pleb_jobs WHERE pleb_id = ? ORDER BY id DESC",
+    `SELECT
+        pj.id,
+        pj.tracking_number,
+        pj.pleb_id,
+        pj.order_id,
+        pj.job_status,
+        pj.created_at,
+        customers.fore_name AS customer_fore_name,
+        customers.address AS c_address,
+        customers.town AS c_town,
+        customers.postal_code AS c_postal_code,
+        DATE_FORMAT(cpb.client_booking_date, '%Y-%m-%d') AS client_booking_date,
+        TIME_FORMAT(cpb.client_booking_start_time, '%H:%i') AS client_booking_start_time,
+        TIME_FORMAT(cpb.client_booking_end_time, '%H:%i') AS client_booking_end_time
+      FROM pleb_jobs pj
+      LEFT JOIN orders ON pj.order_id = orders.id
+      LEFT JOIN customers ON orders.customer_id = customers.id
+      LEFT JOIN customer_phleb_bookings cpb
+        ON cpb.order_id = orders.id
+        AND cpb.id = (
+          SELECT MAX(cpb2.id) FROM customer_phleb_bookings cpb2 WHERE cpb2.order_id = orders.id
+        )
+      WHERE pj.pleb_id = ?
+      ORDER BY pj.id DESC`,
     [plebId]
   );
-  return rows as unknown as IPlebJob[];
+
+  return rows.map((row) => {
+    const customer_full_address = buildCustomerAddress({
+      address: row.c_address,
+      town: row.c_town,
+      postal_code: row.c_postal_code,
+    });
+    const start = normalizeString(row.client_booking_start_time);
+    const end = normalizeString(row.client_booking_end_time);
+    const booking_time =
+      start && end ? `${start} - ${end}` : start ?? end ?? null;
+
+    return {
+      id: Number(row.id),
+      tracking_number: String(row.tracking_number ?? ""),
+      pleb_id: Number(row.pleb_id),
+      order_id: Number(row.order_id),
+      job_status: String(row.job_status ?? ""),
+      created_at: String(row.created_at ?? ""),
+      customer_fore_name: normalizeString(row.customer_fore_name),
+      customer_full_address,
+      client_booking_date: normalizeString(row.client_booking_date),
+      client_booking_start_time: start,
+      client_booking_end_time: end,
+      booking_time,
+    };
+  });
 }
 
 async function updateStatus(id: number, jobStatus: string, trackingNumber?: string): Promise<boolean> {
