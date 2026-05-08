@@ -179,9 +179,9 @@ const getPlebJobContext = async (jobId: number): Promise<IPlebJobContext | null>
         cpb.client_booking_end_time AS booking_end_time
       FROM pleb_jobs pj
       LEFT JOIN phlebotomy_applications pleb ON pj.pleb_id = pleb.id
-      LEFT JOIN orders ON pj.order_id = orders.id
+      LEFT JOIN orders ON pj.order_id = orders.id OR pj.order_id = orders.id_on_wp
       LEFT JOIN customers ON orders.customer_id = customers.id
-      LEFT JOIN customer_phleb_bookings cpb ON cpb.order_id = orders.id
+      LEFT JOIN customer_phleb_bookings cpb ON cpb.order_id = pj.order_id
       WHERE pj.id = ?
       LIMIT 1`,
     [jobId]
@@ -251,15 +251,15 @@ async function getByPlebId(plebId: number): Promise<IPlebJob[]> {
         customers.town AS c_town,
         customers.postal_code AS c_postal_code,
         DATE_FORMAT(cpb.client_booking_date, '%Y-%m-%d') AS client_booking_date,
-        TIME_FORMAT(cpb.client_booking_start_time, '%H:%i') AS client_booking_start_time,
-        TIME_FORMAT(cpb.client_booking_end_time, '%H:%i') AS client_booking_end_time
+        cpb.client_booking_start_time,
+        cpb.client_booking_end_time
       FROM pleb_jobs pj
-      LEFT JOIN orders ON pj.order_id = orders.id
+      LEFT JOIN orders ON pj.order_id = orders.id OR pj.order_id = orders.id_on_wp
       LEFT JOIN customers ON orders.customer_id = customers.id
       LEFT JOIN customer_phleb_bookings cpb
-        ON cpb.order_id = orders.id
+        ON cpb.order_id = pj.order_id
         AND cpb.id = (
-          SELECT MAX(cpb2.id) FROM customer_phleb_bookings cpb2 WHERE cpb2.order_id = orders.id
+          SELECT MAX(cpb2.id) FROM customer_phleb_bookings cpb2 WHERE cpb2.order_id = pj.order_id
         )
       WHERE pj.pleb_id = ?
       ORDER BY pj.id DESC`,
@@ -482,8 +482,8 @@ async function assignJob(
   // Mark order as assigned to avoid duplicates in available list
   try {
     await pool.query<ResultSetHeader>(
-      "UPDATE orders SET is_job_assigned = 1 WHERE id = ?",
-      [orderId]
+      "UPDATE orders SET is_job_assigned = 1 WHERE id = ? OR id_on_wp = ?",
+      [orderId, orderId]
     );
   } catch (e) {
     console.error("❌ Failed to mark order as assigned:", e instanceof Error ? e.message : e);
@@ -610,8 +610,9 @@ async function getDistanceBetweenPlebAndCustomer(plebId: number, orderId: number
       orders.client_name AS client_name
     FROM orders 
     LEFT JOIN customers ON orders.customer_id = customers.id
-    WHERE orders.id = ?`,
-    [orderId]
+    WHERE orders.id = ? OR orders.id_on_wp = ?
+    LIMIT 1`,
+    [orderId, orderId]
   );
   if (orderRows.length === 0) {
     throw new RouteError(HttpStatusCodes.NOT_FOUND, E.DistanceOrderNotFound);

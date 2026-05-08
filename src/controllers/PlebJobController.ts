@@ -191,8 +191,8 @@ async function assignJob(req: IReq<{ pleb_id: number; order_id: number; job_stat
 
   try {
     const [orderRows] = await pool.query<RowDataPacket[]>(
-      "SELECT is_job_assigned FROM orders WHERE id = ? LIMIT 1",
-      [Number(order_id)]
+      "SELECT is_job_assigned FROM orders WHERE id = ? OR id_on_wp = ? LIMIT 1",
+      [Number(order_id), Number(order_id)]
     );
 
     if (orderRows.length === 0) {
