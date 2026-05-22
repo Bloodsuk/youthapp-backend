@@ -4,6 +4,7 @@ import { RowDataPacket } from "mysql2";
 import { IReq, IRes } from "@src/types/express/misc";
 import { RouteError } from "@src/other/classes";
 import PlebJobService from "@src/services/PlebJobService";
+import PlebLiveLocationService from "@src/services/PlebLiveLocationService";
 import PhlebotomistService from "@src/services/PhlebotomistService";
 import { UserLevels } from "@src/constants/enums";
 import { canAssignJobs } from "@src/util/JobAssignmentAuth";
@@ -290,6 +291,36 @@ async function getDistance(req: IReq<{ pleb_id: number; order_id: number }>, res
   }
 }
 
+/**
+ * Get live location of the phleb assigned to an order (REST fallback for polling)
+ */
+async function getLiveLocation(req: IReq, res: IRes) {
+  const orderId = Number(req.params.order_id);
+  if (!orderId || !Number.isInteger(orderId) || orderId < 1) {
+    return res.status(HttpStatusCodes.BAD_REQUEST).json({
+      success: false,
+      error: "Valid order_id is required.",
+    }).end();
+  }
+
+  try {
+    const location = await PlebLiveLocationService.getLiveLocationByOrder(orderId);
+    if (!location) {
+      return res.status(HttpStatusCodes.NOT_FOUND).json({
+        success: false,
+        error: "No live location available for this order.",
+      }).end();
+    }
+    return res.status(HttpStatusCodes.OK).json({ success: true, data: location }).end();
+  } catch (error) {
+    console.error("[getLiveLocation] Error:", error);
+    return res.status(HttpStatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: "Failed to retrieve live location.",
+    }).end();
+  }
+}
+
 // **** Export default **** //
 
 export default {
@@ -299,4 +330,5 @@ export default {
   getAllPlebs,
   assignJob,
   getDistance,
+  getLiveLocation,
 } as const;

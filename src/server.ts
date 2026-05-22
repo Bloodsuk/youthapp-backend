@@ -49,6 +49,10 @@ if (EnvVars.NodeEnv === NodeEnvs.Production.valueOf()) {
 
 export let pool: mysql.Pool;
 
+export function setPool(p: mysql.Pool) {
+  pool = p;
+}
+
 app.use(async (req, res, next) => {
   if (pool) {
     return next();

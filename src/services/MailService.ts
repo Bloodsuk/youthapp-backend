@@ -446,30 +446,26 @@ const sendPhlebotomistCredentialsEmail = async (name: string, email: string, pas
   };
   const transporter = nodemailer.createTransport(mailerConfig);
 
-  renderFile(
-    __dirname + "/mail_templates/phlebotomist_credentials.ejs",
-    { name, email, password, title },
-    (err, data) => {
-      if (err) {
-        console.log(err);
-        throw new Error("Error rendering email template");
-      } else {
-        const mailOptions = {
-          from: from,
-          to: email,
-          subject: subject,
-          html: data,
-        };
-
-        transporter.sendMail(mailOptions, (error, info) => {
-          if (error) {
-            return console.log(error);
-          }
-          console.log("Phlebotomist credentials email sent: %s", info.messageId);
-        });
+  const html = await new Promise<string>((resolve, reject) => {
+    renderFile(
+      __dirname + "/mail_templates/phlebotomist_credentials.ejs",
+      { name, email, password, title },
+      (err, data) => {
+        if (err) reject(err);
+        else resolve(data);
       }
-    }
-  );
+    );
+  });
+
+  const mailOptions = {
+    from: from,
+    to: email,
+    subject: subject,
+    html: html,
+  };
+
+  const info = await transporter.sendMail(mailOptions);
+  console.log("Phlebotomist credentials email sent: %s", info.messageId);
 };
 
 type Recipient = string | string[];
@@ -716,7 +712,7 @@ const sendEmail = async (
       subject,
       error: err instanceof Error ? err.message : String(err),
     });
-    throw err;
+    // Do not fail API requests when SMTP is unavailable (common in local dev).
   }
 };
 
@@ -1309,7 +1305,7 @@ const sendNewOrderFromAppEmail = async (
 ): Promise<void> => {
   const html = buildNewOrderFromAppHtml(payload);
   await sendEmail(
-    ["info@youth-revisited.co.uk", "Jadebradley.work@gmail.com"],
+    ["orders@youth-revisited.co.uk"],
     "New Order from App",
     html,
     { cc: null }

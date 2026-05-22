@@ -33,8 +33,8 @@ async function login(req: IReq<ILoginReq>, res: IRes) {
       // Check if phlebotomist already has a password
       const existingPhlebotomist = await PhlebotomistService.getPhlebotomistByEmail(email);
       
-      if (existingPhlebotomist && existingPhlebotomist.password) {
-        // Phlebotomist already has a password, treat as normal login
+      if (existingPhlebotomist && existingPhlebotomist.password && existingPhlebotomist.is_email_sent === 1) {
+        // Phlebotomist already has a password AND email was sent, treat as normal login
         if (!password) {
           return res
             .status(HttpStatusCodes.BAD_REQUEST)
@@ -68,7 +68,7 @@ async function login(req: IReq<ILoginReq>, res: IRes) {
           })
           .end();
       } else {
-        // No existing password, generate new one
+        // No existing password OR email was never sent — generate new password and send email
         const newPassword = await PhlebotomistService.createPasswordForPhlebotomist(email);
         
         return res

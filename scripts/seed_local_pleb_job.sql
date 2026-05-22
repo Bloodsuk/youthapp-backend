@@ -1,0 +1,18 @@
+-- Optional: sample order + job for test phleb. Uncomment blocks below to seed.
+--
+-- DELETE FROM pleb_jobs WHERE pleb_id = 1;
+-- DELETE FROM orders WHERE id = 90001;
+--
+-- INSERT INTO orders (
+--   id, order_id, transaction_id, customer_id, test_ids,
+--   client_name, subtotal, total_val, shipping_type,
+--   checkout_type, status, payment_status, order_placed_by,
+--   created_by, approved, is_job_assigned
+-- ) VALUES (
+--   90001, 'ORD-TEST-90001', 'txn_test_90001', 90001, '1',
+--   'Test Customer', '50.00', 50.00, '1', 'stripe', 'Completed', 'Paid',
+--   90001, 1, 1, 1
+-- );
+--
+-- INSERT INTO pleb_jobs (tracking_number, pleb_id, order_id, job_status, created_at)
+-- VALUES ('TRK-TEST-001', 1, 90001, 'Assigned', NOW());

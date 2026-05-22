@@ -44,6 +44,12 @@ plebJobRouter.post(
   PlebJobController.getDistance
 );
 
+// Get live location of phleb for an order (polling fallback)
+plebJobRouter.get(
+  Paths.PlebJobs.LiveLocation,
+  PlebJobController.getLiveLocation
+);
+
 // Get merged calendar view (monthly) — must be before /availability/:pleb_id?
 plebJobRouter.get(
   Paths.PlebJobs.GetCalendar,

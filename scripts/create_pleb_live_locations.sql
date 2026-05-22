@@ -1,0 +1,11 @@
+CREATE TABLE IF NOT EXISTS pleb_live_locations (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  pleb_id INT NOT NULL,
+  job_id INT NOT NULL,
+  lat DECIMAL(10,8) NOT NULL,
+  lng DECIMAL(11,8) NOT NULL,
+  customer_lat DECIMAL(10,8) DEFAULT NULL,
+  customer_lng DECIMAL(11,8) DEFAULT NULL,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_pleb_job (pleb_id, job_id)
+);

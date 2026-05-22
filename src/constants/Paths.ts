@@ -229,6 +229,7 @@ export default {
     GetAllPlebs: "/plebs/all",
     AssignJob: "/assign",
     Distance: "/distance",
+    LiveLocation: "/live_location/:order_id",
     GetAvailability: "/availability/:pleb_id?",
     UpdateAvailability: "/availability",
     GetDateAvailability: "/availability/dates/:pleb_id?",
