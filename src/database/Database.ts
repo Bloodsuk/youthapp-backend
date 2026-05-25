@@ -21,16 +21,29 @@ export async function createPool() {
       enableKeepAlive: true,
       keepAliveInitialDelay: 0,
     });
+    const host = EnvVars.MySQL.Host;
+    const isProtected = process.env.DB_PROTECTED === "1";
+    const isLocal =
+      host === "127.0.0.1" || host === "localhost" || host === "::1";
     console.log("Db ========", {
       user: EnvVars.MySQL.User,
-      password: EnvVars.MySQL.Password,
-      host: EnvVars.MySQL.Host,
+      host,
       database: EnvVars.MySQL.Database,
+      protected: isProtected,
     });
-    
+    if (isProtected) {
+      console.warn(
+        "[DB] DB_PROTECTED=1 — live database mode. Destructive seed scripts are blocked."
+      );
+    } else if (!isLocal) {
+      console.warn(
+        "[DB] Remote DB host. Do not run npm run db:local-setup or seed scripts."
+      );
+    }
+
     pool.getConnection()
       .then((connection) => {
-        console.log('Database connection successful');
+        console.log("Database connection successful");
         connection.release();
       })
       .catch((error) => {

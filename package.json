@@ -8,6 +8,7 @@
     "start": "node -r module-alias/register ./dist",
     "dev": "nodemon",
     "dev:local": "PATH=\"/opt/homebrew/opt/node@20/bin:$PATH\" nodemon --exec \"./node_modules/.bin/ts-node --files -r tsconfig-paths/register ./src -e local\"",
+    "dev:live": "PATH=\"/opt/homebrew/opt/node@20/bin:$PATH\" nodemon --exec \"./node_modules/.bin/ts-node --files -r tsconfig-paths/register ./src -e live\"",
     "db:local-setup": "bash scripts/seed_local_full.sh",
     "db:seed-full": "bash scripts/seed_local_full.sh",
     "test": "nodemon --config ./spec/nodemon.json",

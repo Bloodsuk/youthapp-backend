@@ -32,6 +32,61 @@ const distanceCache = new Map<
 
 const MOVEMENT_THRESHOLD_METERS = 100;
 const CACHE_TTL_MS = 30_000; // 30 seconds
+/** Reject stale/test GPS in another region when customer sent live coords. */
+export const MAX_PLAUSIBLE_SEPARATION_METERS = 100_000;
+/** Only serve GPS written by a recent phleb `update_location` event (not old DB rows). */
+export const FRESH_GPS_MAX_AGE_MS = 3 * 60 * 1000;
+
+interface ILivePhlebSnapshot {
+  plebLat: number;
+  plebLng: number;
+  updatedAtMs: number;
+}
+
+/** Latest phleb GPS per order from socket events (source of truth while server is up). */
+const livePhlebByOrder = new Map<number, ILivePhlebSnapshot>();
+
+export function isGpsTimestampFresh(updatedAt: unknown): boolean {
+  if (updatedAt == null) return false;
+  const ms = new Date(updatedAt as string | Date).getTime();
+  if (!Number.isFinite(ms)) return false;
+  return Date.now() - ms <= FRESH_GPS_MAX_AGE_MS;
+}
+
+/** Called on every successful phleb `update_location` — never read stale DB over this. */
+export function recordLivePhlebGps(orderId: number, lat: number, lng: number): void {
+  livePhlebByOrder.set(orderId, {
+    plebLat: lat,
+    plebLng: lng,
+    updatedAtMs: Date.now(),
+  });
+}
+
+function getSessionPhlebGps(
+  orderId: number
+): { lat: number; lng: number; updatedAtMs: number } | null {
+  const snap = livePhlebByOrder.get(orderId);
+  if (!snap) return null;
+  if (Date.now() - snap.updatedAtMs > FRESH_GPS_MAX_AGE_MS) return null;
+  return {
+    lat: snap.plebLat,
+    lng: snap.plebLng,
+    updatedAtMs: snap.updatedAtMs,
+  };
+}
+
+export function coordsArePlausibleForTracking(
+  plebLat: number,
+  plebLng: number,
+  custLat?: number | null,
+  custLng?: number | null
+): boolean {
+  if (custLat == null || custLng == null) return true;
+  return (
+    haversineDistance(plebLat, plebLng, custLat, custLng) <=
+    MAX_PLAUSIBLE_SEPARATION_METERS
+  );
+}
 
 function haversineDistance(
   lat1: number,
@@ -179,14 +234,14 @@ async function calculateDistanceByAddress(
 }
 
 /**
- * Persist customer coordinates to DB (best-effort, not blocking).
+ * Persist customer device GPS on the tracking row only (not `customers` table).
+ * Only updates an existing `pleb_live_locations` row created by phleb GPS events.
  */
 async function saveCustomerCoordinates(
   orderId: number,
   customerLat: number,
   customerLng: number
 ): Promise<void> {
-  // Update any existing rows for this order
   await pool.query<ResultSetHeader>(
     `UPDATE pleb_live_locations pll
      JOIN pleb_jobs pj ON pj.id = pll.job_id AND pj.pleb_id = pll.pleb_id
@@ -207,15 +262,6 @@ async function upsertAndCalculate(
   lng: number,
   customerCoordsMap?: Map<number, { lat: number; lng: number }>
 ): Promise<ILocationUpdate> {
-  // Upsert the live location
-  await pool.query<ResultSetHeader>(
-    `INSERT INTO pleb_live_locations (pleb_id, job_id, lat, lng, updated_at)
-     VALUES (?, ?, ?, ?, NOW())
-     ON DUPLICATE KEY UPDATE lat = VALUES(lat), lng = VALUES(lng), updated_at = NOW()`,
-    [plebId, jobId, lat, lng]
-  );
-
-  // Get the order_id for this job
   const [jobRows] = await pool.query<RowDataPacket[]>(
     "SELECT order_id FROM pleb_jobs WHERE id = ? AND pleb_id = ? LIMIT 1",
     [jobId, plebId]
@@ -233,6 +279,47 @@ async function upsertAndCalculate(
   }
 
   const orderId = jobRows[0].order_id;
+  const memoryCoords = customerCoordsMap?.get(orderId);
+
+  // Customer is on live device GPS — do not store/simulator junk (e.g. iOS default SF).
+  if (
+    memoryCoords &&
+    !coordsArePlausibleForTracking(lat, lng, memoryCoords.lat, memoryCoords.lng)
+  ) {
+    console.warn(
+      `[LiveDistance] skip update_location order ${orderId}: phleb ${lat},${lng} vs customer ${memoryCoords.lat},${memoryCoords.lng}`
+    );
+    return {
+      distance_text: "Unavailable",
+      distance_value: 0,
+      duration_text: "Unavailable",
+      duration_value: 0,
+      order_id: orderId,
+      updated_at: new Date().toISOString(),
+    };
+  }
+
+  // Upsert phleb GPS from this event (+ customer device GPS when track_job provided it).
+  await pool.query<ResultSetHeader>(
+    `INSERT INTO pleb_live_locations (pleb_id, job_id, lat, lng, customer_lat, customer_lng, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, NOW())
+     ON DUPLICATE KEY UPDATE
+       lat = VALUES(lat),
+       lng = VALUES(lng),
+       customer_lat = COALESCE(VALUES(customer_lat), customer_lat),
+       customer_lng = COALESCE(VALUES(customer_lng), customer_lng),
+       updated_at = NOW()`,
+    [
+      plebId,
+      jobId,
+      lat,
+      lng,
+      memoryCoords?.lat ?? null,
+      memoryCoords?.lng ?? null,
+    ]
+  );
+
+  recordLivePhlebGps(orderId, lat, lng);
 
   // Check cache — skip Google API if phleb hasn't moved significantly
   const cacheKey = `${plebId}_${jobId}`;
@@ -251,29 +338,19 @@ async function upsertAndCalculate(
     }
   }
 
-  // Get customer coordinates — first from memory map, then from DB, then fallback to text address
-  const memoryCoords = customerCoordsMap?.get(orderId);
-
+  // Customer side: prefer live track_job GPS from memory; never use old DB customer_lat for distance.
   let result: IDistanceResult;
   try {
     if (memoryCoords) {
-      // Best case: customer sent their GPS coords via track_job
-      result = await calculateDistanceByCoords(lat, lng, memoryCoords.lat, memoryCoords.lng);
-    } else {
-      // Check DB for customer_lat/lng
-      const [locRows] = await pool.query<RowDataPacket[]>(
-        "SELECT customer_lat, customer_lng FROM pleb_live_locations WHERE pleb_id = ? AND job_id = ? LIMIT 1",
-        [plebId, jobId]
+      result = await calculateDistanceByCoords(
+        lat,
+        lng,
+        memoryCoords.lat,
+        memoryCoords.lng
       );
-      const dbCustLat = locRows[0]?.customer_lat ? parseFloat(locRows[0].customer_lat) : null;
-      const dbCustLng = locRows[0]?.customer_lng ? parseFloat(locRows[0].customer_lng) : null;
-
-      if (dbCustLat != null && dbCustLng != null) {
-        result = await calculateDistanceByCoords(lat, lng, dbCustLat, dbCustLng);
-      } else {
-        // Last resort: use text address from customers table
-        result = await calculateDistanceByAddress(lat, lng, jobId);
-      }
+    } else {
+      // No live customer GPS yet — order address fallback only for distance text.
+      result = await calculateDistanceByAddress(lat, lng, jobId);
     }
   } catch (err) {
     console.error("[LiveDistance] Distance calculation failed:", err instanceof Error ? err.message : err);
@@ -305,34 +382,58 @@ async function getLiveLocationByOrder(
   orderId: number,
   customerCoords?: { lat: number; lng: number }
 ): Promise<ILiveLocationResponse | null> {
-  const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT pll.lat, pll.lng, pll.customer_lat, pll.customer_lng, pll.updated_at
-     FROM pleb_live_locations pll
-     JOIN pleb_jobs pj ON pj.id = pll.job_id AND pj.pleb_id = pll.pleb_id
-     WHERE pj.order_id = ? AND pj.job_status NOT IN ('Delivered', 'Cancelled')
-     ORDER BY pll.updated_at DESC
-     LIMIT 1`,
-    [orderId]
-  );
+  const session = getSessionPhlebGps(orderId);
+  let plebLat: number;
+  let plebLng: number;
+  let updatedAt: string;
 
-  if (rows.length === 0) {
-    return null;
+  if (session) {
+    plebLat = session.lat;
+    plebLng = session.lng;
+    updatedAt = new Date(session.updatedAtMs).toISOString();
+  } else {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT pll.lat, pll.lng, pll.updated_at
+       FROM pleb_live_locations pll
+       JOIN pleb_jobs pj ON pj.id = pll.job_id AND pj.pleb_id = pll.pleb_id
+       WHERE pj.order_id = ? AND pj.job_status NOT IN ('Delivered', 'Cancelled')
+       ORDER BY pll.updated_at DESC
+       LIMIT 1`,
+      [orderId]
+    );
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    const row = rows[0];
+    if (!isGpsTimestampFresh(row.updated_at)) {
+      console.warn(
+        `[LiveDistance] no fresh phleb GPS for order ${orderId} — waiting for update_location event`
+      );
+      return null;
+    }
+
+    plebLat = parseFloat(row.lat);
+    plebLng = parseFloat(row.lng);
+    updatedAt = row.updated_at;
   }
 
-  const row = rows[0];
-  const plebLat = parseFloat(row.lat);
-  const plebLng = parseFloat(row.lng);
+  const custLat = customerCoords?.lat ?? null;
+  const custLng = customerCoords?.lng ?? null;
 
-  // Determine customer destination: memory > DB > text address
-  const custLat = customerCoords?.lat ?? (row.customer_lat ? parseFloat(row.customer_lat) : null);
-  const custLng = customerCoords?.lng ?? (row.customer_lng ? parseFloat(row.customer_lng) : null);
+  if (!coordsArePlausibleForTracking(plebLat, plebLng, custLat, custLng)) {
+    console.warn(
+      `[LiveDistance] skip implausible phleb GPS for order ${orderId}: ${plebLat},${plebLng}`
+    );
+    return null;
+  }
 
   try {
     let distance: IDistanceResult;
     if (custLat != null && custLng != null) {
       distance = await calculateDistanceByCoords(plebLat, plebLng, custLat, custLng);
     } else {
-      // Fallback to text address
       const [jobRows] = await pool.query<RowDataPacket[]>(
         `SELECT pj.id as job_id FROM pleb_jobs pj
          WHERE pj.order_id = ? AND pj.job_status NOT IN ('Delivered', 'Cancelled')
@@ -348,10 +449,13 @@ async function getLiveLocationByOrder(
       pleb_lat: plebLat,
       pleb_lng: plebLng,
       ...distance,
-      updated_at: row.updated_at,
+      updated_at: updatedAt,
     };
   } catch (err) {
-    console.error("[LiveDistance] getLiveLocationByOrder error:", err instanceof Error ? err.message : err);
+    console.error(
+      "[LiveDistance] getLiveLocationByOrder error:",
+      err instanceof Error ? err.message : err
+    );
     return {
       pleb_lat: plebLat,
       pleb_lng: plebLng,
@@ -359,7 +463,7 @@ async function getLiveLocationByOrder(
       duration_text: "Unavailable",
       distance_value: 0,
       duration_value: 0,
-      updated_at: row.updated_at,
+      updated_at: updatedAt,
     };
   }
 }
@@ -442,4 +546,6 @@ export default {
   getLiveLocationByOrder,
   clearLocation,
   clearAllLocationsForPleb,
+  recordLivePhlebGps,
+  isGpsTimestampFresh,
 } as const;

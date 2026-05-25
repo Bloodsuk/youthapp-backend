@@ -7,7 +7,7 @@ import { pool } from "@src/server";
 import crypto from "crypto";
 import { ResultSetHeader, RowDataPacket } from "mysql2";
 import MailService from "./MailService";
-import { Gender, YesNo } from "@src/constants/enums";
+import { Gender, UserLevels, YesNo } from "@src/constants/enums";
 import { ICustomer } from "@src/interfaces/ICustomer";
 
 // **** Variables **** //
@@ -24,6 +24,21 @@ export const Errors = {
 } as const;
 
 // **** Functions **** //
+
+/** phlebotomy_applications rows have no user_level — JWT must still be Phlebotomist for live GPS. */
+function normalizeLoginUser(
+  user: IUser & Record<string, unknown>
+): IUser {
+  if (user.user_level) return user as IUser;
+  if (
+    user.employment_type != null ||
+    user.travel_radius != null ||
+    user.home_address != null
+  ) {
+    return { ...(user as IUser), user_level: UserLevels.Phlebotomist };
+  }
+  return user as IUser;
+}
 
 /**
  * Login a user.
@@ -60,11 +75,11 @@ async function login(email: string, password: string) {
 
   // Now $rows > 0 means could be a Practioner or Moderator or a Customer or Phlebotomist
   if (query[0].length > 0) {
-    const user = query[0][0] as IUser;
-    if (user['status'] == 0)
+    const user = query[0][0] as IUser & Record<string, unknown>;
+    if (user["status"] == 0)
       throw new RouteError(HttpStatusCodes.UNAUTHORIZED, "Account not activated please contact administrator");
     else
-      return user;
+      return normalizeLoginUser(user);
   } else {
     throw new RouteError(HttpStatusCodes.UNAUTHORIZED, "Wrong Email or Password!!!");
   }

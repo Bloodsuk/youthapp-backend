@@ -3,7 +3,10 @@ import { Server, Socket } from "socket.io";
 import JwtHelper from "@src/util/JwtHelper";
 import { ISessionUser } from "@src/interfaces/ISessionUser";
 import { UserLevels } from "@src/constants/enums";
-import PlebLiveLocationService from "@src/services/PlebLiveLocationService";
+import PlebLiveLocationService, {
+  coordsArePlausibleForTracking,
+  isGpsTimestampFresh,
+} from "@src/services/PlebLiveLocationService";
 
 let io: Server;
 
@@ -49,15 +52,31 @@ export function initTrackingSocket(httpServer: HttpServer): void {
       `[Socket] Connected: ${user.email} (${user.user_level}) id=${socket.id}`
     );
 
-    if (user.user_level === UserLevels.Phlebotomist) {
+    if (isPhlebotomistLevel(user.user_level)) {
       registerPlebHandlers(socket, user);
-    } else if (user.user_level === UserLevels.Customer) {
+      socket.emit("tracking_auth_ok", { role: "phlebotomist" });
+    } else if (isCustomerLevel(user.user_level)) {
       registerCustomerHandlers(socket, user);
+      socket.emit("tracking_auth_ok", { role: "customer" });
+    } else {
+      console.warn(
+        `[Socket] No tracking handlers for user_level="${user.user_level}" (${user.email}). ` +
+          `Customer tracking requires "Customer" (or "Patient"); phleb requires "Phlebotomist".`
+      );
+      socket.emit("error_msg", {
+        message:
+          "This account cannot use live tracking. Sign in as the patient (Customer) or phlebotomist app.",
+        user_level: user.user_level ?? null,
+        hint:
+          !user.user_level || String(user.user_level).trim() === ""
+            ? "Your login token is outdated. Log out, use Sign in as Phleb, then sign in again."
+            : `Token role "${user.user_level}" is not valid for GPS. Phlebotomist app needs user_level Phlebotomist.`,
+      });
     }
 
     socket.on("disconnect", () => {
       cleanupSubscriptions(socket.id);
-      if (user.user_level === UserLevels.Phlebotomist) {
+      if (isPhlebotomistLevel(user.user_level)) {
         void handlePhlebDisconnect(user.id);
       }
       console.log(`[Socket] Disconnected: ${user.email} id=${socket.id}`);
@@ -94,22 +113,54 @@ function registerPlebHandlers(socket: Socket, user: ISessionUser): void {
           return;
         }
 
-        // Broadcast to all customers subscribed to any of this phleb's orders
+        console.log(
+          `[Socket] update_location pleb_id=${user.id} lat=${lat} lng=${lng} jobs=${results.map((r) => r.order_id).join(",")}`
+        );
+
+        // Broadcast only plausible GPS (socket-only path for customers).
         for (const result of results) {
-          const subscribers = orderSubscriptions.get(result.order_id);
-          if (subscribers && subscribers.size > 0) {
-            const payload = {
-              pleb_lat: lat,
-              pleb_lng: lng,
-              distance_text: result.distance_text,
-              duration_text: result.duration_text,
-              distance_value: result.distance_value,
-              duration_value: result.duration_value,
-              updated_at: result.updated_at,
-            };
-            for (const socketId of subscribers) {
-              io.to(socketId).emit("location_update", payload);
-            }
+          const orderId = result.order_id;
+          const subscribers = orderSubscriptions.get(orderId);
+          if (!subscribers || subscribers.size === 0) continue;
+
+          const customerCoords = customerCoordinates.get(orderId);
+          if (
+            customerCoords &&
+            !coordsArePlausibleForTracking(
+              lat,
+              lng,
+              customerCoords.lat,
+              customerCoords.lng
+            )
+          ) {
+            console.warn(
+              `[Socket] skip location_update broadcast order ${orderId} — phleb GPS not near customer device`
+            );
+            socket.emit("error_msg", {
+              message:
+                "Your GPS is too far from the patient (simulator default location?). Use a real device or set custom location in the simulator near the patient.",
+            });
+            continue;
+          }
+
+          if (result.distance_value === 0 && result.distance_text === "Unavailable") {
+            console.warn(
+              `[Socket] skip broadcast order ${orderId} — no valid distance yet`
+            );
+            continue;
+          }
+
+          const payload = {
+            pleb_lat: lat,
+            pleb_lng: lng,
+            distance_text: result.distance_text,
+            duration_text: result.duration_text,
+            distance_value: result.distance_value,
+            duration_value: result.duration_value,
+            updated_at: result.updated_at,
+          };
+          for (const socketId of subscribers) {
+            io.to(socketId).emit("location_update", payload);
           }
         }
       } catch (err: unknown) {
@@ -152,14 +203,32 @@ function registerCustomerHandlers(socket: Socket, _user: ISessionUser): void {
     }
     orderSubscriptions.get(order_id)!.add(socket.id);
 
-    // Send current location immediately if available
+    // Optional snapshot: only fresh event-driven GPS (not old test coordinates in DB).
     try {
+      const customerCoords = customerCoordinates.get(order_id);
       const current = await PlebLiveLocationService.getLiveLocationByOrder(
         order_id,
-        customerCoordinates.get(order_id)
+        customerCoords
       );
-      if (current) {
-        socket.emit("location_update", current);
+      if (current && isGpsTimestampFresh(current.updated_at)) {
+        const skipStale =
+          customerCoords != null &&
+          !coordsArePlausibleForTracking(
+            current.pleb_lat,
+            current.pleb_lng,
+            customerCoords.lat,
+            customerCoords.lng
+          );
+        if (!skipStale) {
+          console.log(
+            `[Socket] track_job snapshot order_id=${order_id} pleb=${current.pleb_lat},${current.pleb_lng}`
+          );
+          socket.emit("location_update", current);
+        }
+      } else {
+        console.log(
+          `[Socket] track_job order_id=${order_id} — no fresh phleb GPS yet; waiting for update_location`
+        );
       }
     } catch (err) {
       console.error("[Socket] track_job initial fetch error:", err);
@@ -180,25 +249,26 @@ function registerCustomerHandlers(socket: Socket, _user: ISessionUser): void {
 }
 
 async function handlePhlebDisconnect(plebId: number): Promise<void> {
-  try {
-    const orderIds = await PlebLiveLocationService.clearAllLocationsForPleb(plebId);
-    for (const orderId of orderIds) {
-      const subscribers = orderSubscriptions.get(orderId);
-      if (!subscribers || subscribers.size === 0) continue;
-      const payload = {
-        order_id: orderId,
-        reason: "phlebotomist_offline",
-      };
-      for (const socketId of subscribers) {
-        io.to(socketId).emit("tracking_ended", payload);
-      }
-    }
-    console.log(
-      `[Socket] Phleb ${plebId} disconnected — cleared live locations for orders: ${orderIds.join(", ") || "none"}`
-    );
-  } catch (err) {
-    console.error("[Socket] handlePhlebDisconnect error:", err);
-  }
+  // Do not DELETE pleb_live_locations on brief mobile disconnects — that leaves
+  // stale rows or empty snapshots while the phleb app is still sharing GPS.
+  console.log(
+    `[Socket] Phleb ${plebId} disconnected — keeping last GPS in DB until stop_tracking or job ends`
+  );
+}
+
+/** Customers table may use "Customer" or "Patient" depending on environment. */
+function isCustomerLevel(userLevel: string | undefined): boolean {
+  const level = (userLevel ?? "").trim().toLowerCase();
+  return level === UserLevels.Customer.toLowerCase() || level === "patient";
+}
+
+function isPhlebotomistLevel(userLevel: string | undefined): boolean {
+  const level = (userLevel ?? "").trim().toLowerCase();
+  return (
+    level === UserLevels.Phlebotomist.toLowerCase() ||
+    level === "pleb" ||
+    level === "phleb"
+  );
 }
 
 function cleanupSubscriptions(socketId: string): void {

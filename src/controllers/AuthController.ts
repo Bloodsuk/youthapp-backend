@@ -103,6 +103,17 @@ async function login(req: IReq<ILoginReq>, res: IRes) {
   // Regular login flow
   try {
     const user = await AuthService.login(email, password);
+    const userLevel = user.user_level;
+    if (!userLevel) {
+      return res
+        .status(HttpStatusCodes.BAD_REQUEST)
+        .json({
+          success: false,
+          message:
+            "Unrecognized account type. Phlebotomists must use Sign in as Phleb (isPleb).",
+        })
+        .end();
+    }
     console.log("user", user);
 
     // Setup Admin Cookie
@@ -120,15 +131,15 @@ async function login(req: IReq<ILoginReq>, res: IRes) {
       .status(HttpStatusCodes.OK)
       .json({
         success: true,
-        user,
+        user: { ...user, user_level: userLevel },
         token: await JwtHelper._sign({
           id: user.id,
           email: user.email,
           username: user.username,
           first_name: user.first_name,
           last_name: user.last_name,
-          user_level: user.user_level,
-          practitioner_id: user['user_level'] && user['user_level'] === UserLevels.Moderator ? user.practitioner_id : undefined,
+          user_level: userLevel,
+          practitioner_id: userLevel === UserLevels.Moderator ? user.practitioner_id : undefined,
         }),
       })
       .end();

@@ -304,7 +304,24 @@ async function getLiveLocation(req: IReq, res: IRes) {
   }
 
   try {
-    const location = await PlebLiveLocationService.getLiveLocationByOrder(orderId);
+    const customerLat = req.query.customer_lat
+      ? Number(req.query.customer_lat)
+      : undefined;
+    const customerLng = req.query.customer_lng
+      ? Number(req.query.customer_lng)
+      : undefined;
+    const customerCoords =
+      customerLat != null &&
+      customerLng != null &&
+      Number.isFinite(customerLat) &&
+      Number.isFinite(customerLng)
+        ? { lat: customerLat, lng: customerLng }
+        : undefined;
+
+    const location = await PlebLiveLocationService.getLiveLocationByOrder(
+      orderId,
+      customerCoords
+    );
     if (!location) {
       return res.status(HttpStatusCodes.NOT_FOUND).json({
         success: false,
