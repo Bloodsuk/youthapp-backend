@@ -7,6 +7,10 @@ import PlebLiveLocationService, {
   coordsArePlausibleForTracking,
   isGpsTimestampFresh,
 } from "@src/services/PlebLiveLocationService";
+import {
+  cleanupVisitChatSocket,
+  registerVisitChatHandlers,
+} from "./visitChatSocket";
 
 let io: Server;
 
@@ -54,9 +58,11 @@ export function initTrackingSocket(httpServer: HttpServer): void {
 
     if (isPhlebotomistLevel(user.user_level)) {
       registerPlebHandlers(socket, user);
+      registerVisitChatHandlers(socket, user);
       socket.emit("tracking_auth_ok", { role: "phlebotomist" });
     } else if (isCustomerLevel(user.user_level)) {
       registerCustomerHandlers(socket, user);
+      registerVisitChatHandlers(socket, user);
       socket.emit("tracking_auth_ok", { role: "customer" });
     } else {
       console.warn(
@@ -76,6 +82,7 @@ export function initTrackingSocket(httpServer: HttpServer): void {
 
     socket.on("disconnect", () => {
       cleanupSubscriptions(socket.id);
+      cleanupVisitChatSocket(socket.id);
       if (isPhlebotomistLevel(user.user_level)) {
         void handlePhlebDisconnect(user.id);
       }

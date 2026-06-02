@@ -22,6 +22,7 @@ import appVersionRouter from "./appVersionRouter";
 import phlebotomistRouter from "./phlebotomistRouter";
 import plebJobRouter from "./plebJobRouter";
 import fileUploadRouter from "./fileUploadRouter";
+import visitChatRouter from "./visitChatRouter";
 
 const routes = Router();
 
@@ -90,5 +91,8 @@ routes.use(Paths.PlebJobs.Base, plebJobRouter);
 
 // Add FileUploadRouter
 routes.use(Paths.FileUpload.Base, fileUploadRouter);
+
+// Visit chat (phleb ↔ customer, order-scoped)
+routes.use(Paths.VisitChat.Base, visitChatRouter);
 
 export default routes;

@@ -246,4 +246,10 @@ export default {
     Base: "/file_upload_api",
     Upload: "/",
   },
+  VisitChat: {
+    Base: "/visit_chat",
+    GetThread: "/order/:order_id",
+    GetUnread: "/order/:order_id/unread",
+    Send: "/send",
+  },
 } as const;
