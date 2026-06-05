@@ -58,11 +58,19 @@ export function initTrackingSocket(httpServer: HttpServer): void {
 
     if (isPhlebotomistLevel(user.user_level)) {
       registerPlebHandlers(socket, user);
-      registerVisitChatHandlers(socket, user);
+      try {
+        registerVisitChatHandlers(socket, user);
+      } catch (error) {
+        console.error("[Socket] visit_chat registration failed (GPS unchanged):", error);
+      }
       socket.emit("tracking_auth_ok", { role: "phlebotomist" });
     } else if (isCustomerLevel(user.user_level)) {
       registerCustomerHandlers(socket, user);
-      registerVisitChatHandlers(socket, user);
+      try {
+        registerVisitChatHandlers(socket, user);
+      } catch (error) {
+        console.error("[Socket] visit_chat registration failed (GPS unchanged):", error);
+      }
       socket.emit("tracking_auth_ok", { role: "customer" });
     } else {
       console.warn(

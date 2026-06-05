@@ -11,6 +11,7 @@
     "dev:live": "PATH=\"/opt/homebrew/opt/node@20/bin:$PATH\" nodemon --exec \"./node_modules/.bin/ts-node --files -r tsconfig-paths/register ./src -e live\"",
     "db:local-setup": "bash scripts/seed_local_full.sh",
     "db:seed-full": "bash scripts/seed_local_full.sh",
+    "db:visit-chat-table": "bash scripts/run_visit_chat_migration.sh local",
     "test": "nodemon --config ./spec/nodemon.json",
     "test:no-reloading": "npx ts-node --files -r tsconfig-paths/register ./spec",
     "test:stripe-flow": "npx ts-node -r tsconfig-paths/register scripts/test-stripe-payment-flow.ts",

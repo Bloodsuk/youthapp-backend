@@ -12,4 +12,4 @@ CREATE TABLE IF NOT EXISTS visit_chat_messages (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_visit_chat_order (order_id),
     INDEX idx_visit_chat_order_created (order_id, created_at)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

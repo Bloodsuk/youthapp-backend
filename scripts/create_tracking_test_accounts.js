@@ -31,6 +31,13 @@ function md5(password) {
   return crypto.createHash("md5").update(password).digest("hex");
 }
 
+async function nextId(connection, table) {
+  const [rows] = await connection.execute(
+    `SELECT COALESCE(MAX(id), 0) + 1 AS n FROM \`${table}\``
+  );
+  return Number(rows[0].n);
+}
+
 async function deleteByEmail(connection, email, table) {
   if (table === "phlebotomy_applications") {
     const [rows] = await connection.execute(
@@ -146,17 +153,16 @@ async function main() {
     const phlebHash = md5(PHLEB_PASSWORD);
     const [phlebResult] = await connection.execute(
       `INSERT INTO phlebotomy_applications (
-        full_name, home_address, phone, email, city,
+        full_name, home_address, phone, email,
         employment_type, working_hours, drive, travel_radius,
         dbs, first_aid, trainer, training_academy, payment_terms,
         lat, lng, password, is_active, is_email_sent, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, NOW())`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, NOW())`,
       [
         "GPS Test Phleb",
         "Lahore, Pakistan",
         "+92 300 0000001",
         PHLEB_EMAIL,
-        "Lahore",
         "Full-time",
         "9:00-17:00",
         "Yes",
@@ -175,13 +181,15 @@ async function main() {
 
     const custHash = md5(CUSTOMER_PASSWORD);
     const username = CUSTOMER_EMAIL.split("@")[0].replace(/[^a-z0-9]/gi, "").slice(0, 20) || "gpstestcust";
-    const [custResult] = await connection.execute(
+    const customerId = await nextId(connection, "customers");
+    await connection.execute(
       `INSERT INTO customers (
-        fore_name, sur_name, email, telephone, username, password,
+        id, fore_name, sur_name, email, telephone, username, password,
         user_level, status, created_by, address, town, country, postal_code,
         notifications, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, 'Customer', 1, 1, ?, ?, ?, ?, 'No', NOW())`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'Customer', 1, 1, ?, ?, ?, ?, 'No', NOW())`,
       [
+        customerId,
         "GPS",
         "Test Customer",
         CUSTOMER_EMAIL,
@@ -194,7 +202,6 @@ async function main() {
         "54000",
       ]
     );
-    const customerId = custResult.insertId;
     const clientCode = "PID:" + (200200200 + customerId);
     await connection.execute(
       "UPDATE customers SET client_code = ? WHERE id = ?",
@@ -205,14 +212,16 @@ async function main() {
     const orderRef = `GPS-${ts}`;
     const txn = `txn_gps_${ts}`;
 
-    const [orderResult] = await connection.execute(
+    const orderId = await nextId(connection, "orders");
+    await connection.execute(
       `INSERT INTO orders (
-        order_id, transaction_id, customer_id, test_ids, client_name,
+        id, order_id, transaction_id, customer_id, test_ids, client_name,
         subtotal, total_val, shipping_type, checkout_type, status,
         payment_status, order_placed_by, created_by, approved,
-        is_job_assigned, order_from_web, is_active, specific_service
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 1, 1, 2)`,
+        is_job_assigned, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())`,
       [
+        orderId,
         orderRef,
         txn,
         customerId,
@@ -226,9 +235,9 @@ async function main() {
         "Paid",
         customerId,
         customerId,
+        1,
       ]
     );
-    const orderId = orderResult.insertId;
 
     await connection.execute(
       `INSERT INTO customer_phleb_bookings (
@@ -256,8 +265,9 @@ async function main() {
       ["9:00 AM - 11:00 AM", orderRef, customerId]
     );
 
+    console.log(`DB: ${process.env.DB_HOST}/${process.env.DATABASE}`);
     console.log("");
-    console.log("=== New GPS test accounts (live DB) ===");
+    console.log("=== New GPS test accounts ===");
     console.log("");
     console.log("PHLEBOTOMIST (Sign in as Phleb)");
     console.log("  Email:    ", PHLEB_EMAIL);

@@ -57,12 +57,27 @@ function emitChatError(socket: Socket, message: string): void {
   socket.emit("visit_chat_error", { message });
 }
 
+function isMissingVisitChatTable(error: unknown): boolean {
+  if (error && typeof error === "object") {
+    const code = (error as { code?: string }).code;
+    if (code === "ER_NO_SUCH_TABLE") return true;
+  }
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.includes("visit_chat_messages");
+}
+
 async function emitInboxSnapshot(socket: Socket, user: ISessionUser): Promise<void> {
   try {
     const orders = await VisitChatService.getUnreadSummary(user);
     const total_unread = orders.reduce((sum, o) => sum + o.unread_count, 0);
     socket.emit("visit_chat_inbox_snapshot", { orders, total_unread });
   } catch (error) {
+    if (isMissingVisitChatTable(error)) {
+      console.warn(
+        "[Socket] visit_chat inbox skipped — run scripts/create_visit_chat_messages.sql"
+      );
+      return;
+    }
     const message =
       error instanceof RouteError ? error.message : "Could not load inbox";
     emitChatError(socket, message);
@@ -141,6 +156,14 @@ function broadcastTyping(
 }
 
 export function cleanupVisitChatSocket(socketId: string): void {
+  try {
+    cleanupVisitChatSocketInner(socketId);
+  } catch (error) {
+    console.error("[Socket] visit_chat cleanup failed:", error);
+  }
+}
+
+function cleanupVisitChatSocketInner(socketId: string): void {
   for (const [orderId, members] of chatRooms.entries()) {
     if (members.has(socketId)) {
       const member = members.get(socketId)!;
@@ -160,6 +183,14 @@ export function cleanupVisitChatSocket(socketId: string): void {
 }
 
 export function registerVisitChatHandlers(socket: Socket, user: ISessionUser): void {
+  try {
+    registerVisitChatHandlersInner(socket, user);
+  } catch (error) {
+    console.error("[Socket] visit_chat handlers failed to register:", error);
+  }
+}
+
+function registerVisitChatHandlersInner(socket: Socket, user: ISessionUser): void {
   const role = viewerRole(user);
   if (!role) return;
 

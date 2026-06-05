@@ -32,7 +32,9 @@ Also check row counts: live production has many orders/customers; a fresh local 
 **1. SSH tunnel** (get SSH user/host from your team):
 
 ```bash
-ssh -N -L 3306:127.0.0.1:3306 YOUR_USER@YOUR_LIVE_SERVER_HOST
+ssh -N -L 3306:127.0.0.1:3306 youth-revisited-prapp@69.62.124.145
+
+Or: `./scripts/tunnel-live-db.sh` (same tunnel; keep the terminal open).
 ```
 
 Leave that terminal open. Then `127.0.0.1` on your Mac forwards to live MySQL on the server.
