@@ -25,21 +25,6 @@ export const Errors = {
 
 // **** Functions **** //
 
-/** phlebotomy_applications rows have no user_level — JWT must still be Phlebotomist for live GPS. */
-function normalizeLoginUser(
-  user: IUser & Record<string, unknown>
-): IUser {
-  if (user.user_level) return user as IUser;
-  if (
-    user.employment_type != null ||
-    user.travel_radius != null ||
-    user.home_address != null
-  ) {
-    return { ...(user as IUser), user_level: UserLevels.Phlebotomist };
-  }
-  return user as IUser;
-}
-
 /**
  * Login a user.
  */
@@ -66,20 +51,15 @@ async function login(email: string, password: string) {
     );
   }
 
-  // Check phlebotomist table if still not found
-  if (query[0].length === 0) {
-    query = await pool.query<RowDataPacket[]>(
-      `SELECT * from phlebotomy_applications where email = '${email}' AND password = '${password}'`
-    );
-  }
+  // Phlebotomists must use POST /auth/login with isPleb: true — never here.
 
-  // Now $rows > 0 means could be a Practioner or Moderator or a Customer or Phlebotomist
+  // Now $rows > 0 means Practitioner, Moderator, or Customer only.
   if (query[0].length > 0) {
     const user = query[0][0] as IUser & Record<string, unknown>;
     if (user["status"] == 0)
       throw new RouteError(HttpStatusCodes.UNAUTHORIZED, "Account not activated please contact administrator");
     else
-      return normalizeLoginUser(user);
+      return user as IUser;
   } else {
     throw new RouteError(HttpStatusCodes.UNAUTHORIZED, "Wrong Email or Password!!!");
   }

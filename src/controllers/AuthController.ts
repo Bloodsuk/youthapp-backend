@@ -100,11 +100,23 @@ async function login(req: IReq<ILoginReq>, res: IRes) {
     }
   }
   
-  // Regular login flow
+  // Regular login flow — practitioners, moderators, customers only.
   try {
+    const phlebAccount = await PhlebotomistService.getPhlebotomistByEmail(email);
+    if (phlebAccount && phlebAccount.is_active === 1) {
+      return res
+        .status(HttpStatusCodes.FORBIDDEN)
+        .json({
+          success: false,
+          message:
+            "This email is registered as a phlebotomist. Use Sign in as Phleb on the login screen.",
+        })
+        .end();
+    }
+
     const user = await AuthService.login(email, password);
     const userLevel = user.user_level;
-    if (!userLevel) {
+    if (!userLevel || userLevel === UserLevels.Phlebotomist) {
       return res
         .status(HttpStatusCodes.BAD_REQUEST)
         .json({
