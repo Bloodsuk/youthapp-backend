@@ -2,6 +2,8 @@
 # Safe production deploy: pull, build, additive DB only, restart API.
 # Does NOT drop, truncate, or alter existing columns/data.
 #
+# Full guide: docs/phleb-modules-production-deploy.md
+#
 # On server:
 #   cd ~/youthapp-backend
 #   bash scripts/deploy_phleb_modules_production.sh

@@ -130,14 +130,26 @@ Safe: `CREATE TABLE IF NOT EXISTS` only.
 
 ### Production deploy (on server)
 
+**Phleb modules (Kits, Training, Performance, Compliance, profile):**
+
+```bash
+export PATH="$HOME/.nvm/versions/node/v22.17.0/bin:$PATH"
+cd ~/youthapp-backend
+ENV_FILE=env/development.env PM2_NAME=youth-backend bash scripts/deploy_phleb_modules_production.sh
+```
+
+Pull → `npm ci` → build → **additive** DB migration → `pm2 restart youth-backend`.
+
+Full notes: [`docs/phleb-modules-production-deploy.md`](./phleb-modules-production-deploy.md)
+
+**Visit chat only:**
+
 ```bash
 cd ~/youthapp-backend
 bash scripts/deploy_visit_chat_production.sh
 ```
 
-Pull → `npm ci` → build → migration → `pm2 restart youth-backend`.
-
-Full notes: `docs/visit-chat-production-deploy.md`
+Full notes: [`docs/visit-chat-production-deploy.md`](./visit-chat-production-deploy.md)
 
 ---
 
@@ -187,6 +199,7 @@ Full notes: `docs/visit-chat-production-deploy.md`
 2. Socket connect → `tracking_auth_ok`
 3. Visit chat send/receive + read ticks on active order
 4. Closed order → chat opens read-only
+5. Phleb modules: training overview, performance, kits, compliance (see [`phleb-modules-production-deploy.md`](./phleb-modules-production-deploy.md))
 
 ---
 
