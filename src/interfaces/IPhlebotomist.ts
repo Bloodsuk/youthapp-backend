@@ -4,6 +4,8 @@ export interface IPhlebotomist {
   home_address: string;
   phone: string;
   email: string;
+  city?: string;
+  home_postcode?: string | null;
   employment_type: string;
   working_hours: string;
   other_job: string;

@@ -40,6 +40,9 @@ DATABASE=practitionermaindb
 
 ## Connect to LIVE database from your Mac
 
+**Full guide (tunnel + `dev:live` + Flutter ngrok/localhost):**  
+→ [`docs/local-backend-live-db-flutter.md`](./local-backend-live-db-flutter.md)
+
 ### Step 1 — SSH tunnel (keep terminal open)
 
 ```bash
@@ -67,10 +70,21 @@ SSH password: get from team (Mohsin / server admin). Prefer SSH keys long term.
 
 ```bash
 npm run dev:live
-ngrok http 7020   # if testing Flutter against your laptop
 ```
 
-### Step 3 — Verify you are on LIVE (not local)
+### Step 3 — Expose API to Flutter (pick one)
+
+**Ngrok (phone / external device):**
+
+```bash
+ngrok http 7020 --url=https://endearing-disposal-chivalry.ngrok-free.dev
+```
+
+Then set `youthapp/lib/Api/urls.dart` to the ngrok URL. See the full guide above.
+
+**Simulator only:** use `http://127.0.0.1:7020/api/` in `urls.dart` (no ngrok).
+
+### Step 4 — Verify you are on LIVE (not local)
 
 ```bash
 bash scripts/check-live-db.sh
@@ -121,7 +135,7 @@ cd ~/youthapp-backend
 bash scripts/deploy_visit_chat_production.sh
 ```
 
-Pull → `npm ci` → build → migration → `pm2 restart youthapp-backend`.
+Pull → `npm ci` → build → migration → `pm2 restart youth-backend`.
 
 Full notes: `docs/visit-chat-production-deploy.md`
 
@@ -129,18 +143,20 @@ Full notes: `docs/visit-chat-production-deploy.md`
 
 ## Flutter app reminders
 
-- Live URLs in `lib/Api/urls.dart` → `https://prapp.youth-revisited.co.uk/api/`
+- API URLs: `youthapp/lib/Api/urls.dart` — see [`local-backend-live-db-flutter.md`](./local-backend-live-db-flutter.md) for local + live DB workflow
+- Production: `https://prapp.youth-revisited.co.uk/api/`
+- After URL change: `flutter clean` then full run (not hot reload)
 - App version for store submit: **28.0.9+39** (`pubspec.yaml`)
-- After URL change: `flutter clean` then build AAB
 - Visit chat is **socket-first**; REST is fallback after ~6s
 - **Closed jobs** (Delivered/Cancelled): chat read-only, no send
+- **Phleb profile screen:** password field hidden; profile uses `GET/PUT /api/phlebotomists/profile`
 
-### Test logins (live)
+### Test logins (live DB)
 
-| Role | Email | Password |
-|------|-------|----------|
-| Customer | `systemtest18@yahoo.com` | `waj@18` |
-| Phleb | `systemtest18@yahoo.com` | `waj@18` then **Sign in as Phleb** → `waj@18` / phleb flow |
+| Role | Email | Password | Notes |
+|------|-------|----------|--------|
+| Customer | `gpscust@test.com` | `cust` | Normal login |
+| Phleb | `gpsphleb@test.com` | `phleb` | **Sign in as Phleb** only |
 
 (Local test accounts: `testcustomer@local.test` / `testphleb@local.test`, password `test123`.)
 

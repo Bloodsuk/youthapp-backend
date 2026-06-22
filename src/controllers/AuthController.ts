@@ -47,18 +47,13 @@ async function login(req: IReq<ILoginReq>, res: IRes) {
         
         // Try to authenticate with provided password
         const user = await PhlebotomistService.loginPhlebotomist(email, password);
+        const profile = PhlebotomistService.toPhlebProfile(user);
         
         return res
           .status(HttpStatusCodes.OK)
           .json({
             success: true,
-            user: {
-              id: user.id,
-              full_name: user.full_name,
-              email: user.email,
-              user_level: "Phlebotomist",
-              // Add other relevant fields
-            },
+            user: profile,
             token: await JwtHelper._sign({
               id: user.id,
               email: user.email,

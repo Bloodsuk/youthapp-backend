@@ -1,6 +1,10 @@
 import { pool } from "@src/server";
 import { ResultSetHeader, RowDataPacket } from "mysql2";
 import { IPhlebotomist } from "@src/interfaces/IPhlebotomist";
+import {
+  IPhlebProfile,
+  IPhlebProfileUpdate,
+} from "@src/interfaces/IPhlebProfile";
 import { RouteError } from "@src/other/classes";
 import HttpStatusCodes from "@src/constants/HttpStatusCodes";
 import { generateUniqueString } from "@src/util/misc";
@@ -147,6 +151,103 @@ async function getAllPlebsIdAndName(): Promise<{ id: number; name: string }[]> {
   return rows.map((row) => ({ id: row.id, name: row.name })) as { id: number; name: string }[];
 }
 
+const PROFILE_SELECT = `id, full_name, email, phone, home_address, city, home_postcode, is_active`;
+
+function toPhlebProfile(
+  row: RowDataPacket | IPhlebotomist
+): IPhlebProfile {
+  return {
+    id: row.id,
+    full_name: row.full_name,
+    email: row.email,
+    phone: row.phone ?? "",
+    home_address: row.home_address ?? "",
+    city: row.city ?? "",
+    home_postcode: row.home_postcode ?? null,
+    user_level: "Phlebotomist",
+  };
+}
+
+async function getProfileById(id: number): Promise<IPhlebProfile | null> {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT ${PROFILE_SELECT} FROM phlebotomy_applications WHERE id = ?`,
+    [id]
+  );
+  if (rows.length === 0 || rows[0].is_active !== 1) return null;
+  return toPhlebProfile(rows[0]);
+}
+
+async function updateProfile(
+  id: number,
+  data: IPhlebProfileUpdate
+): Promise<IPhlebProfile> {
+  const [existing] = await pool.query<RowDataPacket[]>(
+    `SELECT id, email FROM phlebotomy_applications WHERE id = ? AND is_active = 1`,
+    [id]
+  );
+  if (existing.length === 0) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, Errors.PhlebotomistNotFound);
+  }
+
+  const email = data.email.trim();
+  if (!email) {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, "Email is required");
+  }
+
+  if (email !== existing[0].email) {
+    const [dup] = await pool.query<RowDataPacket[]>(
+      "SELECT id FROM phlebotomy_applications WHERE email = ? AND id != ?",
+      [email, id]
+    );
+    if (dup.length > 0) {
+      throw new RouteError(HttpStatusCodes.BAD_REQUEST, Errors.EmailAlreadyExists);
+    }
+  }
+
+  const fullName = data.full_name.trim();
+  if (!fullName) {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, "Full name is required");
+  }
+
+  const sets = [
+    "full_name = ?",
+    "email = ?",
+    "phone = ?",
+    "home_address = ?",
+    "city = ?",
+    "home_postcode = ?",
+  ];
+  const values: (string | number)[] = [
+    fullName,
+    email,
+    data.phone?.trim() ?? "",
+    data.home_address?.trim() ?? "",
+    data.city?.trim() ?? "",
+    data.home_postcode?.trim() ?? "",
+  ];
+
+  if (data.password && data.password.trim() !== "") {
+    sets.push("password = ?");
+    values.push(generateHash(data.password.trim()));
+  }
+
+  values.push(id);
+  const [result] = await pool.query<ResultSetHeader>(
+    `UPDATE phlebotomy_applications SET ${sets.join(", ")} WHERE id = ?`,
+    values
+  );
+
+  if (result.affectedRows === 0) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, Errors.PhlebotomistNotFound);
+  }
+
+  const profile = await getProfileById(id);
+  if (!profile) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, Errors.PhlebotomistNotFound);
+  }
+  return profile;
+}
+
 // **** Export default **** //
 
 export default {
@@ -156,6 +257,9 @@ export default {
   getAllPhlebotomists,
   updatePhlebotomistStatus,
   getAllPlebsIdAndName,
+  getProfileById,
+  updateProfile,
+  toPhlebProfile,
   generatePassword,
   generateHash,
 } as const;
