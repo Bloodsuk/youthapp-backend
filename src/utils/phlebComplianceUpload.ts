@@ -1,5 +1,5 @@
 import fs from "fs";
-import multer, { File } from "multer";
+import multer from "multer";
 import path from "path";
 
 const uploadDir = path.join(process.cwd(), "public", "uploads");
@@ -28,7 +28,7 @@ const ALLOWED_MIME_PREFIXES = [
   "application/octet-stream",
 ];
 
-function isAllowedUpload(file: File): boolean {
+function isAllowedUpload(file: { originalname: string; mimetype: string }): boolean {
   const ext = path.extname(file.originalname).toLowerCase();
   if (!ALLOWED_EXTENSIONS.has(ext)) {
     return false;
