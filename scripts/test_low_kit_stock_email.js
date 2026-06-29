@@ -3,6 +3,7 @@
  *
  * Usage:
  *   ENV_FILE=env/development.env node scripts/test_low_kit_stock_email.js
+ *   TEST_TO=you@example.com ENV_FILE=env/development.env node scripts/test_low_kit_stock_email.js
  */
 const fs = require("fs");
 const path = require("path");
@@ -17,7 +18,7 @@ const get = (k) => {
   return m ? m[1].trim() : "";
 };
 
-const TO = "info@youth-revisited.co.uk";
+const TO = process.env.TEST_TO || "info@youth-revisited.co.uk";
 const FROM = "info@youth-revisited.co.uk";
 
 const html = `<!DOCTYPE html>
