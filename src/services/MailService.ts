@@ -1261,25 +1261,31 @@ const sendLowKitStockAlertEmail = async (
 
   const html = buildNotificationEmail({
     title: "Low Kit Stock Alert",
+    greeting: "Hello Admin,",
     introLines: [
       `A phlebotomist has ${payload.totalRemaining} kit(s) or fewer remaining (alert threshold: ${payload.threshold}).`,
       "Please review stock and dispatch replacement kits if required.",
     ],
     detailRows: [
-      { label: "Phlebotomist", value: getDetailValue(payload.phlebName) },
+      { label: "Phlebotomist Details", isSectionHeader: true },
+      { label: "Name", value: getDetailValue(payload.phlebName) },
       { label: "Phlebotomist ID", value: String(payload.phlebId) },
       { label: "Email", value: getDetailValue(payload.phlebEmail) },
       { label: "Phone", value: getDetailValue(payload.phlebPhone) },
+      { label: "Stock Details", isSectionHeader: true },
       { label: "Total remaining kits", value: String(payload.totalRemaining) },
       { label: "Stock breakdown", value: breakdown },
     ],
     outroLines: [
-      "This alert is sent when total on-hand kit stock is at or below the threshold.",
+      "You can review kit requests in the admin dashboard.",
     ],
   });
 
+  const recipient =
+    process.env.TEST_TO?.trim() || LOW_KIT_STOCK_ALERT_TO;
+
   await sendEmail(
-    LOW_KIT_STOCK_ALERT_TO,
+    recipient,
     `Low kit stock: ${payload.phlebName} (${payload.totalRemaining} remaining)`,
     html,
     { cc: null }
