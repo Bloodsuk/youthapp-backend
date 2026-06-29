@@ -1,46 +1,9 @@
 import fs from "fs";
 import multer from "multer";
 import path from "path";
+import { isAllowedUpload, UPLOAD_INVALID_TYPE_MESSAGE } from "@src/utils/uploadFileFilter";
 
 const uploadDir = path.join(process.cwd(), "public", "uploads");
-
-const ALLOWED_EXTENSIONS = new Set([
-  ".jpeg",
-  ".jpg",
-  ".png",
-  ".gif",
-  ".pdf",
-  ".doc",
-  ".docx",
-  ".txt",
-]);
-
-/** MIME types commonly sent by mobile clients (incl. octet-stream when type omitted). */
-const ALLOWED_MIME_PREFIXES = [
-  "image/jpeg",
-  "image/jpg",
-  "image/png",
-  "image/gif",
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "text/plain",
-  "application/octet-stream",
-];
-
-function isAllowedUpload(file: { originalname: string; mimetype: string }): boolean {
-  const ext = path.extname(file.originalname).toLowerCase();
-  if (!ALLOWED_EXTENSIONS.has(ext)) {
-    return false;
-  }
-  const mime = (file.mimetype || "").toLowerCase();
-  if (!mime) {
-    return true;
-  }
-  return ALLOWED_MIME_PREFIXES.some(
-    (allowed) => mime === allowed || mime.startsWith(`${allowed};`)
-  );
-}
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
@@ -66,7 +29,7 @@ export const phlebComplianceUpload = multer({
     if (isAllowedUpload(file)) {
       cb(null, true);
     } else {
-      cb(new Error("Invalid file type. Only images, PDFs, and documents are allowed."));
+      cb(new Error(UPLOAD_INVALID_TYPE_MESSAGE));
     }
   },
 });

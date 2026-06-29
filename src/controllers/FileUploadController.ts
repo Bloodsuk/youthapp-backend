@@ -6,6 +6,7 @@ import path from "path";
 import fs from "fs";
 import { pool } from "@src/server";
 import { ResultSetHeader } from "mysql2";
+import { isAllowedUpload, UPLOAD_INVALID_TYPE_MESSAGE } from "@src/utils/uploadFileFilter";
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -33,16 +34,10 @@ const upload = multer({
     fileSize: 10 * 1024 * 1024, // 10MB limit
   },
   fileFilter: (req, file, cb) => {
-    // Allow common file types
-    const allowedTypes = /jpeg|jpg|png|gif|pdf|doc|docx|txt/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-
-    if (mimetype && extname) {
+    if (isAllowedUpload(file)) {
       return cb(null, true);
-    } else {
-      cb(new Error('Invalid file type. Only images, PDFs, and documents are allowed.'));
     }
+    cb(new Error(UPLOAD_INVALID_TYPE_MESSAGE));
   }
 });
 

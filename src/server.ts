@@ -98,6 +98,13 @@ app.get("/global-payments-tokenize", (req: Request, res: Response) => {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.sendFile(path.join(process.cwd(), "public", "global-payments-tokenize.html"));
 });
+
+// Public uploaded files (phleb compliance docs, order attachments) — must be before auth middleware
+app.use(
+  "/uploads",
+  express.static(path.join(process.cwd(), "public", "uploads"))
+);
+
 // Authorization middleware
 app.use(authorization);
 
