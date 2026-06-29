@@ -1,5 +1,6 @@
 import { pool } from "@src/server";
 import { ResultSetHeader, RowDataPacket } from "mysql2";
+import MailService from "@src/services/MailService";
 import {
   IPhlebKitBalance,
   IPhlebKitOverview,
@@ -17,6 +18,68 @@ export const Errors = {
   InvalidQuantity: "Quantity must be at least 1",
   InvalidPriority: "Priority must be Normal or Urgent",
 } as const;
+
+/** Alert admin when total on-hand kits is at or below this count. */
+const LOW_KIT_STOCK_THRESHOLD = 2;
+
+/** One alert email per phleb per calendar day (in-process dedup). */
+const lowStockNotifiedToday = new Map<number, string>();
+
+async function getPhlebContact(phlebId: number): Promise<{
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+} | null> {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT full_name, email, phone
+     FROM phlebotomy_applications
+     WHERE id = ?
+     LIMIT 1`,
+    [phlebId]
+  );
+  if (rows.length === 0) return null;
+  const row = rows[0];
+  return {
+    full_name: String(row.full_name ?? "Phlebotomist"),
+    email: row.email ? String(row.email) : null,
+    phone: row.phone ? String(row.phone) : null,
+  };
+}
+
+async function notifyLowKitStockIfNeeded(
+  phlebId: number,
+  overview: IPhlebKitOverview
+): Promise<void> {
+  const total = overview.summary.expected_remaining_stock;
+  if (total > LOW_KIT_STOCK_THRESHOLD) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+  if (lowStockNotifiedToday.get(phlebId) === today) return;
+  lowStockNotifiedToday.set(phlebId, today);
+
+  const phleb = await getPhlebContact(phlebId);
+  if (!phleb) return;
+
+  try {
+    await MailService.sendLowKitStockAlertEmail({
+      phlebId,
+      phlebName: phleb.full_name,
+      phlebEmail: phleb.email,
+      phlebPhone: phleb.phone,
+      totalRemaining: total,
+      threshold: LOW_KIT_STOCK_THRESHOLD,
+      balances: overview.balances.map((b) => ({
+        kit_name: b.kit_name,
+        current_balance: b.current_balance,
+      })),
+    });
+  } catch (err) {
+    console.error("[PhlebKitService] low kit stock email failed", {
+      phlebId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
 
 function normalizePriority(value?: string): PhlebKitRequestPriority {
   const raw = (value ?? "Normal").trim();
@@ -126,7 +189,9 @@ async function getSummaryByPhlebId(phlebId: number): Promise<IPhlebKitSummary> {
 async function getOverviewByPhlebId(phlebId: number): Promise<IPhlebKitOverview> {
   const balances = await getBalancesByPhlebId(phlebId);
   const summary = await getSummaryByPhlebId(phlebId);
-  return { balances, summary };
+  const overview = { balances, summary };
+  void notifyLowKitStockIfNeeded(phlebId, overview);
+  return overview;
 }
 
 async function createRequest(
@@ -167,6 +232,9 @@ async function createRequest(
       "Failed to load created kit request"
     );
   }
+
+  void getOverviewByPhlebId(phlebId);
+
   return created;
 }
 

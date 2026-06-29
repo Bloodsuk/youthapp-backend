@@ -1237,6 +1237,55 @@ const sendNewOrderFromAppEmail = async (
   );
 };
 
+const LOW_KIT_STOCK_ALERT_TO = "info@youth-revisited.co.uk";
+
+interface ILowKitStockAlertPayload {
+  phlebId: number;
+  phlebName: string;
+  phlebEmail?: string | null;
+  phlebPhone?: string | null;
+  totalRemaining: number;
+  threshold: number;
+  balances: Array<{ kit_name: string; current_balance: number }>;
+}
+
+const sendLowKitStockAlertEmail = async (
+  payload: ILowKitStockAlertPayload
+): Promise<void> => {
+  const breakdown =
+    payload.balances.length > 0
+      ? payload.balances
+          .map((b) => `${b.kit_name}: ${b.current_balance}`)
+          .join(", ")
+      : "No kit balances on record";
+
+  const html = buildNotificationEmail({
+    title: "Low Kit Stock Alert",
+    introLines: [
+      `A phlebotomist has ${payload.totalRemaining} kit(s) or fewer remaining (alert threshold: ${payload.threshold}).`,
+      "Please review stock and dispatch replacement kits if required.",
+    ],
+    detailRows: [
+      { label: "Phlebotomist", value: getDetailValue(payload.phlebName) },
+      { label: "Phlebotomist ID", value: String(payload.phlebId) },
+      { label: "Email", value: getDetailValue(payload.phlebEmail) },
+      { label: "Phone", value: getDetailValue(payload.phlebPhone) },
+      { label: "Total remaining kits", value: String(payload.totalRemaining) },
+      { label: "Stock breakdown", value: breakdown },
+    ],
+    outroLines: [
+      "This alert is sent when total on-hand kit stock is at or below the threshold.",
+    ],
+  });
+
+  await sendEmail(
+    LOW_KIT_STOCK_ALERT_TO,
+    `Low kit stock: ${payload.phlebName} (${payload.totalRemaining} remaining)`,
+    html,
+    { cc: null }
+  );
+};
+
 export default {
   getMailConfig,
   addMailConfig,
@@ -1262,4 +1311,5 @@ export default {
   sendPhlebBookingNotification,
   sendHomeVisitBookingEmail,
   sendNewOrderFromAppEmail,
+  sendLowKitStockAlertEmail,
 } as const;
