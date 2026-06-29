@@ -39,7 +39,28 @@ async function getMailConfig() {
     return null;
   }
   return rows[0] as IMailConfig;
-} 
+}
+
+/** Port 587 uses STARTTLS (secure: false); port 465 uses implicit TLS. */
+const buildMailerConfig = (config: IMailConfig) => {
+  const port = Number(config.smtp_port);
+  const encryption = (config.smtp_encryption || "").trim().toLowerCase();
+  const secure =
+    port === 465 || encryption === "ssl" || encryption === "smtps";
+
+  return {
+    host: config.smtp_host,
+    port,
+    secure,
+    auth: {
+      user: config.smtp_username,
+      pass: config.smtp_password,
+    },
+    tls: {
+      rejectUnauthorized: false,
+    },
+  };
+}; 
 async function addMailConfig(config: IMailConfig) {
   const [result] = await pool.query<ResultSetHeader>(
     "INSERT INTO email_configuration SET ?",
@@ -106,19 +127,7 @@ const sendRegistrationMail = async (email: string, username:string) => {
 
   const config = await getMailConfig();
   if(!config) throw new Error("Mail configuration not found");
-  const mailerConfig = {
-    host: config.smtp_host,
-    secureConnection: true,
-    port: Number(config.smtp_port),
-    auth: {
-      user: config.smtp_username,
-      pass: config.smtp_password,
-    },
-    tls: {
-      rejectUnauthorized: false,
-    },
-  };
-  const transporter = nodemailer.createTransport(mailerConfig);
+  const transporter = nodemailer.createTransport(buildMailerConfig(config));
 
   renderFile(
     __dirname + "/mail_templates/registration.ejs",
@@ -168,19 +177,7 @@ const sendCustomerRegistrationMail = async (name: string, email: string, usernam
   const config = await getMailConfig();
   if (!config) throw new Error("Mail configuration not found");
 
-  const mailerConfig = {
-    host: config.smtp_host,
-    secureConnection: true,
-    port: Number(config.smtp_port),
-    auth: {
-      user: config.smtp_username,
-      pass: config.smtp_password,
-    },
-    tls: {
-      rejectUnauthorized: false,
-    },
-  };
-  const transporter = nodemailer.createTransport(mailerConfig);
+  const transporter = nodemailer.createTransport(buildMailerConfig(config));
 
   renderFile(
     __dirname + "/mail_templates/customer_reg.ejs",
@@ -223,19 +220,7 @@ const sendProfileUpdateEmail = async (
   const config = await getMailConfig();
   if (!config) throw new Error("Mail configuration not found");
 
-  const mailerConfig = {
-    host: config.smtp_host,
-    secureConnection: true,
-    port: Number(config.smtp_port),
-    auth: {
-      user: config.smtp_username,
-      pass: config.smtp_password,
-    },
-    tls: {
-      rejectUnauthorized: false,
-    },
-  };
-  const transporter = nodemailer.createTransport(mailerConfig);
+  const transporter = nodemailer.createTransport(buildMailerConfig(config));
 
   renderFile(
     __dirname + "/mail_templates/profile_update.ejs",
@@ -285,19 +270,7 @@ const sendCustomerLoginsMail = async (name: string, email: string, username:stri
   const config = await getMailConfig();
   if (!config) throw new Error("Mail configuration not found");
 
-  const mailerConfig = {
-    host: config.smtp_host,
-    secureConnection: true,
-    port: Number(config.smtp_port),
-    auth: {
-      user: config.smtp_username,
-      pass: config.smtp_password,
-    },
-    tls: {
-      rejectUnauthorized: false,
-    },
-  };
-  const transporter = nodemailer.createTransport(mailerConfig);
+  const transporter = nodemailer.createTransport(buildMailerConfig(config));
 
   renderFile(
     __dirname + "/mail_templates/customer_logins.ejs",
@@ -337,19 +310,7 @@ const sendUserOrderStatusEmail = async (email: string, username: string) => {
   const config = await getMailConfig();
   if (!config) throw new Error("Mail configuration not found");
 
-  const mailerConfig = {
-    host: config.smtp_host,
-    secureConnection: true,
-    port: Number(config.smtp_port),
-    auth: {
-      user: config.smtp_username,
-      pass: config.smtp_password,
-    },
-    tls: {
-      rejectUnauthorized: false,
-    },
-  };
-  const transporter = nodemailer.createTransport(mailerConfig);
+  const transporter = nodemailer.createTransport(buildMailerConfig(config));
 
   renderFile(
     __dirname + "/mail_templates/user_order_status.ejs",
@@ -384,19 +345,7 @@ const sendUserForgotCodeEmail = async (email: string, code: string) => {
 
   const config = await getMailConfig();
   if(!config) throw new Error("Mail configuration not found");
-  const mailerConfig = {
-    host: config.smtp_host,
-    secureConnection: true,
-    port: Number(config.smtp_port),
-    auth: {
-      user: config.smtp_username,
-      pass: config.smtp_password,
-    },
-    tls: {
-      rejectUnauthorized: false,
-    },
-  };
-  const transporter = nodemailer.createTransport(mailerConfig);
+  const transporter = nodemailer.createTransport(buildMailerConfig(config));
 
   renderFile(
     __dirname + "/mail_templates/forgot_code.ejs",
@@ -432,19 +381,7 @@ const sendPhlebotomistCredentialsEmail = async (name: string, email: string, pas
   const config = await getMailConfig();
   if (!config) throw new Error("Mail configuration not found");
 
-  const mailerConfig = {
-    host: config.smtp_host,
-    secureConnection: true,
-    port: Number(config.smtp_port),
-    auth: {
-      user: config.smtp_username,
-      pass: config.smtp_password,
-    },
-    tls: {
-      rejectUnauthorized: false,
-    },
-  };
-  const transporter = nodemailer.createTransport(mailerConfig);
+  const transporter = nodemailer.createTransport(buildMailerConfig(config));
 
   const html = await new Promise<string>((resolve, reject) => {
     renderFile(
@@ -677,19 +614,7 @@ const sendEmail = async (
   const config = await getMailConfig();
   if (!config) throw new Error("Mail configuration not found");
 
-  const mailerConfig = {
-    host: config.smtp_host,
-    secureConnection: true,
-    port: Number(config.smtp_port),
-    auth: {
-      user: config.smtp_username,
-      pass: config.smtp_password,
-    },
-    tls: {
-      rejectUnauthorized: false,
-    },
-  };
-  const transporter = nodemailer.createTransport(mailerConfig);
+  const transporter = nodemailer.createTransport(buildMailerConfig(config));
 
   const ccOption =
     options && options.cc !== undefined
