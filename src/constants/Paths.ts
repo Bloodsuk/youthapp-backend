@@ -231,6 +231,8 @@ export default {
     ComplianceItems: "/compliance/items",
     ComplianceDocuments: "/compliance/documents",
     ComplianceDocumentReview: "/compliance/documents/:id/review",
+    Contracts: "/contracts",
+    ContractsReview: "/contracts/:id/review",
     UpdateStatus: "/update_status",
     ResendCredentials: "/resend_credentials",
   },

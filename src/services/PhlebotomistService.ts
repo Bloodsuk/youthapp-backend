@@ -13,9 +13,10 @@ import MailService from "./MailService";
 // **** Variables **** //
 
 export const Errors = {
-  PhlebotomistNotFound: "Phlebotomist not found in applications",
+  PhlebotomistNotFound: "No phlebotomist account found with this email.",
   EmailAlreadyExists: "Email already exists in phlebotomy applications",
   InvalidCredentials: "Invalid email or password for phlebotomist",
+  InvalidPassword: "Invalid password for phlebotomist account",
   AccountNotActive: "Phlebotomist account is not active",
 } as const;
 
@@ -95,26 +96,25 @@ async function createPasswordForPhlebotomist(email: string): Promise<string> {
 }
 
 /**
- * Authenticate phlebotomist login
+ * Authenticate phlebotomist login (phlebotomy_applications only).
  */
 async function loginPhlebotomist(email: string, password: string): Promise<IPhlebotomist> {
-  const hashedPassword = generateHash(password);
-  
-  const [rows] = await pool.query<RowDataPacket[]>(
-    "SELECT * FROM phlebotomy_applications WHERE email = ? AND password = ?",
-    [email, hashedPassword]
-  );
-  
-  if (rows.length === 0) {
-    throw new RouteError(HttpStatusCodes.UNAUTHORIZED, Errors.InvalidCredentials);
+  const phlebotomist = await getPhlebotomistByEmail(email);
+
+  if (!phlebotomist) {
+    throw new RouteError(HttpStatusCodes.UNAUTHORIZED, Errors.PhlebotomistNotFound);
   }
-  
-  const phlebotomist = rows[0] as IPhlebotomist;
-  
+
   if (phlebotomist.is_active !== 1) {
     throw new RouteError(HttpStatusCodes.UNAUTHORIZED, Errors.AccountNotActive);
   }
-  
+
+  const hashedPassword = generateHash(password);
+
+  if (!phlebotomist.password || phlebotomist.password !== hashedPassword) {
+    throw new RouteError(HttpStatusCodes.UNAUTHORIZED, Errors.InvalidPassword);
+  }
+
   return phlebotomist;
 }
 

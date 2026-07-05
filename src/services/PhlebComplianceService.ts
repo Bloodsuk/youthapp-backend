@@ -1,5 +1,7 @@
 import { pool } from "@src/server";
 import { RowDataPacket, ResultSetHeader } from "mysql2";
+import fs from "fs";
+import path from "path";
 import {
   IPhlebComplianceDocument,
   IPhlebComplianceDocumentReview,
@@ -56,6 +58,10 @@ function daysUntil(dateStr: string): number {
   return Math.ceil((due.getTime() - today.getTime()) / 86400000);
 }
 
+const REMOTE_FILES_BASE_URL =
+  process.env.PUBLIC_FILES_BASE_URL?.trim() ||
+  "https://prapp.youth-revisited.co.uk";
+
 function buildFileUrl(filePath: string, baseUrl?: string): string {
   const normalized = filePath.startsWith("/") ? filePath.slice(1) : filePath;
   if (baseUrl) {
@@ -63,6 +69,17 @@ function buildFileUrl(filePath: string, baseUrl?: string): string {
     return `${root}${normalized}`;
   }
   return `/${normalized}`;
+}
+
+/** Local dev + live DB: file metadata is remote but PDF may only exist on production disk. */
+function resolveFileUrl(filePath: string, requestBaseUrl?: string): string {
+  if (!filePath) return "";
+  const normalized = filePath.startsWith("/") ? filePath.slice(1) : filePath;
+  const localFile = path.join(process.cwd(), "public", normalized);
+  if (fs.existsSync(localFile)) {
+    return buildFileUrl(filePath, requestBaseUrl);
+  }
+  return buildFileUrl(filePath, REMOTE_FILES_BASE_URL);
 }
 
 function mapDocumentRow(
@@ -74,7 +91,7 @@ function mapDocumentRow(
     id: Number(row.id),
     file_name: String(row.file_name ?? ""),
     file_path: filePath,
-    file_url: buildFileUrl(filePath, baseUrl),
+    file_url: resolveFileUrl(filePath, baseUrl),
     mime_type: row.mime_type ? String(row.mime_type) : null,
     file_size: row.file_size != null ? Number(row.file_size) : null,
     status: String(row.status) as PhlebComplianceDocStatus,
@@ -313,7 +330,7 @@ async function uploadDocument(
         id: insertResult.insertId,
         file_name: file.originalname,
         file_path: filePath,
-        file_url: buildFileUrl(filePath, baseUrl),
+        file_url: resolveFileUrl(filePath, baseUrl),
         mime_type: file.mimetype,
         file_size: file.size,
         status: "pending_review",

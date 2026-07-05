@@ -1,0 +1,107 @@
+export type PhlebContractStatus = "draft" | "submitted" | "approved" | "rejected";
+
+export interface IPhlebContract {
+  id: number;
+  phleb_id: number;
+  created_at: string;
+  updated_at: string;
+  status: PhlebContractStatus;
+  contractor_name: string | null;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  full_name: string | null;
+  dob: string | null;
+  home_address: string | null;
+  mobile_number: string | null;
+  personal_email: string | null;
+  emergency_contact: string | null;
+  areas_covered: string | null;
+  travel_radius: string | null;
+  available_days: string | null;
+  weekend_availability: string | null;
+  clinic_mobile: string | null;
+  own_vehicle: string | null;
+  account_name: string | null;
+  sort_code: string | null;
+  account_number: string | null;
+  payment_frequency: string | null;
+  cv_file: string | null;
+  cv_file_url?: string | null;
+  phlebotomy_qualifications: string | null;
+  relevant_certificates: string | null;
+  cpd_training: string | null;
+  clinical_competencies: string | null;
+  hep_b_proof: string | null;
+  hep_b_proof_url?: string | null;
+  occupational_health_records: string | null;
+  occupational_health_records_url?: string | null;
+  dbs_adults: string | null;
+  dbs_adults_url?: string | null;
+  dbs_children: string | null;
+  dbs_children_url?: string | null;
+  right_to_work: string | null;
+  right_to_work_url?: string | null;
+  utr_file: string | null;
+  utr_file_url?: string | null;
+  contractor_signature: string | null;
+  contractor_signature_date: string | null;
+  youth_signature: string | null;
+  youth_signature_date: string | null;
+  declaration_signature: string | null;
+  declaration_name: string | null;
+  declaration_date: string | null;
+  bank_signature: string | null;
+  bank_signature_date: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+}
+
+export interface IPhlebContractInput {
+  status?: PhlebContractStatus;
+  contractor_name?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  full_name?: string;
+  dob?: string;
+  home_address?: string;
+  mobile_number?: string;
+  personal_email?: string;
+  emergency_contact?: string;
+  areas_covered?: string;
+  travel_radius?: string;
+  available_days?: string;
+  weekend_availability?: string;
+  clinic_mobile?: string;
+  own_vehicle?: string;
+  account_name?: string;
+  sort_code?: string;
+  account_number?: string;
+  payment_frequency?: string;
+  cv_file?: string;
+  phlebotomy_qualifications?: string;
+  relevant_certificates?: string;
+  cpd_training?: string;
+  clinical_competencies?: string;
+  hep_b_proof?: string;
+  occupational_health_records?: string;
+  dbs_adults?: string;
+  dbs_children?: string;
+  right_to_work?: string;
+  utr_file?: string;
+  contractor_signature?: string;
+  contractor_signature_date?: string;
+  youth_signature?: string;
+  youth_signature_date?: string;
+  declaration_signature?: string;
+  declaration_name?: string;
+  declaration_date?: string;
+  bank_signature?: string;
+  bank_signature_date?: string;
+}
+
+export interface IPhlebContractReview {
+  status: "approved" | "rejected";
+  notes?: string;
+}

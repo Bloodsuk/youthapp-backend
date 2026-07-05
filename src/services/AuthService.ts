@@ -15,7 +15,8 @@ import { ICustomer } from "@src/interfaces/ICustomer";
 // Errors
 export const Errors = {
   InvalidEmail: "Email Address Is Not Valid!",
-  InvalidPassword: `Invalid password`,
+  InvalidPassword: "Invalid password",
+  AccountNotFound: "No account found with this email for the selected login type.",
   NoPassword: `No password`,
   AlreadyExists: "Email Already Exists!!",
   UsernameAlreadyExists: "Username Already Exists!!",
@@ -26,43 +27,73 @@ export const Errors = {
 // **** Functions **** //
 
 /**
- * Login a user.
+ * Login a practitioner, moderator, or customer (never phlebotomists).
+ * Phlebotomists must use POST /auth/login with isPleb: true.
  */
 async function login(email: string, password: string) {
-  password = generateHash(password);
-  //Check if the logins belong to a Practioner or a Moderator (Clinic)
-  let query = await pool.query<RowDataPacket[]>(
-    `SELECT * from users where (email = '${email}' OR username='${email}') AND password = '${password}'`
+  const hashedPassword = generateHash(password);
+
+  const [userRows] = await pool.query<RowDataPacket[]>(
+    "SELECT * FROM users WHERE email = ? OR username = ? LIMIT 1",
+    [email, email]
   );
 
-  /// Check for Master Pass Login ///
-  if (query[0].length === 0) {
-    //Check username with user_level
-    query = await pool.query<RowDataPacket[]>(
-      `SELECT users.* FROM users INNER JOIN masterlogin ON users.user_level = masterlogin.user_level WHERE users.user_level = 'Practitioner' AND (users.email = '${email}' OR users.username='${email}') AND masterlogin.masterpass = '${password}'`
-    );
-  }
-  // ENDs Check for Master Pass Login // 
-
-  if (query[0].length === 0)// not a Practitioner or Moderator (Clinic)
-  {
-    query = await pool.query<RowDataPacket[]>(
-      `SELECT * from customers where (email = '${email}' OR username='${email}') AND password = '${password}'`
-    );
-  }
-
-  // Phlebotomists must use POST /auth/login with isPleb: true — never here.
-
-  // Now $rows > 0 means Practitioner, Moderator, or Customer only.
-  if (query[0].length > 0) {
-    const user = query[0][0] as IUser & Record<string, unknown>;
-    if (user["status"] == 0)
-      throw new RouteError(HttpStatusCodes.UNAUTHORIZED, "Account not activated please contact administrator");
-    else
+  if (userRows.length > 0) {
+    const user = userRows[0];
+    if (user.password === hashedPassword) {
+      if (user.status == 0) {
+        throw new RouteError(
+          HttpStatusCodes.UNAUTHORIZED,
+          "Account not activated please contact administrator"
+        );
+      }
       return user as IUser;
-  } else {
-    throw new RouteError(HttpStatusCodes.UNAUTHORIZED, "Wrong Email or Password!!!");
+    }
+    throw new RouteError(HttpStatusCodes.UNAUTHORIZED, Errors.InvalidPassword);
   }
+
+  // Master pass login (practitioner only)
+  const [masterRows] = await pool.query<RowDataPacket[]>(
+    `SELECT users.* FROM users
+     INNER JOIN masterlogin ON users.user_level = masterlogin.user_level
+     WHERE users.user_level = 'Practitioner'
+       AND (users.email = ? OR users.username = ?)
+       AND masterlogin.masterpass = ?
+     LIMIT 1`,
+    [email, email, hashedPassword]
+  );
+
+  if (masterRows.length > 0) {
+    const user = masterRows[0];
+    if (user.status == 0) {
+      throw new RouteError(
+        HttpStatusCodes.UNAUTHORIZED,
+        "Account not activated please contact administrator"
+      );
+    }
+    return user as IUser;
+  }
+
+  const [customerRows] = await pool.query<RowDataPacket[]>(
+    "SELECT * FROM customers WHERE email = ? OR username = ? LIMIT 1",
+    [email, email]
+  );
+
+  if (customerRows.length > 0) {
+    const customer = customerRows[0];
+    if (customer.password === hashedPassword) {
+      if (customer.status == 0) {
+        throw new RouteError(
+          HttpStatusCodes.UNAUTHORIZED,
+          "Account not activated please contact administrator"
+        );
+      }
+      return customer as IUser;
+    }
+    throw new RouteError(HttpStatusCodes.UNAUTHORIZED, Errors.InvalidPassword);
+  }
+
+  throw new RouteError(HttpStatusCodes.UNAUTHORIZED, Errors.AccountNotFound);
 }
 
 /**

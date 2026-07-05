@@ -82,6 +82,13 @@ const get = (k) => {
   await conn.query(phlebFilesSql);
   console.log("OK: npn_phleb_files (CREATE TABLE IF NOT EXISTS)");
 
+  const phlebContractsSql = fs.readFileSync(
+    path.join(appDir, "scripts/add_npn_phleb_contracts.sql"),
+    "utf8"
+  );
+  await conn.query(phlebContractsSql);
+  console.log("OK: npn_phleb_contracts (CREATE TABLE IF NOT EXISTS)");
+
   await conn.query(`CREATE TABLE IF NOT EXISTS npn_phleb_kit_stock (
     id int NOT NULL AUTO_INCREMENT,
     phleb_id int NOT NULL,

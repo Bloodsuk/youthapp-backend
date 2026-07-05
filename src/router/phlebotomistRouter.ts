@@ -1,5 +1,6 @@
 import Paths from "@src/constants/Paths";
 import PhlebComplianceController from "@src/controllers/PhlebComplianceController";
+import PhlebContractController from "@src/controllers/PhlebContractController";
 import PhlebKitController from "@src/controllers/PhlebKitController";
 import PhlebPerformanceController from "@src/controllers/PhlebPerformanceController";
 import PhlebTrainingController from "@src/controllers/PhlebTrainingController";
@@ -92,6 +93,25 @@ phlebotomistRouter.patch(
   Paths.Phlebotomists.ComplianceDocumentReview,
   validate(["status", "string"]),
   PhlebComplianceController.reviewDocument
+);
+
+// Phlebotomist contracts (npn_phleb_contracts — legacy wp_phleb_contracts)
+phlebotomistRouter.get(
+  Paths.Phlebotomists.Contracts,
+  PhlebContractController.getMyContracts
+);
+phlebotomistRouter.post(
+  Paths.Phlebotomists.Contracts,
+  PhlebContractController.submitContract
+);
+phlebotomistRouter.get(
+  `${Paths.Phlebotomists.Contracts}/all`,
+  PhlebContractController.listAllContracts
+);
+phlebotomistRouter.patch(
+  Paths.Phlebotomists.ContractsReview,
+  validate(["status", "string"]),
+  PhlebContractController.reviewContract
 );
 
 phlebotomistRouter.put(

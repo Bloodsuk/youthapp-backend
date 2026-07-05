@@ -1,9 +1,11 @@
 /**
- * Verifies phlebotomist accounts cannot use regular practitioner login.
+ * Verifies practitioner and phlebotomist logins are isolated by isPleb flag.
+ * The same email may exist in both users and phlebotomy_applications with different passwords.
  *
  * Usage:
  *   API_BASE=https://prapp.youth-revisited.co.uk/api \
- *   PHLEB_EMAIL=testphleb@local.test PHLEB_PASSWORD=test123 \
+ *   PHLEB_EMAIL=gpsphleb@test.com PHLEB_PASSWORD=phleb \
+ *   PRACT_EMAIL=gpsphleb@test.com PRACT_PASSWORD=wrong \
  *   node scripts/test_phleb_login_isolation.js
  */
 const API_BASE = (process.env.API_BASE || "http://127.0.0.1:3000/api").replace(
@@ -66,21 +68,24 @@ async function main() {
   const regularJwt = jwtLevel(regular.data.token);
 
   console.log("\n--- Result ---");
-  if (regularOk && regularJwt !== "Phlebotomist") {
-    console.error("FAIL: Regular login succeeded with non-phleb JWT — phleb can access practitioner APIs/UI.");
-    process.exit(1);
-  }
   if (regularOk && regularJwt === "Phlebotomist") {
-    console.error("FAIL: Regular login returned Phlebotomist JWT — app may route to practitioner dashboard.");
+    console.error("FAIL: Regular login returned Phlebotomist JWT.");
     process.exit(1);
   }
-  if (!plebOk) {
-    console.warn("WARN: Phleb login failed (check credentials / seed_local_test_users.sql).");
-  } else if (plebJwt !== "Phlebotomist") {
+  if (plebOk && plebJwt !== "Phlebotomist") {
     console.error(`FAIL: Phleb login JWT user_level is "${plebJwt}", expected Phlebotomist.`);
     process.exit(1);
+  }
+  if (plebOk) {
+    console.log("PASS: Phleb login returns Phlebotomist JWT when isPleb: true.");
+  }
+  if (!plebOk) {
+    console.warn("WARN: Phleb login failed (check credentials).");
+  }
+  if (regularOk) {
+    console.log("PASS: Practitioner/customer login succeeded without isPleb (same email allowed in both tables).");
   } else {
-    console.log("PASS: Regular login blocked; phleb login returns Phlebotomist JWT.");
+    console.log("INFO: Regular login did not succeed (expected if no matching users/customers row or wrong password).");
   }
 }
 
