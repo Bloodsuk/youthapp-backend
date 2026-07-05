@@ -1,13 +1,17 @@
 import Paths from "@src/constants/Paths";
 import PhlebComplianceController from "@src/controllers/PhlebComplianceController";
 import PhlebContractController from "@src/controllers/PhlebContractController";
+import PhlebSopController from "@src/controllers/PhlebSopController";
 import PhlebKitController from "@src/controllers/PhlebKitController";
-import PhlebPerformanceController from "@src/controllers/PhlebPerformanceController";
 import PhlebTrainingController from "@src/controllers/PhlebTrainingController";
 import PhlebotomistController from "@src/controllers/PhlebotomistController";
 import { Router } from "express";
 import jetValidator from "jet-validator/lib/jet-validator";
 import { phlebComplianceUpload } from "@src/utils/phlebComplianceUpload";
+import {
+  phlebContractUploadFields,
+  CONTRACT_FILE_FIELDS,
+} from "@src/utils/phlebContractUpload";
 import { UserLevels } from "@src/constants/enums";
 
 const validate = jetValidator();
@@ -57,11 +61,6 @@ phlebotomistRouter.get(
   PhlebTrainingController.getCompetency
 );
 
-phlebotomistRouter.get(
-  Paths.Phlebotomists.PerformanceOverview,
-  PhlebPerformanceController.getOverview
-);
-
 // Logged-in phlebotomist compliance documents (npn_phleb_files + signoffs)
 phlebotomistRouter.get(
   Paths.Phlebotomists.ComplianceOverview,
@@ -102,6 +101,18 @@ phlebotomistRouter.get(
 );
 phlebotomistRouter.post(
   Paths.Phlebotomists.Contracts,
+  (req, res, next) => {
+    const sessionUser = res.locals.sessionUser;
+    if (sessionUser?.user_level !== UserLevels.Phlebotomist) {
+      return res.status(403).json({
+        success: false,
+        error: "Phlebotomist access required",
+      }).end();
+    }
+    (req as Express.Request & { phlebId?: number }).phlebId = sessionUser.id;
+    next();
+  },
+  phlebContractUploadFields,
   PhlebContractController.submitContract
 );
 phlebotomistRouter.get(
@@ -112,6 +123,36 @@ phlebotomistRouter.patch(
   Paths.Phlebotomists.ContractsReview,
   validate(["status", "string"]),
   PhlebContractController.reviewContract
+);
+
+// SOP register (npn_sop_documents / npn_sop_acknowledgements)
+phlebotomistRouter.get(
+  Paths.Phlebotomists.SopsAll,
+  PhlebSopController.listAllSops
+);
+phlebotomistRouter.get(
+  Paths.Phlebotomists.SopsPhleb,
+  PhlebSopController.listPhlebSops
+);
+phlebotomistRouter.get(
+  Paths.Phlebotomists.Sops,
+  PhlebSopController.listMySops
+);
+phlebotomistRouter.post(
+  Paths.Phlebotomists.Sops,
+  PhlebSopController.createSop
+);
+phlebotomistRouter.post(
+  Paths.Phlebotomists.SopsAcknowledge,
+  PhlebSopController.acknowledgeSop
+);
+phlebotomistRouter.post(
+  Paths.Phlebotomists.SopsView,
+  PhlebSopController.markSopViewed
+);
+phlebotomistRouter.patch(
+  Paths.Phlebotomists.SopsById,
+  PhlebSopController.updateSop
 );
 
 phlebotomistRouter.put(

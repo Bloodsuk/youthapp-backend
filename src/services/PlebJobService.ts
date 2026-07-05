@@ -7,6 +7,7 @@ import { canAssignJobs } from "@src/util/JobAssignmentAuth";
 import { RouteError } from "@src/other/classes";
 import HttpStatusCodes from "@src/constants/HttpStatusCodes";
 import MailService from "./MailService";
+import GhlStatusNotifyService from "./GhlStatusNotifyService";
 import { Errors as PlebAvailabilityErrors } from "./PlebAvailabilityService";
 import fetch from "node-fetch";
 
@@ -444,6 +445,18 @@ async function updateStatus(id: number, jobStatus: string, trackingNumber?: stri
           notificationError instanceof Error ? notificationError.stack : ""
         );
       }
+    }
+
+    try {
+      await GhlStatusNotifyService.notifyJobStatusChange(
+        updatedContext.orderId,
+        trimmedStatus
+      );
+    } catch (ghlError) {
+      console.error(
+        "❌ Failed to trigger GHL status notify:",
+        ghlError instanceof Error ? ghlError.message : ghlError
+      );
     }
   } catch (error) {
     console.error(

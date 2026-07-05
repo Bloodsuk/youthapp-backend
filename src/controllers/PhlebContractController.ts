@@ -3,6 +3,7 @@ import { UserLevels } from "@src/constants/enums";
 import { IPhlebContractInput, IPhlebContractReview } from "@src/interfaces/IPhlebContract";
 import { RouteError } from "@src/other/classes";
 import PhlebContractService from "@src/services/PhlebContractService";
+import { CONTRACT_FILE_FIELDS } from "@src/utils/phlebContractUpload";
 import { IReq, IRes } from "@src/types/express/misc";
 
 function requirePhlebotomist(res: IRes) {
@@ -58,7 +59,21 @@ async function submitContract(req: IReq<IPhlebContractInput>, res: IRes) {
   }
 
   try {
-    const data = await PhlebContractService.createContract(sessionUser.id, req.body);
+    const body = { ...(req.body as IPhlebContractInput) };
+    const files = req.files as
+      | { [field: string]: Express.Multer.File[] }
+      | undefined;
+
+    if (files) {
+      for (const field of CONTRACT_FILE_FIELDS) {
+        const uploaded = files[field]?.[0];
+        if (uploaded) {
+          body[field] = `/uploads/${uploaded.filename}`;
+        }
+      }
+    }
+
+    const data = await PhlebContractService.createContract(sessionUser.id, body);
     return res.status(HttpStatusCodes.CREATED).json({
       success: true,
       message: "Contract submitted successfully",

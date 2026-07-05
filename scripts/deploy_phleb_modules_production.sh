@@ -89,6 +89,15 @@ const get = (k) => {
   await conn.query(phlebContractsSql);
   console.log("OK: npn_phleb_contracts (CREATE TABLE IF NOT EXISTS)");
 
+  const sopTablesSql = fs.readFileSync(
+    path.join(appDir, "scripts/add_npn_sop_tables.sql"),
+    "utf8"
+  );
+  for (const stmt of sopTablesSql.split(";").map((s) => s.trim()).filter(Boolean)) {
+    await conn.query(stmt);
+  }
+  console.log("OK: npn_sop_documents / npn_sop_acknowledgements / npn_sop_document_views");
+
   await conn.query(`CREATE TABLE IF NOT EXISTS npn_phleb_kit_stock (
     id int NOT NULL AUTO_INCREMENT,
     phleb_id int NOT NULL,
