@@ -98,6 +98,27 @@ const get = (k) => {
   }
   console.log("OK: npn_sop_documents / npn_sop_acknowledgements / npn_sop_document_views");
 
+  const bookingColumnAdds = [
+    ["available_days", "varchar(50) DEFAULT NULL"],
+    ["blood_draw_issues", "varchar(5) DEFAULT NULL"],
+    ["blood_draw_issue_types", "text DEFAULT NULL"],
+    ["blood_draw_issue_detail", "text DEFAULT NULL"],
+    ["customer_postcode", "varchar(10) DEFAULT NULL"],
+  ];
+  for (const [col, def] of bookingColumnAdds) {
+    const [exists] = await conn.query(
+      `SELECT column_name FROM information_schema.columns
+       WHERE table_schema = ? AND table_name = 'customer_phleb_bookings' AND column_name = ?`,
+      [db, col]
+    );
+    if (exists.length === 0) {
+      await conn.query(`ALTER TABLE customer_phleb_bookings ADD COLUMN ${col} ${def}`);
+      console.log(`OK: customer_phleb_bookings.${col} (new column only)`);
+    } else {
+      console.log(`SKIP: customer_phleb_bookings.${col} already exists`);
+    }
+  }
+
   await conn.query(`CREATE TABLE IF NOT EXISTS npn_phleb_kit_stock (
     id int NOT NULL AUTO_INCREMENT,
     phleb_id int NOT NULL,

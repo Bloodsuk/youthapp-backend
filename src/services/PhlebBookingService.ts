@@ -26,12 +26,20 @@ async function saveBooking(
     shift_type: bookingData.shift_type,
   };
 
-  // Only include optional fields if they have values
-  if (bookingData.availability) {
-    booking.availability = bookingData.availability;
-  }
-  if (bookingData.additional_preferences) {
-    booking.additional_preferences = bookingData.additional_preferences;
+  const optionalStringFields: (keyof Omit<IPhlebBooking, "id" | "order_id" | "created_at">)[] = [
+    "availability",
+    "additional_preferences",
+    "available_days",
+    "blood_draw_issues",
+    "blood_draw_issue_types",
+    "blood_draw_issue_detail",
+    "customer_postcode",
+  ];
+  for (const key of optionalStringFields) {
+    const val = bookingData[key];
+    if (val !== undefined && val !== null && String(val).trim() !== "") {
+      booking[key] = val;
+    }
   }
 
   const [result] = await pool.query<ResultSetHeader>(

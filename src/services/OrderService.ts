@@ -132,6 +132,11 @@ async function getAll(
       customer_phleb_bookings.shift_type AS phleb_shift_type,
       customer_phleb_bookings.availability AS phleb_availability,
       customer_phleb_bookings.additional_preferences AS phleb_additional_preferences,
+      customer_phleb_bookings.available_days AS phleb_available_days,
+      customer_phleb_bookings.blood_draw_issues AS phleb_blood_draw_issues,
+      customer_phleb_bookings.blood_draw_issue_types AS phleb_blood_draw_issue_types,
+      customer_phleb_bookings.blood_draw_issue_detail AS phleb_blood_draw_issue_detail,
+      customer_phleb_bookings.customer_postcode AS phleb_customer_postcode,
       customer_phleb_bookings.created_at AS phleb_created_at
     FROM orders 
     LEFT JOIN customers ON orders.customer_id = customers.id 
@@ -172,6 +177,11 @@ async function getAll(
         shift_type: order.phleb_shift_type,
         availability: order.phleb_availability,
         additional_preferences: order.phleb_additional_preferences,
+        available_days: order.phleb_available_days,
+        blood_draw_issues: order.phleb_blood_draw_issues,
+        blood_draw_issue_types: order.phleb_blood_draw_issue_types,
+        blood_draw_issue_detail: order.phleb_blood_draw_issue_detail,
+        customer_postcode: order.phleb_customer_postcode,
         created_at: order.phleb_created_at,
       };
     }
@@ -296,6 +306,11 @@ async function getAllCustomerOrder(
       customer_phleb_bookings.shift_type AS phleb_shift_type,
       customer_phleb_bookings.availability AS phleb_availability,
       customer_phleb_bookings.additional_preferences AS phleb_additional_preferences,
+      customer_phleb_bookings.available_days AS phleb_available_days,
+      customer_phleb_bookings.blood_draw_issues AS phleb_blood_draw_issues,
+      customer_phleb_bookings.blood_draw_issue_types AS phleb_blood_draw_issue_types,
+      customer_phleb_bookings.blood_draw_issue_detail AS phleb_blood_draw_issue_detail,
+      customer_phleb_bookings.customer_postcode AS phleb_customer_postcode,
       customer_phleb_bookings.created_at AS phleb_created_at
     FROM orders 
     LEFT JOIN customers ON orders.customer_id = customers.id 
@@ -335,6 +350,11 @@ async function getAllCustomerOrder(
         shift_type: order.phleb_shift_type,
         availability: order.phleb_availability,
         additional_preferences: order.phleb_additional_preferences,
+        available_days: order.phleb_available_days,
+        blood_draw_issues: order.phleb_blood_draw_issues,
+        blood_draw_issue_types: order.phleb_blood_draw_issue_types,
+        blood_draw_issue_detail: order.phleb_blood_draw_issue_detail,
+        customer_postcode: order.phleb_customer_postcode,
         created_at: order.phleb_created_at,
       };
     }
@@ -383,6 +403,11 @@ async function getOutstandingCreditOrders(
     customer_phleb_bookings.shift_type AS phleb_shift_type,
     customer_phleb_bookings.availability AS phleb_availability,
     customer_phleb_bookings.additional_preferences AS phleb_additional_preferences,
+    customer_phleb_bookings.available_days AS phleb_available_days,
+    customer_phleb_bookings.blood_draw_issues AS phleb_blood_draw_issues,
+    customer_phleb_bookings.blood_draw_issue_types AS phleb_blood_draw_issue_types,
+    customer_phleb_bookings.blood_draw_issue_detail AS phleb_blood_draw_issue_detail,
+    customer_phleb_bookings.customer_postcode AS phleb_customer_postcode,
     customer_phleb_bookings.created_at AS phleb_created_at
   FROM orders 
   LEFT JOIN customers ON orders.customer_id = customers.id 
@@ -418,6 +443,11 @@ async function getOutstandingCreditOrders(
         shift_type: order.phleb_shift_type,
         availability: order.phleb_availability,
         additional_preferences: order.phleb_additional_preferences,
+        available_days: order.phleb_available_days,
+        blood_draw_issues: order.phleb_blood_draw_issues,
+        blood_draw_issue_types: order.phleb_blood_draw_issue_types,
+        blood_draw_issue_detail: order.phleb_blood_draw_issue_detail,
+        customer_postcode: order.phleb_customer_postcode,
         created_at: order.phleb_created_at,
       };
     }

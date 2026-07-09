@@ -893,6 +893,10 @@ interface IPhlebBookingNotificationPayload extends IOrderIdentifiers {
     zone: string;
     availability?: string;
     additional_preferences?: string;
+    available_days?: string;
+    blood_draw_issues?: string;
+    blood_draw_issue_types?: string;
+    blood_draw_issue_detail?: string;
   };
 }
 
@@ -1012,8 +1016,12 @@ const sendPhlebBookingNotification = async (
     { label: "Slot", value: getDetailValue(payload.booking.slot_times) },
     { label: "Price", value: getDetailValue(payload.booking.price) },
     { label: "Weekend Surcharge", value: getDetailValue(payload.booking.weekend_surcharge) },
+    { label: "Available Days", value: getDetailValue(payload.booking.available_days) },
     { label: "Availability", value: getDetailValue(payload.booking.availability) },
-    { label: "Additional Preferences", value: getDetailValue(payload.booking.additional_preferences) },
+    { label: "Scheduling Notes", value: getDetailValue(payload.booking.additional_preferences) },
+    { label: "Blood Draw Issues", value: getDetailValue(payload.booking.blood_draw_issues) },
+    { label: "Blood Draw Issue Types", value: getDetailValue(payload.booking.blood_draw_issue_types) },
+    { label: "Blood Draw Detail", value: getDetailValue(payload.booking.blood_draw_issue_detail) },
   ];
 
   const html = buildNotificationEmail({

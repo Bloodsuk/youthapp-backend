@@ -43,6 +43,12 @@ const STANDARD_ZONE_SLOTS: Slot[] = [
     weekend_surcharge: "10"
   },
   {
+    shift_type: "Full Day",
+    slot_times: "7:00 AM - 7:00 PM",
+    price: "45",
+    weekend_surcharge: "10"
+  },
+  {
     shift_type: "Evening",
     slot_times: "4:00 PM - 7:30 PM",
     price: "55",
@@ -60,6 +66,12 @@ const LONDON_ZONE_SLOTS: Slot[] = [
   {
     shift_type: "Daytime",
     slot_times: "9:00 AM - 4:00 PM",
+    price: "55",
+    weekend_surcharge: "10"
+  },
+  {
+    shift_type: "Full Day",
+    slot_times: "7:00 AM - 7:00 PM",
     price: "55",
     weekend_surcharge: "10"
   },

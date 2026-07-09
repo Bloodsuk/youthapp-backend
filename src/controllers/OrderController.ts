@@ -541,6 +541,11 @@ interface IPhlebBookingData {
   shift_type: string;
   availability?: string;
   additional_preferences?: string;
+  available_days?: string;
+  blood_draw_issues?: string;
+  blood_draw_issue_types?: string;
+  blood_draw_issue_detail?: string;
+  customer_postcode?: string;
 }
 
 async function sendPhlebBookingEmails(
@@ -571,6 +576,10 @@ async function sendPhlebBookingEmails(
           zone: phlebBookingData.zone,
           availability: phlebBookingData.availability,
           additional_preferences: phlebBookingData.additional_preferences,
+          available_days: phlebBookingData.available_days,
+          blood_draw_issues: phlebBookingData.blood_draw_issues,
+          blood_draw_issue_types: phlebBookingData.blood_draw_issue_types,
+          blood_draw_issue_detail: phlebBookingData.blood_draw_issue_detail,
         },
       }
     );

@@ -8,6 +8,11 @@ export interface IPhlebBooking {
   order_id?: number;
   availability?: string;
   additional_preferences?: string;
+  available_days?: string;
+  blood_draw_issues?: string;
+  blood_draw_issue_types?: string;
+  blood_draw_issue_detail?: string;
+  customer_postcode?: string;
   created_at?: string;
 }
 
