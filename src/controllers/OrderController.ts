@@ -25,6 +25,8 @@ import { ICustomer } from "@src/interfaces/ICustomer";
 import PhlebSlotService from "@src/services/PhlebSlotService";
 import PhlebBookingService from "@src/services/PhlebBookingService";
 import MailService from "@src/services/MailService";
+import GhlHomeVisitNotifyService from "@src/services/GhlHomeVisitNotifyService";
+import HomeVisitDraftMessageService from "@src/services/HomeVisitDraftMessageService";
 
 const stripe = new Stripe(EnvVars.Stripe.Secret);
 
@@ -592,6 +594,7 @@ const HOME_VISIT_SERVICE_IDS = [2, 6, 11, 12, 13];
 
 async function sendPostOrderEmails(params: {
   customer: ICustomer;
+  orderId: number;
   orderCode: string;
   testNames: string[];
   serviceIds: number[];
@@ -603,6 +606,7 @@ async function sendPostOrderEmails(params: {
 }) {
   const {
     customer,
+    orderId,
     orderCode,
     testNames,
     serviceIds,
@@ -643,7 +647,7 @@ async function sendPostOrderEmails(params: {
     }
   }
 
-  // 1) Home Visit email to Peter if any home visit service is selected
+  // 1) Home Visit notifications (email + GHL WhatsApp + nearest-phleb drafts)
   const hasHomeVisitService = serviceIds.some((id) =>
     HOME_VISIT_SERVICE_IDS.includes(id)
   );
@@ -670,7 +674,33 @@ async function sendPostOrderEmails(params: {
         additionalPreferences: phlebBookingData?.additional_preferences,
       });
     } catch (err) {
-      console.error("Failed to send Home Visit email to Peter:", err);
+      console.error("Failed to send Home Visit email:", err);
+    }
+
+    // Site parity: ghl-whatsapp.php + ghl-whatsapp-send-to-sales-loop.php
+    try {
+      await GhlHomeVisitNotifyService.notifyNewHomeVisitBooking({
+        customerFirstName: customer.fore_name || clientName,
+        customerPhone: customer.telephone || "",
+        customerEmail: customer.email || "",
+        customerAddress: fullAddress,
+        customerPostcode: customer.postal_code || "",
+        practitionerName,
+        orderCode,
+      });
+    } catch (err) {
+      console.error("Failed to send Home Visit GHL WhatsApp:", err);
+    }
+
+    // Site parity: draft-messages-entry.php
+    try {
+      await HomeVisitDraftMessageService.createDraftForOrder({
+        orderId,
+        postalCode: customer.postal_code || phlebBookingData?.customer_postcode,
+        address: fullAddress,
+      });
+    } catch (err) {
+      console.error("Failed to create Home Visit draft messages:", err);
     }
   }
 
@@ -857,6 +887,7 @@ async function creditCheckout(req: IReq<ICreditCheckoutReqBody>, res: IRes) {
 
     await sendPostOrderEmails({
       customer,
+      orderId: id,
       orderCode: order_id,
       testNames,
       serviceIds: service_ids,
@@ -1128,6 +1159,7 @@ async function stripeCheckout(req: IReq<IStripeCheckoutReqBody>, res: IRes) {
 
     await sendPostOrderEmails({
       customer,
+      orderId: id,
       orderCode: order_id,
       testNames,
       serviceIds: service_ids,
@@ -1436,6 +1468,7 @@ async function globalPaymentsCheckout(
 
     await sendPostOrderEmails({
       customer,
+      orderId: id,
       orderCode: order_id,
       testNames,
       serviceIds: service_ids,

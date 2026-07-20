@@ -1,5 +1,6 @@
 import Paths from "@src/constants/Paths";
 import AuthController from "@src/controllers/AuthController";
+import PartnerPortalController from "@src/controllers/PartnerPortalController";
 import { Router } from "express";
 import jetValidator from "jet-validator/lib/jet-validator";
 import { Request, Response, NextFunction } from "express";
@@ -63,5 +64,11 @@ authRouter.post(
 
 // Logout user
 authRouter.post(Paths.Auth.Logout, AuthController.logout);
+
+// WordPress partner SSO — server-to-server token exchange
+authRouter.post(
+  Paths.Auth.PartnerSsoConsume,
+  PartnerPortalController.consumeSsoToken
+);
 
 export default authRouter;

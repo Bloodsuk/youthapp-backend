@@ -358,7 +358,6 @@ const sendUserForgotCodeEmail = async (email: string, code: string) => {
         const mailOptions = {
           from: from,
           to: email,
-          cc: cc,
           subject: subject,
           html: data,
         };
@@ -1100,7 +1099,7 @@ const buildHomeVisitEmailHtml = (p: IHomeVisitEmailPayload): string => {
         style="padding: 40px 20px 20px 20px; border-radius: 4px 4px 0px 0px;
         color: #111111; font-family: Lato, Helvetica, Arial, sans-serif;
         font-size: 25px; font-weight: 600;">
-        New Home Phlebotomy Booking (From App)
+        New Home Phlebotomy Booking
       </td></tr>
     </table>
   </td></tr>
@@ -1147,12 +1146,16 @@ const buildHomeVisitEmailHtml = (p: IHomeVisitEmailPayload): string => {
 </body></html>`;
 };
 
+const HOME_VISIT_NOTIFICATIONS_TO = "homevisits@youth-revisited.co.uk";
+
 const sendHomeVisitBookingEmail = async (
   payload: IHomeVisitEmailPayload
 ): Promise<void> => {
   const subject = `New Home Phlebotomy Booking - Order ${payload.orderCode}`;
   const html = buildHomeVisitEmailHtml(payload);
-  await sendEmail("Bloodservices@mail.com", subject, html, { cc: null });
+  const recipients = parseEmailCsv(process.env.HOME_VISIT_NOTIFICATIONS_TO);
+  const to = recipients.length > 0 ? recipients : [HOME_VISIT_NOTIFICATIONS_TO];
+  await sendEmail(to, subject, html, { cc: null });
 };
 
 // ---- New Order from App Email (to Jade + info) ----

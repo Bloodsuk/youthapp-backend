@@ -5,6 +5,7 @@ import PhlebSopController from "@src/controllers/PhlebSopController";
 import PhlebKitController from "@src/controllers/PhlebKitController";
 import PhlebTrainingController from "@src/controllers/PhlebTrainingController";
 import PhlebotomistController from "@src/controllers/PhlebotomistController";
+import PartnerPortalController from "@src/controllers/PartnerPortalController";
 import { Router } from "express";
 import jetValidator from "jet-validator/lib/jet-validator";
 import { phlebComplianceUpload } from "@src/utils/phlebComplianceUpload";
@@ -22,6 +23,11 @@ const phlebotomistRouter = Router();
 phlebotomistRouter.get(
   Paths.Phlebotomists.Profile,
   PhlebotomistController.getProfile
+);
+
+phlebotomistRouter.get(
+  Paths.Phlebotomists.PartnerPortal,
+  PartnerPortalController.getPortalAccess
 );
 
 // Logged-in phlebotomist kits (npn_kit_types / npn_kit_requests)

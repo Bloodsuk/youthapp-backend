@@ -98,6 +98,24 @@ const get = (k) => {
   }
   console.log("OK: npn_sop_documents / npn_sop_acknowledgements / npn_sop_document_views");
 
+  const partnerSsoSql = fs.readFileSync(
+    path.join(appDir, "scripts/partner_sso_tokens.sql"),
+    "utf8"
+  );
+  for (const stmt of partnerSsoSql.split(";").map((s) => s.trim()).filter(Boolean)) {
+    await conn.query(stmt);
+  }
+  console.log("OK: partner_sso_tokens (CREATE TABLE IF NOT EXISTS)");
+
+  const homeVisitDraftSql = fs.readFileSync(
+    path.join(appDir, "scripts/home_visit_draft_messages.sql"),
+    "utf8"
+  );
+  for (const stmt of homeVisitDraftSql.split(";").map((s) => s.trim()).filter(Boolean)) {
+    await conn.query(stmt);
+  }
+  console.log("OK: home_visit_draft_messages (CREATE TABLE IF NOT EXISTS)");
+
   const bookingColumnAdds = [
     ["available_days", "varchar(50) DEFAULT NULL"],
     ["blood_draw_issues", "varchar(5) DEFAULT NULL"],

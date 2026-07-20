@@ -12,6 +12,7 @@ export default {
     ResetPassword: "/reset_password",
     ResetForgotPassword: "/reset_forgot_password",
     Logout: "/logout",
+    PartnerSsoConsume: "/partner-sso/consume",
   },
   Users: {
     Base: "/users",
@@ -240,6 +241,7 @@ export default {
     SopsById: "/sops/:id",
     UpdateStatus: "/update_status",
     ResendCredentials: "/resend_credentials",
+    PartnerPortal: "/partner-portal",
   },
   PlebJobs: {
     Base: "/pleb_jobs",
