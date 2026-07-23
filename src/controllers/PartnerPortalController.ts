@@ -3,6 +3,7 @@ import { UserLevels } from "@src/constants/enums";
 import { RouteError } from "@src/other/classes";
 import PhlebotomistService from "@src/services/PhlebotomistService";
 import * as PartnerPortalService from "@src/services/PartnerPortalService";
+import * as PhlebApplicationFormService from "@src/services/PhlebApplicationFormService";
 import { IReq, IRes } from "@src/types/express/misc";
 
 async function getPortalAccess(req: IReq, res: IRes) {
@@ -24,6 +25,46 @@ async function getPortalAccess(req: IReq, res: IRes) {
     }
 
     const result = await PartnerPortalService.getPartnerPortalAccess(profile.email);
+    return res.status(HttpStatusCodes.OK).json({
+      success: true,
+      ...result,
+    }).end();
+  } catch (error) {
+    if (error instanceof RouteError) {
+      return res.status(error.status).json({
+        success: false,
+        error: error.message,
+      }).end();
+    }
+    return res.status(HttpStatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: "Internal Error: " + error,
+    }).end();
+  }
+}
+
+async function getSubmitContractAccess(req: IReq, res: IRes) {
+  const sessionUser = res.locals.sessionUser;
+  if (sessionUser?.user_level !== UserLevels.Phlebotomist) {
+    return res.status(HttpStatusCodes.FORBIDDEN).json({
+      success: false,
+      error: "Phlebotomist access required",
+    }).end();
+  }
+
+  try {
+    const profile = await PhlebotomistService.getProfileById(sessionUser.id);
+    if (!profile?.email) {
+      return res.status(HttpStatusCodes.NOT_FOUND).json({
+        success: false,
+        error: "Phlebotomist email not found",
+      }).end();
+    }
+
+    const result = PhlebApplicationFormService.getSubmitContractAccess(
+      sessionUser.id,
+      profile.email
+    );
     return res.status(HttpStatusCodes.OK).json({
       success: true,
       ...result,
@@ -80,5 +121,6 @@ async function consumeSsoToken(req: IReq<IConsumeSsoBody>, res: IRes) {
 
 export default {
   getPortalAccess,
+  getSubmitContractAccess,
   consumeSsoToken,
 };

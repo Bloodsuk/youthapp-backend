@@ -16,7 +16,7 @@ function partnerLoginUrl(): string {
 function partnerSignupUrl(): string {
   return (
     process.env.PARTNER_SIGNUP_URL?.trim() ||
-    "https://www.youth-revisited.co.uk/partner-register/"
+    "https://www.youth-revisited.co.uk/affiliate-account/?yr_af_and_phleb=1"
   );
 }
 

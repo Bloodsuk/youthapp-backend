@@ -30,6 +30,11 @@ phlebotomistRouter.get(
   PartnerPortalController.getPortalAccess
 );
 
+phlebotomistRouter.get(
+  Paths.Phlebotomists.SubmitContract,
+  PartnerPortalController.getSubmitContractAccess
+);
+
 // Logged-in phlebotomist kits (npn_kit_types / npn_kit_requests)
 phlebotomistRouter.get(
   Paths.Phlebotomists.KitTypes,

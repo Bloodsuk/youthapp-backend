@@ -242,6 +242,7 @@ export default {
     UpdateStatus: "/update_status",
     ResendCredentials: "/resend_credentials",
     PartnerPortal: "/partner-portal",
+    SubmitContract: "/submit-contract",
   },
   PlebJobs: {
     Base: "/pleb_jobs",
