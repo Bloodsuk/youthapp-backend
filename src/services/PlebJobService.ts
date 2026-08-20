@@ -313,6 +313,22 @@ async function updateStatus(id: number, jobStatus: string, trackingNumber?: stri
     return false;
   }
 
+  // Keep orders.trackingNumber in sync so customer/practitioner order views
+  // show the courier reference entered when marking Delivered.
+  if (trimmedTracking && context.orderId != null) {
+    try {
+      await pool.query<ResultSetHeader>(
+        "UPDATE orders SET trackingNumber = ? WHERE id = ? OR id_on_wp = ?",
+        [trimmedTracking, context.orderId, context.orderId]
+      );
+    } catch (e) {
+      console.error(
+        "❌ Failed to sync trackingNumber onto orders:",
+        e instanceof Error ? e.message : e
+      );
+    }
+  }
+
   const updatedContext: IPlebJobContext = {
     ...context,
     jobStatus: trimmedStatus,
