@@ -150,6 +150,9 @@ export default {
     GetOrdersStarted: "/started",
     GetAvailablePlebs: "/available_plebs",
     PhlebSlots: "/phleb-slots",
+    PhlebBookingNotes: "/:id/phleb_booking/notes",
+    GymBooking: "/:id/gym_booking",
+    CustomerGymBookings: "/customer/:customer_id/gym_bookings",
   },
   Tests: {
     Base: "/tests",
@@ -233,6 +236,7 @@ export default {
     ComplianceDocumentReview: "/compliance/documents/:id/review",
     Contracts: "/contracts",
     ContractsReview: "/contracts/:id/review",
+    ContractsCleanupWrong: "/contracts/cleanup-wrong-collection",
     Sops: "/sops",
     SopsAll: "/sops/all",
     SopsPhleb: "/sops/phleb/:phleb_id",
@@ -243,6 +247,7 @@ export default {
     ResendCredentials: "/resend_credentials",
     PartnerPortal: "/partner-portal",
     SubmitContract: "/submit-contract",
+    SubmitContractDocuments: "/submit-contract/documents",
   },
   PlebJobs: {
     Base: "/pleb_jobs",

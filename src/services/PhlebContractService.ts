@@ -137,37 +137,23 @@ function normalizeStatus(value?: string): PhlebContractStatus {
 }
 
 async function createContract(
-  phlebId: number,
-  input: IPhlebContractInput
+  _phlebId: number,
+  _input: IPhlebContractInput
 ): Promise<IPhlebContract> {
-  const status = normalizeStatus(input.status);
-  const columns: string[] = ["phleb_id", "status"];
-  const placeholders: string[] = ["?", "?"];
-  const values: unknown[] = [phlebId, status];
-
-  for (const key of WRITABLE_FIELDS) {
-    const val = input[key as keyof IPhlebContractInput];
-    if (val !== undefined) {
-      columns.push(key);
-      placeholders.push("?");
-      values.push(val === "" ? null : String(val).trim());
-    }
-  }
-
-  const [result] = await pool.query<ResultSetHeader>(
-    `INSERT INTO npn_phleb_contracts (${columns.join(", ")})
-     VALUES (${placeholders.join(", ")})`,
-    values
+  // Admin reviews agreements in WordPress (`wp_phleb_contracts`), not this table.
+  // Writing here made the app show "under review" while admin saw nothing.
+  throw new RouteError(
+    HttpStatusCodes.BAD_REQUEST,
+    "Agreement documents cannot be uploaded here. Open Agreement on your dashboard and upload to your WordPress contract instead."
   );
+}
 
-  const created = await getContractById(result.insertId);
-  if (!created) {
-    throw new RouteError(
-      HttpStatusCodes.INTERNAL_SERVER_ERROR,
-      "Failed to load created contract"
-    );
-  }
-  return created;
+/** Remove mistaken app-only contract rows admin never sees (wp_phleb_contracts is source of truth). */
+async function deleteWrongCollectionContracts(): Promise<number> {
+  const [result] = await pool.query<ResultSetHeader>(
+    "DELETE FROM npn_phleb_contracts"
+  );
+  return result.affectedRows;
 }
 
 async function reviewContract(
@@ -201,4 +187,5 @@ export default {
   listAllContracts,
   createContract,
   reviewContract,
+  deleteWrongCollectionContracts,
 } as const;

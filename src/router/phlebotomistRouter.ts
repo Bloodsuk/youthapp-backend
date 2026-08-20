@@ -35,6 +35,23 @@ phlebotomistRouter.get(
   PartnerPortalController.getSubmitContractAccess
 );
 
+phlebotomistRouter.post(
+  Paths.Phlebotomists.SubmitContractDocuments,
+  (req, res, next) => {
+    const sessionUser = res.locals.sessionUser;
+    if (sessionUser?.user_level !== UserLevels.Phlebotomist) {
+      return res.status(403).json({
+        success: false,
+        error: "Phlebotomist access required",
+      }).end();
+    }
+    (req as Express.Request & { phlebId?: number }).phlebId = sessionUser.id;
+    next();
+  },
+  phlebContractUploadFields,
+  PartnerPortalController.uploadSubmitContractDocuments
+);
+
 // Logged-in phlebotomist kits (npn_kit_types / npn_kit_requests)
 phlebotomistRouter.get(
   Paths.Phlebotomists.KitTypes,
@@ -129,6 +146,10 @@ phlebotomistRouter.post(
 phlebotomistRouter.get(
   `${Paths.Phlebotomists.Contracts}/all`,
   PhlebContractController.listAllContracts
+);
+phlebotomistRouter.post(
+  Paths.Phlebotomists.ContractsCleanupWrong,
+  PhlebContractController.cleanupWrongCollection
 );
 phlebotomistRouter.patch(
   Paths.Phlebotomists.ContractsReview,

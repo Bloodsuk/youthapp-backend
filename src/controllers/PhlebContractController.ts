@@ -156,9 +156,32 @@ async function reviewContract(req: IReq, res: IRes) {
   }
 }
 
+async function cleanupWrongCollection(req: IReq, res: IRes) {
+  const admin = requireAdmin(res);
+  if (!admin) {
+    return res.status(HttpStatusCodes.FORBIDDEN).json({
+      success: false,
+      error: "Admin access required",
+    }).end();
+  }
+
+  try {
+    const deleted = await PhlebContractService.deleteWrongCollectionContracts();
+    return res.status(HttpStatusCodes.OK).json({
+      success: true,
+      message:
+        "Removed agreement uploads from the wrong collection (npn_phleb_contracts). Use WordPress wp_phleb_contracts / Agreement flow.",
+      deleted,
+    }).end();
+  } catch (error) {
+    return handleError(res, error);
+  }
+}
+
 export default {
   getMyContracts,
   submitContract,
   listAllContracts,
   reviewContract,
+  cleanupWrongCollection,
 } as const;
