@@ -24,10 +24,22 @@ async function authorization(
 ) {
   console.log("Auth middleware path:", req.path);
   // Get session data
-  const bypassPrefixes = ["/api/auth", "/auth", "/app_versions", "/app-versions", "/uploads"];
+  const bypassPrefixes = [
+    "/api/auth",
+    "/auth",
+    "/api/app-versions",
+    "/app-versions",
+    "/app_versions",
+    "/api/app_versions",
+    "/uploads",
+    "/api/uploads",
+  ];
   // Allow public tokenization endpoint (mobile app needs to tokenize before checkout)
   const publicTokenizePath = "/api/orders/global_payments/tokenize/public";
-  if (bypassPrefixes.some((prefix) => req.path.startsWith(prefix)) || req.path === publicTokenizePath) {
+  if (
+    bypassPrefixes.some((prefix) => req.path.startsWith(prefix)) ||
+    req.path === publicTokenizePath
+  ) {
     return next();
   }
 

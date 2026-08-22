@@ -96,6 +96,64 @@ async function createPasswordForPhlebotomist(email: string): Promise<string> {
 }
 
 /**
+ * Create a 4-digit forgot-password code for a phlebotomist and email it.
+ */
+async function updateForgotCode(email: string): Promise<string> {
+  const phlebotomist = await getPhlebotomistByEmail(email);
+  if (!phlebotomist) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, Errors.PhlebotomistNotFound);
+  }
+  if (phlebotomist.is_active !== 1) {
+    throw new RouteError(HttpStatusCodes.UNAUTHORIZED, Errors.AccountNotActive);
+  }
+
+  const code = Math.floor(1000 + Math.random() * 9000).toString();
+  const [result] = await pool.query<ResultSetHeader>(
+    "UPDATE phlebotomy_applications SET forgot_code = ? WHERE email = ?",
+    [code, email]
+  );
+  if (result.affectedRows === 0) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, Errors.PhlebotomistNotFound);
+  }
+
+  await MailService.sendUserForgotCodeEmail(email, code);
+  return code;
+}
+
+/**
+ * Resolve email from a phlebotomist forgot-password code.
+ */
+async function getEmailFromForgotCode(code: string): Promise<string> {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT email FROM phlebotomy_applications WHERE forgot_code = ? LIMIT 1",
+    [code]
+  );
+  if (rows.length === 0) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, Errors.PhlebotomistNotFound);
+  }
+  return rows[0].email as string;
+}
+
+/**
+ * Reset phlebotomist password using a valid forgot-password code.
+ */
+async function resetPasswordWithForgotCode(
+  forgotCode: string,
+  password: string
+): Promise<boolean> {
+  const email = await getEmailFromForgotCode(forgotCode);
+  const hashedPassword = generateHash(password);
+  const [result] = await pool.query<ResultSetHeader>(
+    "UPDATE phlebotomy_applications SET password = ?, forgot_code = NULL, is_email_sent = 1 WHERE email = ? AND forgot_code = ?",
+    [hashedPassword, email, forgotCode]
+  );
+  if (result.affectedRows === 0) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, Errors.PhlebotomistNotFound);
+  }
+  return true;
+}
+
+/**
  * Authenticate phlebotomist login (phlebotomy_applications only).
  */
 async function loginPhlebotomist(email: string, password: string): Promise<IPhlebotomist> {
@@ -253,6 +311,9 @@ async function updateProfile(
 export default {
   getPhlebotomistByEmail,
   createPasswordForPhlebotomist,
+  updateForgotCode,
+  getEmailFromForgotCode,
+  resetPasswordWithForgotCode,
   loginPhlebotomist,
   getAllPhlebotomists,
   updatePhlebotomistStatus,

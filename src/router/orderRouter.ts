@@ -20,6 +20,21 @@ orderRouter.get(
   OrderController.getPhlebSlots
 );
 
+orderRouter.patch(
+  Paths.Orders.PhlebBookingNotes,
+  OrderController.updatePhlebBookingNotes
+);
+
+orderRouter.get(
+  Paths.Orders.CustomerGymBookings,
+  OrderController.getCustomerGymBookings
+);
+
+orderRouter.get(
+  Paths.Orders.GymBooking,
+  OrderController.getGymBooking
+);
+
 orderRouter.post(
   Paths.Orders.GetAvailablePlebs,
   OrderController.getAvailablePlebs

@@ -75,6 +75,11 @@ function getSessionPhlebGps(
   };
 }
 
+/** Drop in-memory live GPS when phleb stops sharing (customers go offline immediately). */
+export function clearLivePhlebGps(orderId: number): void {
+  livePhlebByOrder.delete(orderId);
+}
+
 export function coordsArePlausibleForTracking(
   plebLat: number,
   plebLng: number,
@@ -280,26 +285,22 @@ async function upsertAndCalculate(
 
   const orderId = jobRows[0].order_id;
   const memoryCoords = customerCoordsMap?.get(orderId);
-
-  // Customer is on live device GPS — do not store/simulator junk (e.g. iOS default SF).
-  if (
-    memoryCoords &&
-    !coordsArePlausibleForTracking(lat, lng, memoryCoords.lat, memoryCoords.lng)
-  ) {
-    console.warn(
-      `[LiveDistance] skip update_location order ${orderId}: phleb ${lat},${lng} vs customer ${memoryCoords.lat},${memoryCoords.lng}`
+  const customerNearPhleb =
+    !memoryCoords ||
+    coordsArePlausibleForTracking(
+      lat,
+      lng,
+      memoryCoords.lat,
+      memoryCoords.lng
     );
-    return {
-      distance_text: "Unavailable",
-      distance_value: 0,
-      duration_text: "Unavailable",
-      duration_value: 0,
-      order_id: orderId,
-      updated_at: new Date().toISOString(),
-    };
+
+  if (memoryCoords && !customerNearPhleb) {
+    console.warn(
+      `[LiveDistance] phleb ${lat},${lng} far from customer device ${memoryCoords.lat},${memoryCoords.lng} — still storing GPS for map`
+    );
   }
 
-  // Upsert phleb GPS from this event (+ customer device GPS when track_job provided it).
+  // Always persist phleb GPS so customers can see the marker.
   await pool.query<ResultSetHeader>(
     `INSERT INTO pleb_live_locations (pleb_id, job_id, lat, lng, customer_lat, customer_lng, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, NOW())
@@ -338,10 +339,10 @@ async function upsertAndCalculate(
     }
   }
 
-  // Customer side: prefer live track_job GPS from memory; never use old DB customer_lat for distance.
+  // Prefer live customer GPS when nearby; otherwise fall back to order address.
   let result: IDistanceResult;
   try {
-    if (memoryCoords) {
+    if (memoryCoords && customerNearPhleb) {
       result = await calculateDistanceByCoords(
         lat,
         lng,
@@ -349,19 +350,34 @@ async function upsertAndCalculate(
         memoryCoords.lng
       );
     } else {
-      // No live customer GPS yet — order address fallback only for distance text.
       result = await calculateDistanceByAddress(lat, lng, jobId);
     }
   } catch (err) {
     console.error("[LiveDistance] Distance calculation failed:", err instanceof Error ? err.message : err);
-    return {
-      distance_text: "Unavailable",
-      distance_value: 0,
-      duration_text: "Unavailable",
-      duration_value: 0,
-      order_id: orderId,
-      updated_at: new Date().toISOString(),
-    };
+    // Still return coords so the customer map can move — estimate straight-line if possible.
+    if (memoryCoords) {
+      const meters = Math.round(
+        haversineDistance(lat, lng, memoryCoords.lat, memoryCoords.lng)
+      );
+      const seconds = Math.max(60, Math.round(meters / 11.1));
+      result = {
+        distance_text: meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${meters} m`,
+        distance_value: meters,
+        duration_text: seconds >= 3600
+          ? `${Math.round(seconds / 3600)} hr`
+          : `${Math.max(1, Math.round(seconds / 60))} min`,
+        duration_value: seconds,
+      };
+    } else {
+      return {
+        distance_text: "Unavailable",
+        distance_value: 0,
+        duration_text: "Unavailable",
+        duration_value: 0,
+        order_id: orderId,
+        updated_at: new Date().toISOString(),
+      };
+    }
   }
 
   // Update cache
@@ -505,12 +521,26 @@ async function upsertAllActiveJobs(
   return results;
 }
 
-async function clearLocation(plebId: number, jobId: number): Promise<void> {
+async function clearLocation(plebId: number, jobId: number): Promise<number | null> {
+  const [jobRows] = await pool.query<RowDataPacket[]>(
+    "SELECT order_id FROM pleb_jobs WHERE id = ? AND pleb_id = ? LIMIT 1",
+    [jobId, plebId]
+  );
+  const orderIdRaw = jobRows[0]?.order_id;
+  const orderId =
+    orderIdRaw != null && Number.isFinite(Number(orderIdRaw))
+      ? Number(orderIdRaw)
+      : null;
+
   await pool.query<ResultSetHeader>(
     "DELETE FROM pleb_live_locations WHERE pleb_id = ? AND job_id = ?",
     [plebId, jobId]
   );
   distanceCache.delete(`${plebId}_${jobId}`);
+  if (orderId != null) {
+    clearLivePhlebGps(orderId);
+  }
+  return orderId;
 }
 
 /** Clears all live rows for a phleb (logout / disconnect). Returns affected order_ids. */
@@ -547,5 +577,6 @@ export default {
   clearLocation,
   clearAllLocationsForPleb,
   recordLivePhlebGps,
+  clearLivePhlebGps,
   isGpsTimestampFresh,
 } as const;

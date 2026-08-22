@@ -24,6 +24,7 @@ import PlebJobService from "@src/services/PlebJobService";
 import { ICustomer } from "@src/interfaces/ICustomer";
 import PhlebSlotService from "@src/services/PhlebSlotService";
 import PhlebBookingService from "@src/services/PhlebBookingService";
+import GymBookingService from "@src/services/GymBookingService";
 import MailService from "@src/services/MailService";
 import GhlHomeVisitNotifyService from "@src/services/GhlHomeVisitNotifyService";
 import HomeVisitDraftMessageService from "@src/services/HomeVisitDraftMessageService";
@@ -2832,6 +2833,246 @@ async function getPhlebSlots(req: IReq, res: IRes) {
 
 // **** Export default **** //
 
+async function updatePhlebBookingNotes(
+  req: IReq<{ notes?: string }>,
+  res: IRes
+) {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) {
+    return res
+      .status(HttpStatusCodes.BAD_REQUEST)
+      .json({ success: false, error: "Invalid order id" })
+      .end();
+  }
+
+  const sessionUser = res.locals.sessionUser as ISessionUser | undefined;
+  const userLevel = sessionUser?.user_level;
+  if (
+    !sessionUser ||
+    (userLevel !== UserLevels.Practitioner &&
+      userLevel !== UserLevels.Admin &&
+      userLevel !== UserLevels.Moderator)
+  ) {
+    return res
+      .status(HttpStatusCodes.FORBIDDEN)
+      .json({
+        success: false,
+        error: "Only practitioners can update home visit notes",
+      })
+      .end();
+  }
+
+  try {
+    const order = await OrderService.getOne(id);
+    if (userLevel === UserLevels.Practitioner) {
+      const ownsOrder =
+        Number(order.created_by) === Number(sessionUser.id) ||
+        Number(order.practitioner_id) === Number(sessionUser.id);
+      if (!ownsOrder) {
+        return res
+          .status(HttpStatusCodes.FORBIDDEN)
+          .json({
+            success: false,
+            error: "You do not have access to this order",
+          })
+          .end();
+      }
+    }
+
+    const notes =
+      typeof req.body.notes === "string" ? req.body.notes.trim() : "";
+    const booking = await PhlebBookingService.updateNotes(id, notes);
+    return res
+      .status(HttpStatusCodes.OK)
+      .json({
+        success: true,
+        note_by_practitioner: notes,
+        phleb_booking: booking,
+      })
+      .end();
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    return res
+      .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+      .json({
+        success: false,
+        error: "Internal Error: " + error,
+      })
+      .end();
+  }
+}
+
+async function assertCanViewCustomerOrders(
+  sessionUser: ISessionUser | undefined,
+  customerId: number
+): Promise<void> {
+  if (!sessionUser) {
+    throw new RouteError(HttpStatusCodes.UNAUTHORIZED, "Unauthorized");
+  }
+  const level = sessionUser.user_level;
+  if (level === UserLevels.Admin || level === UserLevels.Moderator) {
+    return;
+  }
+
+  const customer = await CustomerService.getOne(customerId);
+
+  if (level === UserLevels.Customer) {
+    const emailMatch =
+      (customer.email || "").toLowerCase() ===
+      (sessionUser.email || "").toLowerCase();
+    if (!emailMatch) {
+      throw new RouteError(
+        HttpStatusCodes.FORBIDDEN,
+        "You do not have access to this customer"
+      );
+    }
+    return;
+  }
+
+  if (level === UserLevels.Practitioner) {
+    if (Number(customer.created_by) !== Number(sessionUser.id)) {
+      throw new RouteError(
+        HttpStatusCodes.FORBIDDEN,
+        "You do not have access to this customer"
+      );
+    }
+    return;
+  }
+
+  throw new RouteError(HttpStatusCodes.FORBIDDEN, "Forbidden");
+}
+
+async function assertCanViewOrder(
+  sessionUser: ISessionUser | undefined,
+  orderId: number
+): Promise<void> {
+  if (!sessionUser) {
+    throw new RouteError(HttpStatusCodes.UNAUTHORIZED, "Unauthorized");
+  }
+  const level = sessionUser.user_level;
+  if (level === UserLevels.Admin || level === UserLevels.Moderator) {
+    return;
+  }
+
+  const order = await OrderService.getOne(orderId);
+
+  if (level === UserLevels.Practitioner) {
+    const ownsOrder =
+      Number(order.created_by) === Number(sessionUser.id) ||
+      Number(order.practitioner_id) === Number(sessionUser.id);
+    if (!ownsOrder) {
+      throw new RouteError(
+        HttpStatusCodes.FORBIDDEN,
+        "You do not have access to this order"
+      );
+    }
+    return;
+  }
+
+  if (level === UserLevels.Customer) {
+    if (!order.customer_id) {
+      throw new RouteError(HttpStatusCodes.FORBIDDEN, "Forbidden");
+    }
+    await assertCanViewCustomerOrders(sessionUser, order.customer_id);
+    return;
+  }
+
+  throw new RouteError(HttpStatusCodes.FORBIDDEN, "Forbidden");
+}
+
+/**
+ * GET /orders/:id/gym_booking — read-only Local Gym booking from WordPress.
+ */
+async function getGymBooking(req: IReq, res: IRes) {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) {
+    return res
+      .status(HttpStatusCodes.BAD_REQUEST)
+      .json({ success: false, error: "Invalid order id" })
+      .end();
+  }
+
+  try {
+    await assertCanViewOrder(res.locals.sessionUser, id);
+    const result = await GymBookingService.getForAppOrder(id);
+    return res
+      .status(HttpStatusCodes.OK)
+      .json({
+        success: true,
+        has_booking: result.has_booking,
+        id_on_wp: result.id_on_wp,
+        booking: result.booking,
+        message: result.message,
+      })
+      .end();
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+        .end();
+    return res
+      .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+      .json({
+        success: false,
+        error: "Internal Error: " + error,
+      })
+      .end();
+  }
+}
+
+/**
+ * GET /orders/customer/:customer_id/gym_bookings — dashboard list.
+ */
+async function getCustomerGymBookings(req: IReq, res: IRes) {
+  const customerId = parseInt(req.params.customer_id);
+  if (isNaN(customerId)) {
+    return res
+      .status(HttpStatusCodes.BAD_REQUEST)
+      .json({ success: false, error: "Invalid customer id" })
+      .end();
+  }
+
+  try {
+    await assertCanViewCustomerOrders(res.locals.sessionUser, customerId);
+    const { bookings } = await GymBookingService.listForCustomer(customerId);
+    return res
+      .status(HttpStatusCodes.OK)
+      .json({
+        success: true,
+        bookings,
+        total: bookings.length,
+      })
+      .end();
+  } catch (error) {
+    if (error instanceof RouteError)
+      return res
+        .status(error.status)
+        .json({
+          success: false,
+          error: error.message,
+        })
+      .end();
+    return res
+      .status(HttpStatusCodes.INTERNAL_SERVER_ERROR)
+      .json({
+        success: false,
+        error: "Internal Error: " + error,
+      })
+      .end();
+  }
+}
+
 export default {
   getAll,
   getAllCustomerOrder,
@@ -2867,6 +3108,9 @@ export default {
   getBookingDetails,
   getExtraDiscountPractitionerIds,
   GetAllCustomerOrders,
+  updatePhlebBookingNotes,
+  getGymBooking,
+  getCustomerGymBookings,
   getOrdersWithStartedStatus,
   getPhlebSlots,
 } as const;

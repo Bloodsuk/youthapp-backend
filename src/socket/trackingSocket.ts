@@ -132,9 +132,10 @@ function registerPlebHandlers(socket: Socket, user: ISessionUser): void {
           `[Socket] update_location pleb_id=${user.id} lat=${lat} lng=${lng} jobs=${results.map((r) => r.order_id).join(",")}`
         );
 
-        // Broadcast only plausible GPS (socket-only path for customers).
+        // Always broadcast phleb coordinates to subscribed customers.
         for (const result of results) {
           const orderId = result.order_id;
+          if (!orderId) continue;
           const subscribers = orderSubscriptions.get(orderId);
           if (!subscribers || subscribers.size === 0) continue;
 
@@ -149,20 +150,8 @@ function registerPlebHandlers(socket: Socket, user: ISessionUser): void {
             )
           ) {
             console.warn(
-              `[Socket] skip location_update broadcast order ${orderId} — phleb GPS not near customer device`
+              `[Socket] order ${orderId}: phleb GPS far from customer device — still broadcasting for map`
             );
-            socket.emit("error_msg", {
-              message:
-                "Your GPS is too far from the patient (simulator default location?). Use a real device or set custom location in the simulator near the patient.",
-            });
-            continue;
-          }
-
-          if (result.distance_value === 0 && result.distance_text === "Unavailable") {
-            console.warn(
-              `[Socket] skip broadcast order ${orderId} — no valid distance yet`
-            );
-            continue;
           }
 
           const payload = {
@@ -188,11 +177,34 @@ function registerPlebHandlers(socket: Socket, user: ISessionUser): void {
   );
 
   socket.on("stop_tracking", (data: { job_id: number }) => {
-    if (data?.job_id) {
-      PlebLiveLocationService.clearLocation(user.id, data.job_id).catch(
-        (err) => console.error("[Socket] stop_tracking error:", err)
-      );
-    }
+    if (!data?.job_id) return;
+    void (async () => {
+      try {
+        const orderId = await PlebLiveLocationService.clearLocation(
+          user.id,
+          data.job_id
+        );
+        if (!orderId) {
+          console.warn(
+            `[Socket] stop_tracking: no order for job_id=${data.job_id} pleb_id=${user.id}`
+          );
+          return;
+        }
+        const subscribers = orderSubscriptions.get(orderId);
+        console.log(
+          `[Socket] stop_tracking pleb_id=${user.id} job_id=${data.job_id} order_id=${orderId} subscribers=${subscribers?.size ?? 0}`
+        );
+        if (!subscribers || subscribers.size === 0) return;
+        for (const socketId of subscribers) {
+          io.to(socketId).emit("tracking_ended", {
+            order_id: orderId,
+            reason: "stopped",
+          });
+        }
+      } catch (err) {
+        console.error("[Socket] stop_tracking error:", err);
+      }
+    })();
   });
 }
 

@@ -738,6 +738,223 @@ const sendAdminJobNotificationEmail = async (
   });
 };
 
+interface IPractitionerJobStatusPayload extends IAdminNotificationPayload {
+  practitionerName?: string | null;
+  bookingDate?: string | null;
+  bookingStartTime?: string | null;
+  bookingEndTime?: string | null;
+  bookingSlotTimes?: string | null;
+}
+
+type HomeVisitStatusRecipientType = "practitioner" | "customer" | "phleb";
+
+const formatBookingDate = (date?: string | null): string | null => {
+  if (!date || date.trim().length === 0) return null;
+  const d = new Date(date);
+  return !isNaN(d.getTime())
+    ? d.toLocaleDateString("en-GB", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })
+    : date.trim();
+};
+
+const formatBookingTime = (
+  startTime?: string | null,
+  endTime?: string | null
+): string | null => {
+  const parts: string[] = [];
+  if (startTime && startTime.trim().length > 0) parts.push(startTime.trim());
+  if (endTime && endTime.trim().length > 0) parts.push(endTime.trim());
+  return parts.length > 0 ? parts.join(" – ") : null;
+};
+
+interface IHomeVisitStatusEmailParams {
+  recipientType: HomeVisitStatusRecipientType;
+  recipientName: string;
+  statusLabel: string;
+  orderRef: string;
+  bookingDate?: string | null;
+  bookingTime?: string | null;
+  customerName?: string | null;
+  phlebName?: string | null;
+  fullAddress?: string | null;
+  dashboardUrl?: string | null;
+}
+
+const HOME_VISIT_STATUS_LOGO =
+  "https://www.practitioner.youth-revisited.co.uk/home-visit-dashboard/assets/icons/youth-revisited.png";
+
+const defaultHomeVisitDashboardUrl = (
+  recipientType: HomeVisitStatusRecipientType,
+  orderId: number
+): string => {
+  if (recipientType === "practitioner") {
+    return `https://www.practitioner.youth-revisited.co.uk/view-order.php?order_id=${orderId}`;
+  }
+  if (recipientType === "phleb") {
+    return (
+      process.env.PARTNER_LOGIN_URL?.trim() ||
+      "https://www.youth-revisited.co.uk/partner-login/"
+    );
+  }
+  return "https://prapp.youth-revisited.co.uk/";
+};
+
+const detailCardHtml = (label: string, value: string): string => `
+  <tr>
+    <td width="48%" style="background:#ffffff;border:1px solid #e8e8e4;padding:14px 16px;">
+      <div style="font-size:10px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#c8a96e;margin-bottom:4px;">
+        ${htmlEscape(label)}
+      </div>
+      <div style="font-size:14px;font-weight:500;color:#1c2b4a;">
+        ${htmlEscape(value)}
+      </div>
+    </td>
+  </tr>
+  <tr><td height="8"></td></tr>
+`;
+
+/**
+ * Branded home-visit status email (from Downloads/new email design.txt).
+ */
+const buildHomeVisitStatusEmailHtml = (
+  params: IHomeVisitStatusEmailParams
+): string => {
+  const statusLabel = params.statusLabel.trim() || "Updated";
+  const recipientName = params.recipientName.trim() || "there";
+  const orderRef = params.orderRef.trim() || "—";
+  const bookingDate = (params.bookingDate || "").trim() || "—";
+  const bookingTime = (params.bookingTime || "").trim() || "—";
+  const dashboardUrl = (params.dashboardUrl || "").trim() || "#";
+
+  let extraRows = "";
+  if (params.recipientType === "practitioner") {
+    const customer = (params.customerName || "").trim();
+    if (customer) {
+      extraRows += detailCardHtml("Customer", customer);
+    }
+  } else {
+    if (params.recipientType !== "phleb") {
+      const phleb = (params.phlebName || "").trim();
+      if (phleb) {
+        extraRows += detailCardHtml("Phlebotomist", phleb);
+      }
+    }
+    if (params.recipientType !== "customer") {
+      const address = (params.fullAddress || "").trim();
+      if (address) {
+        extraRows += detailCardHtml("Address", address);
+      }
+    }
+  }
+
+  return `
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f7f5;padding:0px;font-family:Arial, Helvetica, sans-serif;">
+  <tr>
+    <td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(28,43,74,0.08);">
+        <tr>
+          <td style="background:#1c2b4a;padding-top:20px;text-align:center;">
+            <img src="${HOME_VISIT_STATUS_LOGO}" alt="Youth Revisited" style="height:55px;width:200px;filter:brightness(0) invert(1);opacity:0.92;">
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#1c2b4a;padding:48px 40px 42px;text-align:center;border-bottom:3px solid #c8a96e;">
+            <div style="font-size:11px;letter-spacing:2px;color:#c8a96e;text-transform:uppercase;margin-bottom:14px;">
+              Booking update
+            </div>
+            <div style="font-family:Georgia,serif;font-size:34px;color:#ffffff;line-height:1.2;">
+              Status changed to<br><span style="color:#c8a96e;font-style:italic;">${htmlEscape(statusLabel)}</span>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:30px 40px;">
+            <p style="font-size:16px;color:#1c2b4a;margin:0 0 14px;">Dear ${htmlEscape(recipientName)},</p>
+            <p style="font-size:14px;color:#666666;line-height:1.7;margin:0;">
+              The status of the home visit booking below has changed to <strong>${htmlEscape(statusLabel)}</strong>. Full details are shown below for reference.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#eeeeee;padding:25px 40px;">
+            <div style="font-size:11px;letter-spacing:2px;color:#999999;text-transform:uppercase;margin-bottom:12px;">
+              Booking details
+            </div>
+            <table width="100%" cellpadding="0" cellspacing="0">
+              ${detailCardHtml("Order", orderRef)}
+              ${detailCardHtml("Date", bookingDate)}
+              ${detailCardHtml("Arrival window", bookingTime)}
+              ${extraRows}
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="text-align:center;padding:30px 40px;">
+            <a href="${htmlEscape(dashboardUrl)}" style="display:inline-block;background:#1c2b4a;color:#ffffff;text-decoration:none;padding:14px 30px;font-size:13px;font-weight:bold;border-radius:4px;">
+              View Booking
+            </a>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#fdfaf6;padding:20px;text-align:center;font-size:13px;color:#666666;">
+            Questions about this visit?<br>
+            <a href="mailto:info@youth-revisited.co.uk" style="color:#c8a96e;text-decoration:none;">info@youth-revisited.co.uk</a>
+            <a href="tel:07927989791" style="color:#c8a96e;text-decoration:none;">07927 989791</a>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#1c2b4a;padding:25px;text-align:center;">
+            <div style="font-size:11px;color:#888888;line-height:1.6;">
+              Youth Revisited Ltd. Company No. 10668513, 13 Hainton Avenue, Grimsby, DN32 9AS
+            </div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>`;
+};
+
+const sendPractitionerJobStatusUpdateEmail = async (
+  email: string,
+  payload: IPractitionerJobStatusPayload
+): Promise<void> => {
+  const orderRef = formatOrderRef(payload);
+  const displayStatus = mapStatusForEmail(payload.status);
+  const greetingName =
+    payload.practitionerName && payload.practitionerName.trim().length > 0
+      ? payload.practitionerName.trim()
+      : "Practitioner";
+  const bookingDate = formatBookingDate(payload.bookingDate);
+  const bookingTime =
+    formatBookingTime(payload.bookingStartTime, payload.bookingEndTime) ||
+    (payload.bookingSlotTimes && payload.bookingSlotTimes.trim().length > 0
+      ? payload.bookingSlotTimes.trim()
+      : null);
+
+  const html = buildHomeVisitStatusEmailHtml({
+    recipientType: "practitioner",
+    recipientName: greetingName,
+    statusLabel: displayStatus,
+    orderRef,
+    bookingDate,
+    bookingTime,
+    customerName: payload.customerName,
+    dashboardUrl: defaultHomeVisitDashboardUrl("practitioner", payload.orderId),
+  });
+
+  await sendEmail(
+    email,
+    `Home Visit Update (${displayStatus}): ${orderRef}`,
+    html,
+    { cc: null }
+  );
+};
+
 interface ICustomerAssignmentPayload extends IOrderIdentifiers {
   customerName?: string | null;
   plebName: string;
@@ -782,61 +999,74 @@ interface ICustomerJobStatusPayload extends IOrderIdentifiers {
   bookingDate?: string | null;
   bookingStartTime?: string | null;
   bookingEndTime?: string | null;
+  customerAddress?: string | null;
 }
-
-const formatBookingDate = (date?: string | null): string | null => {
-  if (!date || date.trim().length === 0) return null;
-  const d = new Date(date);
-  return !isNaN(d.getTime())
-    ? d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
-    : date.trim();
-};
-
-const formatBookingTime = (
-  startTime?: string | null,
-  endTime?: string | null
-): string | null => {
-  const parts: string[] = [];
-  if (startTime && startTime.trim().length > 0) parts.push(startTime.trim());
-  if (endTime && endTime.trim().length > 0) parts.push(endTime.trim());
-  return parts.length > 0 ? parts.join(" – ") : null;
-};
 
 const sendCustomerJobStatusUpdateEmail = async (
   email: string,
   payload: ICustomerJobStatusPayload
 ): Promise<void> => {
   const orderRef = formatOrderRef(payload);
-  const greeting =
+  const displayStatus = mapStatusForEmail(payload.newStatus);
+  const greetingName =
     payload.customerName && payload.customerName.trim().length > 0
-      ? `Dear ${payload.customerName},`
-      : "Dear Customer,";
-
+      ? payload.customerName.trim()
+      : "Customer";
   const bookingDate = formatBookingDate(payload.bookingDate);
-  const bookingTime = formatBookingTime(payload.bookingStartTime, payload.bookingEndTime);
+  const bookingTime = formatBookingTime(
+    payload.bookingStartTime,
+    payload.bookingEndTime
+  );
 
-  const detailRows: INotificationDetail[] = [
-    { label: "Order Details", isSectionHeader: true },
-    { label: "Order Reference", value: orderRef },
-    { label: "Status", value: "Booked In" },
-  ];
-  if (bookingDate) {
-    detailRows.push({ label: "Booking Date", value: bookingDate });
-  }
-  if (bookingTime) {
-    detailRows.push({ label: "Booking Time", value: bookingTime });
+  // Keep the special "Booked In" confirmation copy for picked-up / booked-in.
+  if (displayStatus === "Booked In") {
+    const detailRows: INotificationDetail[] = [
+      { label: "Order Details", isSectionHeader: true },
+      { label: "Order Reference", value: orderRef },
+      { label: "Status", value: "Booked In" },
+    ];
+    if (bookingDate) {
+      detailRows.push({ label: "Booking Date", value: bookingDate });
+    }
+    if (bookingTime) {
+      detailRows.push({ label: "Booking Time", value: bookingTime });
+    }
+
+    const html = buildNotificationEmail({
+      title: "Your Appointment Has Been Confirmed",
+      greeting: `Dear ${greetingName},`,
+      introLines: [
+        "We are pleased to confirm that your phlebotomy visit has now been booked in.",
+      ],
+      detailRows,
+    });
+
+    await sendEmail(
+      email,
+      `Your appointment has been confirmed – Order ${orderRef}`,
+      html,
+      { cc: null }
+    );
+    return;
   }
 
-  const html = buildNotificationEmail({
-    title: "Your Appointment Has Been Confirmed",
-    greeting,
-    introLines: [
-      "We are pleased to confirm that your phlebotomy visit has now been booked in.",
-    ],
-    detailRows,
+  const html = buildHomeVisitStatusEmailHtml({
+    recipientType: "customer",
+    recipientName: greetingName,
+    statusLabel: displayStatus,
+    orderRef,
+    bookingDate,
+    bookingTime,
+    phlebName: payload.plebName,
+    dashboardUrl: defaultHomeVisitDashboardUrl("customer", payload.orderId),
   });
 
-  await sendEmail(email, `Your appointment has been confirmed – Order ${orderRef}`, html, { cc: null });
+  await sendEmail(
+    email,
+    `Home Visit Update (${displayStatus}): ${orderRef}`,
+    html,
+    { cc: null }
+  );
 };
 
 interface IJobCompletionPayload extends IOrderIdentifiers {
@@ -940,6 +1170,10 @@ interface IPlebStatusPayload extends IOrderIdentifiers {
   newStatus: string;
   customerName?: string | null;
   trackingNumber?: string | null;
+  customerAddress?: string | null;
+  bookingDate?: string | null;
+  bookingStartTime?: string | null;
+  bookingEndTime?: string | null;
 }
 
 const sendPlebJobStatusUpdateEmail = async (
@@ -948,26 +1182,27 @@ const sendPlebJobStatusUpdateEmail = async (
 ): Promise<void> => {
   const orderRef = formatOrderRef(payload);
   const displayStatus = mapStatusForEmail(payload.newStatus);
+  const bookingDate = formatBookingDate(payload.bookingDate);
+  const bookingTime = formatBookingTime(
+    payload.bookingStartTime,
+    payload.bookingEndTime
+  );
 
-  const detailRows: INotificationDetail[] = [
-    { label: "Order Reference", value: orderRef },
-    { label: "Customer", value: getDetailValue(payload.customerName) },
-    { label: "Status", value: displayStatus },
-  ];
-
-  const html = buildNotificationEmail({
-    title: "Job Status Update",
-    greeting: `Hi ${payload.plebName},`,
-    introLines: [
-      `The status for order ${orderRef} has been updated to "${displayStatus}".`,
-    ],
-    detailRows,
-    outroLines: [
-      "Please log in to your portal for full details and keep the status updated as you progress.",
-    ],
+  const html = buildHomeVisitStatusEmailHtml({
+    recipientType: "phleb",
+    recipientName: payload.plebName || "Phlebotomist",
+    statusLabel: displayStatus,
+    orderRef,
+    bookingDate,
+    bookingTime,
+    customerName: payload.customerName,
+    fullAddress: payload.customerAddress,
+    dashboardUrl: defaultHomeVisitDashboardUrl("phleb", payload.orderId),
   });
 
-  await sendEmail(email, `Job Update: ${displayStatus} - ${orderRef}`, html, { cc: null });
+  await sendEmail(email, `Job Update: ${displayStatus} - ${orderRef}`, html, {
+    cc: null,
+  });
 };
 
 const sendPlebJobCompletionEmail = async (
@@ -1319,6 +1554,7 @@ export default {
   sendPhlebotomistCredentialsEmail,
   sendPlebJobAssignmentEmail,
   sendAdminJobNotificationEmail,
+  sendPractitionerJobStatusUpdateEmail,
   sendCustomerJobAssignmentEmail,
   sendCustomerJobStatusUpdateEmail,
   sendCustomerJobCompletionEmail,

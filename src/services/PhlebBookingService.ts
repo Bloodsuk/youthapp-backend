@@ -89,11 +89,47 @@ async function getBookingById(id: number): Promise<IPhlebBooking | null> {
   return rows[0] as IPhlebBooking;
 }
 
+/**
+ * Update practitioner notes for a home-visit order.
+ * Stored on `orders.note_by_practitioner` (website/dashboard parity).
+ */
+async function updateNotes(orderId: number, notes: string): Promise<IPhlebBooking> {
+  const existing = await getBookingByOrderId(orderId);
+  if (!existing) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, NOT_FOUND_ERR);
+  }
+
+  const [orderResult] = await pool.query<ResultSetHeader>(
+    "UPDATE orders SET note_by_practitioner = ? WHERE id = ?",
+    [notes, orderId]
+  );
+
+  if (orderResult.affectedRows === 0) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, "Order not found");
+  }
+
+  // Keep booking.notes in sync for older readers that still join this column.
+  await pool.query(
+    "UPDATE customer_phleb_bookings SET notes = ? WHERE order_id = ?",
+    [notes, orderId]
+  );
+
+  const updated = await getBookingByOrderId(orderId);
+  if (!updated) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, NOT_FOUND_ERR);
+  }
+  return {
+    ...updated,
+    notes,
+  };
+}
+
 // **** Export default **** //
 
 export default {
   saveBooking,
   getBookingByOrderId,
   getBookingById,
+  updateNotes,
 } as const;
 

@@ -30,4 +30,5 @@ export interface IPhlebotomist {
   is_active: number;
   is_email_sent: number;
   password?: string; // Added for authentication
+  forgot_code?: string | null;
 }

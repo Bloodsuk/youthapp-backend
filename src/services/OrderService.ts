@@ -29,6 +29,56 @@ interface IGetResponse<T> {
   total: number;
 }
 
+/** Attach latest pleb job id/status onto order payloads (list + getOne). */
+async function attachPlebJobMeta(orders: IOrder[]): Promise<void> {
+  const ids = [
+    ...new Set(
+      orders
+        .map((o) => Number(o.id))
+        .filter((id) => Number.isInteger(id) && id > 0)
+    ),
+  ];
+  if (ids.length === 0) return;
+
+  const placeholders = ids.map(() => "?").join(",");
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT pj.order_id, pj.id AS pleb_job_id, pj.job_status AS phleb_job_status
+     FROM pleb_jobs pj
+     INNER JOIN (
+       SELECT order_id, MAX(id) AS max_id
+       FROM pleb_jobs
+       WHERE order_id IN (${placeholders})
+       GROUP BY order_id
+     ) latest ON latest.max_id = pj.id`,
+    ids
+  );
+
+  const byOrderId = new Map<
+    number,
+    { pleb_job_id: number; phleb_job_status: string | null }
+  >();
+  for (const row of rows) {
+    const orderId = Number(row.order_id);
+    if (!Number.isInteger(orderId) || orderId <= 0) continue;
+    byOrderId.set(orderId, {
+      pleb_job_id: Number(row.pleb_job_id),
+      phleb_job_status:
+        row.phleb_job_status != null ? String(row.phleb_job_status) : null,
+    });
+  }
+
+  for (const order of orders) {
+    const meta = byOrderId.get(Number(order.id));
+    if (!meta) {
+      order.has_pleb_job = false;
+      continue;
+    }
+    order.pleb_job_id = meta.pleb_job_id;
+    order.has_pleb_job = true;
+    order.phleb_job_status = meta.phleb_job_status;
+  }
+}
+
 async function getAll(
   sessionUser: ISessionUser | undefined,
   client_name?: string,
@@ -137,6 +187,10 @@ async function getAll(
       customer_phleb_bookings.blood_draw_issue_types AS phleb_blood_draw_issue_types,
       customer_phleb_bookings.blood_draw_issue_detail AS phleb_blood_draw_issue_detail,
       customer_phleb_bookings.customer_postcode AS phleb_customer_postcode,
+      COALESCE(
+        NULLIF(TRIM(orders.note_by_practitioner), ''),
+        customer_phleb_bookings.notes
+      ) AS phleb_notes,
       customer_phleb_bookings.created_at AS phleb_created_at
     FROM orders 
     LEFT JOIN customers ON orders.customer_id = customers.id 
@@ -163,6 +217,7 @@ async function getAll(
       practitioner_first_name: order.practitioner_first_name ?? undefined,
       practitioner_last_name: order.practitioner_last_name ?? undefined,
       practitioner_email: order.practitioner_email ?? undefined,
+      note_by_practitioner: order.note_by_practitioner ?? undefined,
     } as IOrder;
     
     // Add phleb booking if it exists
@@ -182,6 +237,7 @@ async function getAll(
         blood_draw_issue_types: order.phleb_blood_draw_issue_types,
         blood_draw_issue_detail: order.phleb_blood_draw_issue_detail,
         customer_postcode: order.phleb_customer_postcode,
+        notes: order.phleb_notes,
         created_at: order.phleb_created_at,
       };
     }
@@ -225,6 +281,7 @@ async function getAll(
   }
 
   console.log(rows[0], "rows");
+  await attachPlebJobMeta(allOrders);
   const totalSql = `
     SELECT COUNT(*) as count
     FROM orders 
@@ -311,6 +368,10 @@ async function getAllCustomerOrder(
       customer_phleb_bookings.blood_draw_issue_types AS phleb_blood_draw_issue_types,
       customer_phleb_bookings.blood_draw_issue_detail AS phleb_blood_draw_issue_detail,
       customer_phleb_bookings.customer_postcode AS phleb_customer_postcode,
+      COALESCE(
+        NULLIF(TRIM(orders.note_by_practitioner), ''),
+        customer_phleb_bookings.notes
+      ) AS phleb_notes,
       customer_phleb_bookings.created_at AS phleb_created_at
     FROM orders 
     LEFT JOIN customers ON orders.customer_id = customers.id 
@@ -336,6 +397,7 @@ async function getAllCustomerOrder(
       practitioner_first_name: order.practitioner_first_name ?? undefined,
       practitioner_last_name: order.practitioner_last_name ?? undefined,
       practitioner_email: order.practitioner_email ?? undefined,
+      note_by_practitioner: order.note_by_practitioner ?? undefined,
     } as IOrder;
     
     // Add phleb booking if it exists
@@ -355,12 +417,14 @@ async function getAllCustomerOrder(
         blood_draw_issue_types: order.phleb_blood_draw_issue_types,
         blood_draw_issue_detail: order.phleb_blood_draw_issue_detail,
         customer_postcode: order.phleb_customer_postcode,
+        notes: order.phleb_notes,
         created_at: order.phleb_created_at,
       };
     }
     
     return orderData;
   });
+  await attachPlebJobMeta(allOrders);
   const totalSql = `
     SELECT COUNT(*) as count
     FROM orders 
@@ -408,6 +472,10 @@ async function getOutstandingCreditOrders(
     customer_phleb_bookings.blood_draw_issue_types AS phleb_blood_draw_issue_types,
     customer_phleb_bookings.blood_draw_issue_detail AS phleb_blood_draw_issue_detail,
     customer_phleb_bookings.customer_postcode AS phleb_customer_postcode,
+    COALESCE(
+      NULLIF(TRIM(orders.note_by_practitioner), ''),
+      customer_phleb_bookings.notes
+    ) AS phleb_notes,
     customer_phleb_bookings.created_at AS phleb_created_at
   FROM orders 
   LEFT JOIN customers ON orders.customer_id = customers.id 
@@ -429,6 +497,7 @@ async function getOutstandingCreditOrders(
       practitioner_first_name: order.practitioner_first_name ?? undefined,
       practitioner_last_name: order.practitioner_last_name ?? undefined,
       practitioner_email: order.practitioner_email ?? undefined,
+      note_by_practitioner: order.note_by_practitioner ?? undefined,
     } as IOrder;
     
     // Add phleb booking if it exists
@@ -448,6 +517,7 @@ async function getOutstandingCreditOrders(
         blood_draw_issue_types: order.phleb_blood_draw_issue_types,
         blood_draw_issue_detail: order.phleb_blood_draw_issue_detail,
         customer_postcode: order.phleb_customer_postcode,
+        notes: order.phleb_notes,
         created_at: order.phleb_created_at,
       };
     }
@@ -616,10 +686,17 @@ async function getOneForTestAndCustomer(customerId: number, testId: number): Pro
  * Get one order.
  */
 async function getOne(id: number): Promise<IOrder> {
-  const [rows] = await pool.query<RowDataPacket[]>(
+  let [rows] = await pool.query<RowDataPacket[]>(
     "SELECT * FROM orders WHERE id = ?",
     [id]
   );
+  // Results UI may pass orders.order_id (public code) when it equals a number.
+  if (rows.length === 0) {
+    [rows] = await pool.query<RowDataPacket[]>(
+      "SELECT * FROM orders WHERE order_id = ? LIMIT 1",
+      [String(id)]
+    );
+  }
   if (rows.length === 0) {
     throw new RouteError(HttpStatusCodes.NOT_FOUND, USER_NOT_FOUND_ERR);
   }
@@ -634,11 +711,21 @@ async function getOne(id: number): Promise<IOrder> {
     }
   }
   
-  // Fetch phleb booking if it exists
-  const phlebBooking = await PhlebBookingService.getBookingByOrderId(id);
+  // Fetch phleb booking if it exists (use resolved PK, not the lookup arg).
+  const orderPk = Number(order.id);
+  const phlebBooking = await PhlebBookingService.getBookingByOrderId(orderPk);
   if (phlebBooking) {
-    order.phleb_booking = phlebBooking;
+    const orderNote =
+      order.note_by_practitioner != null
+        ? String(order.note_by_practitioner).trim()
+        : "";
+    order.phleb_booking = {
+      ...phlebBooking,
+      notes: orderNote || phlebBooking.notes || null,
+    };
   }
+
+  await attachPlebJobMeta([order]);
   
   return order;
 }

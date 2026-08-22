@@ -285,18 +285,21 @@ async function register(req: IReq<ISignupReq>, res: IRes) {
 
 interface IForgetPasswordReq {
   email: string;
+  isPleb?: boolean;
 }
 async function forgetPassword(req: IReq<IForgetPasswordReq>, res: IRes) {
-  const { email } = req.body;
+  const { email, isPleb } = req.body;
   try {
-    const code = await UserService.updateForgotCode(email)
-    if(code)
+    const code = isPleb
+      ? await PhlebotomistService.updateForgotCode(email)
+      : await UserService.updateForgotCode(email);
+    if (code)
       return res
         .status(HttpStatusCodes.OK)
         .json({
           success: true,
           message: "Please enter the new password to continue!!!",
-          code
+          code,
         })
         .end();
   } catch (error) {
@@ -325,10 +328,11 @@ async function forgetPassword(req: IReq<IForgetPasswordReq>, res: IRes) {
 interface IResetForgotPasswordReq {
   password: string;
   forgot_code: string;
+  isPleb?: boolean;
 }
 
 async function resetForgotPassword(req: IReq<IResetForgotPasswordReq>, res: IRes) {
-  const { password, forgot_code } = req.body;
+  const { password, forgot_code, isPleb } = req.body;
   try {
     if (!(password && forgot_code)) {
       throw new RouteError(
@@ -336,6 +340,18 @@ async function resetForgotPassword(req: IReq<IResetForgotPasswordReq>, res: IRes
         "Password not matched!!"
       );
     }
+
+    if (isPleb) {
+      await PhlebotomistService.resetPasswordWithForgotCode(forgot_code, password);
+      return res
+        .status(HttpStatusCodes.OK)
+        .json({
+          success: true,
+          message: "Please click login to continue!!!",
+        })
+        .end();
+    }
+
     const email = await UserService.getEmailFromForgotCode(forgot_code)
     if(email)
       if(await UserService.updatePassword(email, password))

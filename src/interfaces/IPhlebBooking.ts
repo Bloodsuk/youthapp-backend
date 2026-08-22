@@ -13,6 +13,7 @@ export interface IPhlebBooking {
   blood_draw_issue_types?: string;
   blood_draw_issue_detail?: string;
   customer_postcode?: string;
+  notes?: string | null;
   created_at?: string;
 }
 
