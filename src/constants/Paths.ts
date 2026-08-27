@@ -270,6 +270,11 @@ export default {
     UpdateDaySlot: "/availability/day/:id",
     DeleteDaySlot: "/availability/day/:id",
   },
+  EventBookings: {
+    Base: "/event_bookings",
+    GetByPlebId: "/pleb/:pleb_id",
+    UpdateStatus: "/update_status/:id",
+  },
   FileUpload: {
     Base: "/file_upload_api",
     Upload: "/",

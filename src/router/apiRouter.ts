@@ -21,6 +21,7 @@ import clinicRouter from "./clinicRouter";
 import appVersionRouter from "./appVersionRouter";
 import phlebotomistRouter from "./phlebotomistRouter";
 import plebJobRouter from "./plebJobRouter";
+import eventBookingRouter from "./eventBookingRouter";
 import fileUploadRouter from "./fileUploadRouter";
 import visitChatRouter from "./visitChatRouter";
 
@@ -88,6 +89,9 @@ routes.use(Paths.Phlebotomists.Base, phlebotomistRouter);
 
 // Add PlebJobRouter
 routes.use(Paths.PlebJobs.Base, plebJobRouter);
+
+// Event bookings (phleb job type — Assigned/Pickup/Delivered/Cancelled)
+routes.use(Paths.EventBookings.Base, eventBookingRouter);
 
 // Add FileUploadRouter
 routes.use(Paths.FileUpload.Base, fileUploadRouter);
