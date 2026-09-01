@@ -564,7 +564,7 @@ async function sendPhlebBookingEmails(
       "Customer";
 
     await MailService.sendPhlebBookingNotification(
-      ['Bloodservices@mail.com', 'info@youth-revisited.co.uk'],     
+      MailService.getHomeVisitBookingNotificationRecipients(),
        {
         orderId,
         orderCode,

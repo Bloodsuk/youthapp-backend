@@ -13,10 +13,12 @@ This document describes the subject lines and core body copy for the automated e
 
 ## Admin Recipients
 
-Every status-change email is sent to admin via a unified notification. The following addresses **always** receive admin emails:
+Every status-change email is sent to admin via a unified notification. Default recipients:
 
 - `info@youth-revisited.co.uk`
-- `Bloodservices@mail.com`
+- `homevisits@youth-revisited.co.uk` (or `HOME_VISIT_NOTIFICATIONS_TO` env)
+
+Optional extra addresses via `ADMIN_NOTIFICATIONS_CC` (comma-separated).
 
 Plus any dynamically resolved admin (order creator, assigning user, or all active admins as fallback).
 
@@ -82,20 +84,12 @@ Plus any dynamically resolved admin (order creator, assigning user, or all activ
 
 Sent on every status change (assignment, picked up, delivered, cancelled).
 
-- **Subject:** `Order Update ({displayStatus}): {orderRef}`
-- **Greeting:** `Hello Admin,`
+- **Subject:** `Home Visit Update ({displayStatus}): {orderRef}`
+- **Greeting:** `Dear Admin,`
+- **Design:** Branded home-visit template (navy/gold header, booking detail cards, View Booking button)
 - **Body:**
-  - Order `{orderRef}` status has been updated to `{displayStatus}`.
-  - **Appointment Details:**
-    - Order Reference: `{orderRef}`
-    - Status: `{displayStatus}`
-    - Phlebotomist: `{plebName}`
-    - Phlebotomist Phone: `{plebPhone}`
-    - Customer: `{customerName}`
-    - Customer Phone: `{customerPhone}`
-    - Customer Address: `{customerAddress}`
-    - Tracking Number: `{trackingNumber}` *(shown when available)*
-  - You can review the details in the admin dashboard.
+  - The status of the home visit booking has changed to `{displayStatus}`.
+  - **Booking details:** Order, date, arrival window, phlebotomist, customer, address, tracking (when available)
 - **Sign-off:** Kind regards, Youth Revisited Team
 
 ---

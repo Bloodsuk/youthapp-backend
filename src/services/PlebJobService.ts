@@ -105,11 +105,6 @@ const getAdminContactById = async (adminId: number): Promise<IAdminContact | nul
   };
 };
 
-const ALWAYS_NOTIFY_EMAILS = [
-  "info@youth-revisited.co.uk",
-  "Bloodservices@mail.com",
-];
-
 const buildAdminRecipientEmails = async ({
   assignedBy,
   orderCreatedBy,
@@ -120,8 +115,9 @@ const buildAdminRecipientEmails = async ({
   fallbackToAll?: boolean;
 }): Promise<string[]> => {
   const recipients = new Set<string>();
+  const baseRecipients = MailService.getJobStatusAdminRecipients();
 
-  ALWAYS_NOTIFY_EMAILS.forEach((email) => recipients.add(email));
+  baseRecipients.forEach((email) => recipients.add(email));
 
   if (assignedBy) {
     const normalizedEmail = normalizeString(assignedBy.email);
@@ -143,7 +139,7 @@ const buildAdminRecipientEmails = async ({
     }
   }
 
-  if (recipients.size <= ALWAYS_NOTIFY_EMAILS.length && fallbackToAll) {
+  if (recipients.size <= baseRecipients.length && fallbackToAll) {
     const activeAdmins = await getActiveAdminContacts();
     activeAdmins.forEach((contact) => {
       if (contact.email) {

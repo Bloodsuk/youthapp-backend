@@ -412,6 +412,8 @@ const mapStatusForEmail = (dbStatus: string): string => {
     case "assigned":
       return "Allocated";
     case "picked up":
+    case "in transit":
+    case "active":
       return "Booked In";
     case "delivered":
     case "completed":
@@ -421,7 +423,7 @@ const mapStatusForEmail = (dbStatus: string): string => {
     case "cancelled":
       return "Cancelled";
     default:
-      return dbStatus;
+      return dbStatus.trim();
   }
 };
 
@@ -709,33 +711,28 @@ const sendAdminJobNotificationEmail = async (
   const orderRef = formatOrderRef(payload);
   const displayStatus = mapStatusForEmail(payload.status);
 
-  const detailRows: INotificationDetail[] = [
-    { label: "Appointment Details", isSectionHeader: true },
-    { label: "Order Reference", value: orderRef },
-    { label: "Status", value: displayStatus },
-    { label: "Phlebotomist", value: payload.plebName },
-    { label: "Phlebotomist Phone", value: payload.plebPhone },
-    { label: "Customer", value: payload.customerName },
-    { label: "Customer Phone", value: payload.customerPhone },
-    { label: "Customer Address", value: payload.customerAddress },
-    { label: "Tracking Number", value: payload.trackingNumber },
-  ];
-
-  const html = buildNotificationEmail({
-    title: `Order Update – ${displayStatus}`,
-    greeting: "Hello Admin,",
-    introLines: [
-      `Order ${orderRef} status has been updated to "${displayStatus}".`,
-    ],
-    detailRows,
-    outroLines: [
-      "You can review the details in the admin dashboard.",
-    ],
+  const html = buildHomeVisitStatusEmailHtml({
+    recipientType: "admin",
+    recipientName: "Admin",
+    statusLabel: displayStatus,
+    orderRef,
+    bookingDate: null,
+    bookingTime: null,
+    phlebName: payload.plebName,
+    phlebPhone: payload.plebPhone,
+    customerName: payload.customerName,
+    customerPhone: payload.customerPhone,
+    fullAddress: payload.customerAddress,
+    trackingNumber: payload.trackingNumber,
+    dashboardUrl: defaultHomeVisitDashboardUrl("admin", payload.orderId),
   });
 
-  await sendEmail(adminEmails, `Order Update (${displayStatus}): ${orderRef}`, html, {
-    cc: null,
-  });
+  await sendEmail(
+    adminEmails,
+    `Home Visit Update (${displayStatus}): ${orderRef}`,
+    html,
+    { cc: null }
+  );
 };
 
 interface IPractitionerJobStatusPayload extends IAdminNotificationPayload {
@@ -746,7 +743,7 @@ interface IPractitionerJobStatusPayload extends IAdminNotificationPayload {
   bookingSlotTimes?: string | null;
 }
 
-type HomeVisitStatusRecipientType = "practitioner" | "customer" | "phleb";
+type HomeVisitStatusRecipientType = "practitioner" | "customer" | "phleb" | "admin";
 
 const formatBookingDate = (date?: string | null): string | null => {
   if (!date || date.trim().length === 0) return null;
@@ -779,8 +776,11 @@ interface IHomeVisitStatusEmailParams {
   bookingDate?: string | null;
   bookingTime?: string | null;
   customerName?: string | null;
+  customerPhone?: string | null;
   phlebName?: string | null;
+  phlebPhone?: string | null;
   fullAddress?: string | null;
+  trackingNumber?: string | null;
   dashboardUrl?: string | null;
 }
 
@@ -791,7 +791,7 @@ const defaultHomeVisitDashboardUrl = (
   recipientType: HomeVisitStatusRecipientType,
   orderId: number
 ): string => {
-  if (recipientType === "practitioner") {
+  if (recipientType === "practitioner" || recipientType === "admin") {
     return `https://www.practitioner.youth-revisited.co.uk/view-order.php?order_id=${orderId}`;
   }
   if (recipientType === "phleb") {
@@ -831,7 +831,20 @@ const buildHomeVisitStatusEmailHtml = (
   const dashboardUrl = (params.dashboardUrl || "").trim() || "#";
 
   let extraRows = "";
-  if (params.recipientType === "practitioner") {
+  if (params.recipientType === "admin") {
+    const phleb = (params.phlebName || "").trim();
+    const phlebPhone = (params.phlebPhone || "").trim();
+    const customer = (params.customerName || "").trim();
+    const customerPhone = (params.customerPhone || "").trim();
+    const address = (params.fullAddress || "").trim();
+    const tracking = (params.trackingNumber || "").trim();
+    if (phleb) extraRows += detailCardHtml("Phlebotomist", phleb);
+    if (phlebPhone) extraRows += detailCardHtml("Phlebotomist phone", phlebPhone);
+    if (customer) extraRows += detailCardHtml("Customer", customer);
+    if (customerPhone) extraRows += detailCardHtml("Customer phone", customerPhone);
+    if (address) extraRows += detailCardHtml("Address", address);
+    if (tracking) extraRows += detailCardHtml("Tracking number", tracking);
+  } else if (params.recipientType === "practitioner") {
     const customer = (params.customerName || "").trim();
     if (customer) {
       extraRows += detailCardHtml("Customer", customer);
@@ -1271,7 +1284,7 @@ const sendPhlebBookingNotification = async (
   });
 
   await sendEmail(toEmails, `New Home Visit Booking - ${orderRef}`, html, {
-    cc: getAdminCcRecipients(),
+    cc: null,
   });
 };
 
@@ -1382,6 +1395,26 @@ const buildHomeVisitEmailHtml = (p: IHomeVisitEmailPayload): string => {
 };
 
 const HOME_VISIT_NOTIFICATIONS_TO = "homevisits@youth-revisited.co.uk";
+
+/** Default admin recipients for pleb job status-change emails (no hardcoded Bloodservices). */
+const getJobStatusAdminRecipients = (): string[] => {
+  const set = new Set<string>();
+  const primary = normalizeEmail(from);
+  if (primary) set.add(primary);
+
+  const homeVisitTo = parseEmailCsv(process.env.HOME_VISIT_NOTIFICATIONS_TO);
+  if (homeVisitTo.length > 0) {
+    homeVisitTo.forEach((email) => set.add(email));
+  } else {
+    set.add(HOME_VISIT_NOTIFICATIONS_TO);
+  }
+
+  adminNotificationCcList.forEach((email) => set.add(email));
+  return Array.from(set);
+};
+
+const getHomeVisitBookingNotificationRecipients = (): string[] =>
+  getJobStatusAdminRecipients();
 
 const sendHomeVisitBookingEmail = async (
   payload: IHomeVisitEmailPayload
@@ -1565,4 +1598,6 @@ export default {
   sendHomeVisitBookingEmail,
   sendNewOrderFromAppEmail,
   sendLowKitStockAlertEmail,
+  getJobStatusAdminRecipients,
+  getHomeVisitBookingNotificationRecipients,
 } as const;
