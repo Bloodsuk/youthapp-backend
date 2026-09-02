@@ -267,6 +267,19 @@ async function updateProfile(
     throw new RouteError(HttpStatusCodes.BAD_REQUEST, "Full name is required");
   }
 
+  const homeAddress = data.home_address?.trim() ?? "";
+  if (!homeAddress) {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, "Home address is required");
+  }
+
+  const homePostcode = data.home_postcode?.trim() ?? "";
+  if (!homePostcode) {
+    throw new RouteError(
+      HttpStatusCodes.BAD_REQUEST,
+      "Postal code is required"
+    );
+  }
+
   const sets = [
     "full_name = ?",
     "email = ?",
@@ -279,9 +292,9 @@ async function updateProfile(
     fullName,
     email,
     data.phone?.trim() ?? "",
-    data.home_address?.trim() ?? "",
+    homeAddress,
     data.city?.trim() ?? "",
-    data.home_postcode?.trim() ?? "",
+    homePostcode,
   ];
 
   if (data.password && data.password.trim() !== "") {

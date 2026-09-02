@@ -13,6 +13,8 @@ This document describes the subject lines and core body copy for the automated e
 
 ## Admin Recipients
 
+## Admin Recipients
+
 Every status-change email is sent to admin via a unified notification. Default recipients:
 
 - `info@youth-revisited.co.uk`
@@ -21,6 +23,12 @@ Every status-change email is sent to admin via a unified notification. Default r
 Optional extra addresses via `ADMIN_NOTIFICATIONS_CC` (comma-separated).
 
 Plus any dynamically resolved admin (order creator, assigning user, or all active admins as fallback).
+
+## Email design
+
+Job lifecycle emails (admin, customer, phleb assignment / status / completion / cancellation)
+use the **branded home-visit template** (navy/gold header, booking detail cards, CTA button).
+Do not use the legacy Lato/`Order Update – …` HTML for these notifications.
 
 ---
 

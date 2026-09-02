@@ -194,6 +194,20 @@ async function updateProfile(req: IReq<IPhlebProfileUpdate>, res: IRes) {
     }).end();
   }
 
+  if (!home_address?.trim()) {
+    return res.status(HttpStatusCodes.BAD_REQUEST).json({
+      success: false,
+      error: "Home address is required",
+    }).end();
+  }
+
+  if (!home_postcode?.trim()) {
+    return res.status(HttpStatusCodes.BAD_REQUEST).json({
+      success: false,
+      error: "Postal code is required",
+    }).end();
+  }
+
   try {
     const profile = await PhlebotomistService.updateProfile(sessionUser.id, {
       full_name,

@@ -665,30 +665,23 @@ const sendPlebJobAssignmentEmail = async (
   email: string,
   payload: IPlebJobAssignmentPayload
 ): Promise<void> => {
-  const { plebName, customerName, customerPhone, customerAddress, jobStatus } = payload;
+  const { plebName, customerName, customerPhone, customerAddress, jobStatus } =
+    payload;
   const orderRef = formatOrderRef(payload);
 
-  const introLines = [
-    "A new job has been assigned to you.",
-    `Order ${orderRef} is ready for you to review.`,
-  ];
-
-  const detailRows: INotificationDetail[] = [
-    { label: "Order Reference", value: orderRef },
-    { label: "Customer", value: getDetailValue(customerName) },
-    { label: "Customer Phone", value: getDetailValue(customerPhone) },
-    { label: "Customer Address", value: getDetailValue(customerAddress) },
-    { label: "Starting Status", value: jobStatus },
-  ];
-
-  const html = buildNotificationEmail({
-    title: "New Job Assigned",
-    greeting: `Hi ${plebName},`,
-    introLines,
-    detailRows,
-    outroLines: [
-      "Please log in to your phlebotomist portal for full job details and keep the status updated as you progress.",
-    ],
+  const html = buildHomeVisitStatusEmailHtml({
+    recipientType: "phleb",
+    recipientName: plebName || "Phlebotomist",
+    statusLabel: mapStatusForEmail(jobStatus),
+    orderRef,
+    customerName,
+    customerPhone,
+    fullAddress: customerAddress,
+    eyebrow: "New job assigned",
+    introText:
+      "A new job has been assigned to you. Please review the booking details below and keep the status updated as you progress.",
+    ctaLabel: "Open phleb portal",
+    dashboardUrl: defaultHomeVisitDashboardUrl("phleb", payload.orderId),
   });
 
   await sendEmail(email, `Job Assigned: ${orderRef}`, html, { cc: null });
@@ -782,6 +775,12 @@ interface IHomeVisitStatusEmailParams {
   fullAddress?: string | null;
   trackingNumber?: string | null;
   dashboardUrl?: string | null;
+  /** Override eyebrow above the headline (default: Booking update) */
+  eyebrow?: string | null;
+  /** Optional plain-text intro below greeting */
+  introText?: string | null;
+  /** CTA button label (default: View Booking) */
+  ctaLabel?: string | null;
 }
 
 const HOME_VISIT_STATUS_LOGO =
@@ -855,6 +854,10 @@ const buildHomeVisitStatusEmailHtml = (
       if (phleb) {
         extraRows += detailCardHtml("Phlebotomist", phleb);
       }
+      const phlebPhone = (params.phlebPhone || "").trim();
+      if (phlebPhone) {
+        extraRows += detailCardHtml("Phlebotomist phone", phlebPhone);
+      }
     }
     if (params.recipientType !== "customer") {
       const address = (params.fullAddress || "").trim();
@@ -862,7 +865,17 @@ const buildHomeVisitStatusEmailHtml = (
         extraRows += detailCardHtml("Address", address);
       }
     }
+    const tracking = (params.trackingNumber || "").trim();
+    if (tracking) {
+      extraRows += detailCardHtml("Tracking number", tracking);
+    }
   }
+
+  const eyebrow = (params.eyebrow || "Booking update").trim() || "Booking update";
+  const introText =
+    (params.introText || "").trim() ||
+    `The status of the home visit booking below has changed to ${statusLabel}. Full details are shown below for reference.`;
+  const ctaLabel = (params.ctaLabel || "View Booking").trim() || "View Booking";
 
   return `
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f7f5;padding:0px;font-family:Arial, Helvetica, sans-serif;">
@@ -877,7 +890,7 @@ const buildHomeVisitStatusEmailHtml = (
         <tr>
           <td style="background:#1c2b4a;padding:48px 40px 42px;text-align:center;border-bottom:3px solid #c8a96e;">
             <div style="font-size:11px;letter-spacing:2px;color:#c8a96e;text-transform:uppercase;margin-bottom:14px;">
-              Booking update
+              ${htmlEscape(eyebrow)}
             </div>
             <div style="font-family:Georgia,serif;font-size:34px;color:#ffffff;line-height:1.2;">
               Status changed to<br><span style="color:#c8a96e;font-style:italic;">${htmlEscape(statusLabel)}</span>
@@ -888,7 +901,7 @@ const buildHomeVisitStatusEmailHtml = (
           <td style="padding:30px 40px;">
             <p style="font-size:16px;color:#1c2b4a;margin:0 0 14px;">Dear ${htmlEscape(recipientName)},</p>
             <p style="font-size:14px;color:#666666;line-height:1.7;margin:0;">
-              The status of the home visit booking below has changed to <strong>${htmlEscape(statusLabel)}</strong>. Full details are shown below for reference.
+              ${htmlEscape(introText)}
             </p>
           </td>
         </tr>
@@ -908,7 +921,7 @@ const buildHomeVisitStatusEmailHtml = (
         <tr>
           <td style="text-align:center;padding:30px 40px;">
             <a href="${htmlEscape(dashboardUrl)}" style="display:inline-block;background:#1c2b4a;color:#ffffff;text-decoration:none;padding:14px 30px;font-size:13px;font-weight:bold;border-radius:4px;">
-              View Booking
+              ${htmlEscape(ctaLabel)}
             </a>
           </td>
         </tr>
@@ -979,30 +992,30 @@ const sendCustomerJobAssignmentEmail = async (
   payload: ICustomerAssignmentPayload
 ): Promise<void> => {
   const orderRef = formatOrderRef(payload);
-  const greeting =
+  const greetingName =
     payload.customerName && payload.customerName.trim().length > 0
-      ? `Dear ${payload.customerName},`
-      : "Dear Customer,";
+      ? payload.customerName.trim()
+      : "Customer";
 
-  const html = buildNotificationEmail({
-    title: "Your Appointment Has Been Allocated",
-    greeting,
-    introLines: [
-      "We are pleased to inform you that your appointment has now been allocated to a member of our clinical team.",
-    ],
-    detailRows: [
-      { label: "Appointment Details", isSectionHeader: true },
-      { label: "Order Reference", value: orderRef },
-      { label: "Status", value: "Allocated" },
-      { label: "Assigned Phlebotomist", isSectionHeader: true },
-      { label: "Name", value: payload.plebName },
-    ],
-    outroLines: [
-      "Your assigned phlebotomist will confirm a time and date for your upcoming appointment and attend your appointment as scheduled.",
-    ],
+  const html = buildHomeVisitStatusEmailHtml({
+    recipientType: "customer",
+    recipientName: greetingName,
+    statusLabel: "Allocated",
+    orderRef,
+    phlebName: payload.plebName,
+    phlebPhone: payload.plebPhone,
+    eyebrow: "Appointment allocated",
+    introText:
+      "We are pleased to inform you that your appointment has now been allocated to a member of our clinical team. Your assigned phlebotomist will confirm a time and date for your upcoming appointment.",
+    dashboardUrl: defaultHomeVisitDashboardUrl("customer", payload.orderId),
   });
 
-  await sendEmail(email, `Your Appointment Has Been Allocated – Order ${orderRef}`, html, { cc: null });
+  await sendEmail(
+    email,
+    `Your Appointment Has Been Allocated – Order ${orderRef}`,
+    html,
+    { cc: null }
+  );
 };
 
 interface ICustomerJobStatusPayload extends IOrderIdentifiers {
@@ -1033,25 +1046,19 @@ const sendCustomerJobStatusUpdateEmail = async (
 
   // Keep the special "Booked In" confirmation copy for picked-up / booked-in.
   if (displayStatus === "Booked In") {
-    const detailRows: INotificationDetail[] = [
-      { label: "Order Details", isSectionHeader: true },
-      { label: "Order Reference", value: orderRef },
-      { label: "Status", value: "Booked In" },
-    ];
-    if (bookingDate) {
-      detailRows.push({ label: "Booking Date", value: bookingDate });
-    }
-    if (bookingTime) {
-      detailRows.push({ label: "Booking Time", value: bookingTime });
-    }
-
-    const html = buildNotificationEmail({
-      title: "Your Appointment Has Been Confirmed",
-      greeting: `Dear ${greetingName},`,
-      introLines: [
-        "We are pleased to confirm that your phlebotomy visit has now been booked in.",
-      ],
-      detailRows,
+    const html = buildHomeVisitStatusEmailHtml({
+      recipientType: "customer",
+      recipientName: greetingName,
+      statusLabel: "Booked In",
+      orderRef,
+      bookingDate,
+      bookingTime,
+      phlebName: payload.plebName,
+      fullAddress: payload.customerAddress,
+      eyebrow: "Appointment confirmed",
+      introText:
+        "We are pleased to confirm that your phlebotomy visit has now been booked in. Full details are shown below for reference.",
+      dashboardUrl: defaultHomeVisitDashboardUrl("customer", payload.orderId),
     });
 
     await sendEmail(
@@ -1098,29 +1105,29 @@ const sendCustomerJobCancellationEmail = async (
   payload: ICustomerCancellationPayload
 ): Promise<void> => {
   const orderRef = formatOrderRef(payload);
-  const greeting =
+  const greetingName =
     payload.customerName && payload.customerName.trim().length > 0
-      ? `Dear ${payload.customerName},`
-      : "Dear Customer,";
+      ? payload.customerName.trim()
+      : "Customer";
 
-  const html = buildNotificationEmail({
-    title: "Update Regarding Your Order",
-    greeting,
-    introLines: [
-      "We regret to inform you that your visit has been cancelled.",
-    ],
-    detailRows: [
-      { label: "Order Details", isSectionHeader: true },
-      { label: "Order Reference", value: orderRef },
-      { label: "Status", value: "Cancelled" },
-    ],
-    outroLines: [
-      "If this cancellation was not requested by you, or if you would like to reschedule, please contact our support team.",
-      "We apologise for any inconvenience this may cause and remain committed to providing you with the highest standard of care.",
-    ],
+  const html = buildHomeVisitStatusEmailHtml({
+    recipientType: "customer",
+    recipientName: greetingName,
+    statusLabel: "Cancelled",
+    orderRef,
+    eyebrow: "Visit cancelled",
+    introText:
+      "We regret to inform you that your visit has been cancelled. If this cancellation was not requested by you, or if you would like to reschedule, please contact our support team.",
+    ctaLabel: "Contact support",
+    dashboardUrl: "mailto:info@youth-revisited.co.uk",
   });
 
-  await sendEmail(email, `Update Regarding Your Order – Order ${orderRef}`, html, { cc: null });
+  await sendEmail(
+    email,
+    `Update Regarding Your Order – Order ${orderRef}`,
+    html,
+    { cc: null }
+  );
 };
 
 interface IPhlebBookingNotificationPayload extends IOrderIdentifiers {
@@ -1147,35 +1154,29 @@ const sendCustomerJobCompletionEmail = async (
   payload: IJobCompletionPayload
 ): Promise<void> => {
   const orderRef = formatOrderRef(payload);
-  const greeting =
+  const greetingName =
     payload.customerName && payload.customerName.trim().length > 0
-      ? `Dear ${payload.customerName},`
-      : "Dear Customer,";
+      ? payload.customerName.trim()
+      : "Customer";
 
-  const trackingDisplay = payload.trackingNumber && payload.trackingNumber.trim().length > 0
-    ? payload.trackingNumber.trim()
-    : null;
-
-  const html = buildNotificationEmail({
-    title: "Your Sample Has Been Posted",
-    greeting,
-    introLines: [
-      "We are pleased to confirm that your sample has been posted back to the Laboratory.",
-    ],
-    detailRows: [
-      { label: "Order Summary", isSectionHeader: true },
-      { label: "Order Reference", value: orderRef },
-      { label: "Status", value: "Posted" },
-      { label: "Tracking Number", value: trackingDisplay },
-    ],
-    outroLines: [
-      "Your visit has been successfully finalised. Your sample has been posted to the Laboratory today and if any follow-up is required, a member of our team will be in touch.",
-      "We truly appreciate your trust in Youth Revisited. If you require any further assistance, please don't hesitate to contact us.",
-    ],
-    signOff: "Warm regards",
+  const html = buildHomeVisitStatusEmailHtml({
+    recipientType: "customer",
+    recipientName: greetingName,
+    statusLabel: "Sample Posted",
+    orderRef,
+    trackingNumber: payload.trackingNumber,
+    eyebrow: "Sample posted",
+    introText:
+      "We are pleased to confirm that your sample has been posted back to the Laboratory. Your visit has been successfully finalised.",
+    dashboardUrl: defaultHomeVisitDashboardUrl("customer", payload.orderId),
   });
 
-  await sendEmail(email, `Your sample has been Posted – Order ${orderRef}`, html, { cc: null });
+  await sendEmail(
+    email,
+    `Your sample has been Posted – Order ${orderRef}`,
+    html,
+    { cc: null }
+  );
 };
 
 interface IPlebStatusPayload extends IOrderIdentifiers {
@@ -1225,24 +1226,18 @@ const sendPlebJobCompletionEmail = async (
   const orderRef = formatOrderRef(payload);
   const displayStatus = mapStatusForEmail(payload.newStatus);
 
-  const detailRows: INotificationDetail[] = [
-    { label: "Order Reference", value: orderRef },
-    { label: "Customer", value: getDetailValue(payload.customerName) },
-    { label: "Status", value: displayStatus },
-    { label: "Tracking Number", value: payload.trackingNumber },
-  ];
-
-  const html = buildNotificationEmail({
-    title: "Visit Completed",
-    greeting: `Hi ${payload.plebName},`,
-    introLines: [
-      `Order ${orderRef} has been marked as "${displayStatus}".`,
-      "Thank you for completing this visit.",
-    ],
-    detailRows,
-    outroLines: [
-      "Please ensure all paperwork and samples are handled as required.",
-    ],
+  const html = buildHomeVisitStatusEmailHtml({
+    recipientType: "phleb",
+    recipientName: payload.plebName || "Phlebotomist",
+    statusLabel: displayStatus,
+    orderRef,
+    customerName: payload.customerName,
+    fullAddress: payload.customerAddress,
+    trackingNumber: payload.trackingNumber,
+    eyebrow: "Visit completed",
+    introText:
+      "Thank you for completing this visit. Please ensure all paperwork and samples are handled as required.",
+    dashboardUrl: defaultHomeVisitDashboardUrl("phleb", payload.orderId),
   });
 
   await sendEmail(email, `Visit Completed - ${orderRef}`, html, { cc: null });
