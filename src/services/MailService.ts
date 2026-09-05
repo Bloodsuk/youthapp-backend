@@ -805,10 +805,10 @@ const defaultHomeVisitDashboardUrl = (
 const detailCardHtml = (label: string, value: string): string => `
   <tr>
     <td width="48%" style="background:#ffffff;border:1px solid #e8e8e4;padding:14px 16px;">
-      <div style="font-size:10px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#c8a96e;margin-bottom:4px;">
+      <div style="font-size:10px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#0267CD;margin-bottom:4px;">
         ${htmlEscape(label)}
       </div>
-      <div style="font-size:14px;font-weight:500;color:#1c2b4a;">
+      <div style="font-size:14px;font-weight:500;color:#0C1824;">
         ${htmlEscape(value)}
       </div>
     </td>
@@ -881,25 +881,25 @@ const buildHomeVisitStatusEmailHtml = (
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f7f5;padding:0px;font-family:Arial, Helvetica, sans-serif;">
   <tr>
     <td align="center">
-      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(28,43,74,0.08);">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(12,24,36,0.08);">
         <tr>
-          <td style="background:#1c2b4a;padding-top:20px;text-align:center;">
+          <td style="background:#0C1824;padding-top:20px;text-align:center;">
             <img src="${HOME_VISIT_STATUS_LOGO}" alt="Youth Revisited" style="height:55px;width:200px;filter:brightness(0) invert(1);opacity:0.92;">
           </td>
         </tr>
         <tr>
-          <td style="background:#1c2b4a;padding:48px 40px 42px;text-align:center;border-bottom:3px solid #c8a96e;">
-            <div style="font-size:11px;letter-spacing:2px;color:#c8a96e;text-transform:uppercase;margin-bottom:14px;">
+          <td style="background:#0C1824;padding:48px 40px 42px;text-align:center;border-bottom:3px solid #0267CD;">
+            <div style="font-size:11px;letter-spacing:2px;color:#0267CD;text-transform:uppercase;margin-bottom:14px;">
               ${htmlEscape(eyebrow)}
             </div>
             <div style="font-family:Georgia,serif;font-size:34px;color:#ffffff;line-height:1.2;">
-              Status changed to<br><span style="color:#c8a96e;font-style:italic;">${htmlEscape(statusLabel)}</span>
+              Status changed to<br><span style="color:#0267CD;font-style:italic;">${htmlEscape(statusLabel)}</span>
             </div>
           </td>
         </tr>
         <tr>
           <td style="padding:30px 40px;">
-            <p style="font-size:16px;color:#1c2b4a;margin:0 0 14px;">Dear ${htmlEscape(recipientName)},</p>
+            <p style="font-size:16px;color:#0C1824;margin:0 0 14px;">Dear ${htmlEscape(recipientName)},</p>
             <p style="font-size:14px;color:#666666;line-height:1.7;margin:0;">
               ${htmlEscape(introText)}
             </p>
@@ -920,7 +920,7 @@ const buildHomeVisitStatusEmailHtml = (
         </tr>
         <tr>
           <td style="text-align:center;padding:30px 40px;">
-            <a href="${htmlEscape(dashboardUrl)}" style="display:inline-block;background:#1c2b4a;color:#ffffff;text-decoration:none;padding:14px 30px;font-size:13px;font-weight:bold;border-radius:4px;">
+            <a href="${htmlEscape(dashboardUrl)}" style="display:inline-block;background:#0267CD;color:#ffffff;text-decoration:none;padding:14px 30px;font-size:13px;font-weight:bold;border-radius:4px;">
               ${htmlEscape(ctaLabel)}
             </a>
           </td>
@@ -928,12 +928,12 @@ const buildHomeVisitStatusEmailHtml = (
         <tr>
           <td style="background:#fdfaf6;padding:20px;text-align:center;font-size:13px;color:#666666;">
             Questions about this visit?<br>
-            <a href="mailto:info@youth-revisited.co.uk" style="color:#c8a96e;text-decoration:none;">info@youth-revisited.co.uk</a>
-            <a href="tel:07927989791" style="color:#c8a96e;text-decoration:none;">07927 989791</a>
+            <a href="mailto:info@youth-revisited.co.uk" style="color:#0267CD;text-decoration:none;">info@youth-revisited.co.uk</a>
+            <a href="tel:07927989791" style="color:#0267CD;text-decoration:none;">07927 989791</a>
           </td>
         </tr>
         <tr>
-          <td style="background:#1c2b4a;padding:25px;text-align:center;">
+          <td style="background:#0C1824;padding:25px;text-align:center;">
             <div style="font-size:11px;color:#888888;line-height:1.6;">
               Youth Revisited Ltd. Company No. 10668513, 13 Hainton Avenue, Grimsby, DN32 9AS
             </div>
