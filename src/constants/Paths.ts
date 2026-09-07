@@ -285,4 +285,13 @@ export default {
     GetUnread: "/order/:order_id/unread",
     Send: "/send",
   },
+  SampleReturns: {
+    Base: "/sample_returns",
+    Lookup: "/lookup",
+    GetOne: "/:id",
+    PaymentIntent: "/:id/payment_intent",
+    FinalizePayment: "/:id/finalize_payment",
+    Create: "/:id/create",
+    EmailQr: "/:id/email_qr",
+  },
 } as const;

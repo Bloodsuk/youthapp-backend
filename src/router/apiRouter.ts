@@ -24,6 +24,7 @@ import plebJobRouter from "./plebJobRouter";
 import eventBookingRouter from "./eventBookingRouter";
 import fileUploadRouter from "./fileUploadRouter";
 import visitChatRouter from "./visitChatRouter";
+import sampleReturnsRouter from "./sampleReturnsRouter";
 
 const routes = Router();
 
@@ -98,5 +99,8 @@ routes.use(Paths.FileUpload.Base, fileUploadRouter);
 
 // Visit chat (phleb ↔ customer, order-scoped)
 routes.use(Paths.VisitChat.Base, visitChatRouter);
+
+// Sample returns (phleb — practitionermaindb + Stripe; WP was reference only)
+routes.use(Paths.SampleReturns.Base, sampleReturnsRouter);
 
 export default routes;

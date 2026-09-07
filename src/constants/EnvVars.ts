@@ -32,6 +32,7 @@ export default {
   },
   Stripe: {
     Secret: process.env.STRIPE_SECRET_KEY ?? "",
+    Publishable: process.env.STRIPE_PUBLISHABLE_KEY ?? "",
   },
   GlobalPayments: {
     AppId: process.env.GP_APP_ID ?? "",

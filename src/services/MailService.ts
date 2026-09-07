@@ -1566,6 +1566,33 @@ const sendLowKitStockAlertEmail = async (
   );
 };
 
+const sendSampleReturnQrEmail = async (payload: {
+  to: string;
+  orderNumber: string;
+  trackingNumber: string;
+  qrDataBase64: string;
+}): Promise<void> => {
+  const qrImg = payload.qrDataBase64
+    ? `<p><img alt="Return QR" src="data:image/png;base64,${payload.qrDataBase64}" style="max-width:280px;height:auto;border:1px solid #ddd;padding:8px;background:#fff;" /></p>`
+    : "";
+  const html = `
+    <div style="font-family:Arial,sans-serif;color:#0C1824;line-height:1.5">
+      <h2 style="margin:0 0 12px">Your sample return QR</h2>
+      <p>Order: <strong>${payload.orderNumber}</strong></p>
+      <p>Tracking number: <strong>${payload.trackingNumber}</strong></p>
+      ${qrImg}
+      <p>Take this QR to a Post Office desk — they will print the label. Do not use a self-service kiosk.</p>
+      <p style="color:#666;font-size:13px">Return address: PO Box 689, Grimsby DN31 9LR</p>
+    </div>
+  `;
+  await sendEmail(
+    payload.to,
+    `Sample return QR — ${payload.orderNumber}`,
+    html,
+    { cc: null }
+  );
+};
+
 export default {
   getMailConfig,
   addMailConfig,
@@ -1593,6 +1620,7 @@ export default {
   sendHomeVisitBookingEmail,
   sendNewOrderFromAppEmail,
   sendLowKitStockAlertEmail,
+  sendSampleReturnQrEmail,
   getJobStatusAdminRecipients,
   getHomeVisitBookingNotificationRecipients,
 } as const;
