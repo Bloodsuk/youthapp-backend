@@ -1572,22 +1572,97 @@ const sendSampleReturnQrEmail = async (payload: {
   trackingNumber: string;
   qrDataBase64: string;
 }): Promise<void> => {
-  const qrImg = payload.qrDataBase64
-    ? `<p><img alt="Return QR" src="data:image/png;base64,${payload.qrDataBase64}" style="max-width:280px;height:auto;border:1px solid #ddd;padding:8px;background:#fff;" /></p>`
-    : "";
+  const orderNumber = htmlEscape((payload.orderNumber || "").trim() || "—");
+  const trackingNumber = htmlEscape(
+    (payload.trackingNumber || "").trim() || "—"
+  );  const qrRaw = (payload.qrDataBase64 || "")
+    .trim()
+    .replace(/^data:image\/png;base64,/i, "");
+
+  const qrBlock = qrRaw
+    ? `<div style="display:inline-block;padding:16px;background:#ffffff;border:1px solid #e6e8ec;border-radius:16px;">
+        <img src="data:image/png;base64,${qrRaw}" alt="Return QR code" width="220" height="220" style="display:block;width:220px;height:220px;" />
+      </div>`
+    : `<p style="color:#666666;font-size:14px;margin:0;">QR image is not available yet. Please open the app or contact support.</p>`;
+
+  // Matches app "Your return is ready" design (header #0C1824, accent #0267CD).
   const html = `
-    <div style="font-family:Arial,sans-serif;color:#0C1824;line-height:1.5">
-      <h2 style="margin:0 0 12px">Your sample return QR</h2>
-      <p>Order: <strong>${payload.orderNumber}</strong></p>
-      <p>Tracking number: <strong>${payload.trackingNumber}</strong></p>
-      ${qrImg}
-      <p>Take this QR to a Post Office desk — they will print the label. Do not use a self-service kiosk.</p>
-      <p style="color:#666;font-size:13px">Return address: PO Box 689, Grimsby DN31 9LR</p>
-    </div>
-  `;
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:24px 12px;font-family:Arial, Helvetica, sans-serif;">
+  <tr>
+    <td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 2px 12px rgba(12,24,36,0.08);">
+        <tr>
+          <td style="background:#0C1824;padding:22px 24px;text-align:center;">
+            <img src="https://www.practitioner.youth-revisited.co.uk/home-visit-dashboard/assets/icons/youth-revisited.png" alt="Youth Revisited" style="height:48px;width:auto;filter:brightness(0) invert(1);opacity:0.95;" />
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#0C1824;padding:8px 28px 28px;text-align:center;border-bottom:3px solid #0267CD;">
+            <div style="font-size:11px;letter-spacing:2px;color:#0267CD;text-transform:uppercase;margin-bottom:10px;">
+              Sample return
+            </div>
+            <div style="font-family:Georgia,serif;font-size:28px;color:#ffffff;line-height:1.25;">
+              Your return is ready
+            </div>
+            <p style="margin:12px 0 0;font-size:14px;color:#c9d3dc;line-height:1.5;">
+              Show this QR at a Post Office so they can print the Royal Mail return label.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:28px 24px 8px;text-align:center;">
+            ${qrBlock}
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:20px 24px 8px;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#eef5fc;border-radius:12px;overflow:hidden;">
+              <tr>
+                <td style="padding:16px 18px;border-bottom:1px solid #d9e8f7;">
+                  <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#0267CD;font-weight:700;margin-bottom:4px;">Order number</div>
+                  <div style="font-size:15px;color:#0C1824;font-weight:600;">${orderNumber}</div>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:16px 18px;border-bottom:1px solid #d9e8f7;">
+                  <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#0267CD;font-weight:700;margin-bottom:4px;">Tracking number</div>
+                  <div style="font-size:15px;color:#0C1824;font-weight:600;">${trackingNumber}</div>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:16px 18px;">
+                  <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#0267CD;font-weight:700;margin-bottom:4px;">Postage</div>
+                  <div style="font-size:15px;color:#0C1824;font-weight:600;">Included</div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:18px 24px 8px;">
+            <p style="margin:0;font-size:14px;color:#44515c;line-height:1.6;">
+              Take this QR to a <strong>Post Office desk</strong> — they will print the label.
+              Do not use a self-service kiosk.
+            </p>
+            <p style="margin:12px 0 0;font-size:13px;color:#7a8792;">
+              Return address: PO Box 689, Grimsby DN31 9LR
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#0C1824;padding:16px 24px;text-align:center;">
+            <div style="font-size:12px;color:#9aa6b2;">Youth Revisited · Sample Returns</div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+`;
+
   await sendEmail(
     payload.to,
-    `Sample return QR — ${payload.orderNumber}`,
+    `Your return is ready — ${orderNumber}`,
     html,
     { cc: null }
   );

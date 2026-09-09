@@ -275,6 +275,11 @@ export default {
     GetByPlebId: "/pleb/:pleb_id",
     UpdateStatus: "/update_status/:id",
   },
+  GymPhlebBookings: {
+    Base: "/gym_phleb_bookings",
+    GetByPlebId: "/pleb/:pleb_id",
+    UpdateStatus: "/update_status/:id",
+  },
   FileUpload: {
     Base: "/file_upload_api",
     Upload: "/",

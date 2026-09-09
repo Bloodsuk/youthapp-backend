@@ -101,6 +101,7 @@ function toSnapshot(
   order: EligibleOrderRow,
   message?: string | null
 ): ISampleReturnSnapshot {
+  const amount = Number(row.amount_pence ?? FEE_PENCE);
   return {
     return_id: row.id,
     token: makeToken(row.id),
@@ -111,8 +112,8 @@ function toSnapshot(
     customer_email: order.customer_email,
     tracking_number: row.tracking_number || null,
     qr_data: row.qr_data || null,
-    fee_label: FEE_LABEL,
-    amount_pence: row.amount_pence || FEE_PENCE,
+    fee_label: amount > 0 ? FEE_LABEL : "Waived",
+    amount_pence: amount,
     message: message ?? null,
   };
 }
@@ -197,12 +198,13 @@ async function loadOrderForReturn(
   return rows[0] as EligibleOrderRow;
 }
 
-async function createAwaitingReturn(orderPk: number): Promise<ISampleReturnRow> {
+async function createPhlebReturn(orderPk: number): Promise<ISampleReturnRow> {
+  // Phleb Sample Returns: fee payment skipped for now (product decision).
   const [result] = await pool.query<ResultSetHeader>(
     `INSERT INTO yr_practitioner_returns
-      (order_id, status, amount_pence, tracking_number, qr_data, created_at)
-     VALUES (?, 'awaiting_payment', ?, '', '', NOW())`,
-    [orderPk, FEE_PENCE]
+      (order_id, status, amount_pence, tracking_number, qr_data, created_at, paid_at)
+     VALUES (?, 'requested', 0, '', '', NOW(), NOW())`,
+    [orderPk]
   );
   const created = await getReturnById(result.insertId);
   if (!created) {
@@ -212,6 +214,21 @@ async function createAwaitingReturn(orderPk: number): Promise<ISampleReturnRow> 
     );
   }
   return created;
+}
+
+async function waivePaymentIfNeeded(
+  ret: ISampleReturnRow
+): Promise<ISampleReturnRow> {
+  if (ret.status !== "awaiting_payment") return ret;
+  await pool.query(
+    `UPDATE yr_practitioner_returns
+     SET status = 'requested',
+         amount_pence = 0,
+         paid_at = COALESCE(paid_at, NOW())
+     WHERE id = ? AND status = 'awaiting_payment'`,
+    [ret.id]
+  );
+  return (await getReturnById(ret.id)) || ret;
 }
 
 async function lookupOrder(
@@ -228,7 +245,9 @@ async function lookupOrder(
 
   let ret = await getReturnByOrderId(order.id);
   if (!ret) {
-    ret = await createAwaitingReturn(order.id);
+    ret = await createPhlebReturn(order.id);
+  } else {
+    ret = await waivePaymentIfNeeded(ret);
   }
 
   return toSnapshot(ret, order);
@@ -356,84 +375,49 @@ async function finalizePayment(
   return toSnapshot(updated, order);
 }
 
-async function createRoyalMailShipment(
-  order: EligibleOrderRow,
-  returnId: number
-): Promise<{ trackingNumber: string; qrData: string } | null> {
-  const clientId = process.env.ROYAL_MAIL_CLIENT_ID || "";
-  const clientSecret = process.env.ROYAL_MAIL_CLIENT_SECRET || "";
-  const enabled = process.env.ROYAL_MAIL_RETURNS_ENABLED === "1";
+async function createRoyalMailViaWordpress(
+  returnId: number,
+  token: string
+): Promise<{ ok: boolean; message?: string }> {
+  const url =
+    process.env.SAMPLE_RETURNS_CREATE_RETURN_URL ||
+    "https://www.practitioner.youth-revisited.co.uk/create-return.php";
 
-  if (!enabled || !clientId || !clientSecret) {
-    return null;
-  }
-
-  // Optional live Royal Mail Returns API (billable). Only when explicitly enabled.
-  const authRes = await fetch("https://api.parcel.royalmail.com/api/v1/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      client_id: clientId,
-      client_secret: clientSecret,
-    }),
+  const body = new URLSearchParams({
+    return_id: String(returnId),
+    confirmed: "true",
+    // Website endpoints also accept token; harmless if practitioner ignores it.
+    token,
   });
-  if (!authRes.ok) {
-    throw new Error(`Royal Mail auth failed (${authRes.status})`);
-  }
-  const authJson = (await authRes.json()) as { access_token?: string };
-  if (!authJson.access_token) {
-    throw new Error("Royal Mail auth missing access_token");
-  }
 
-  const payload = {
-    serviceCode: "TSN",
-    shipper: {
-      companyName: "Youth Revisited",
-      addressLine1: "PO Box 689",
-      city: "Grimsby",
-      postcode: "DN31 9LR",
-      countryCode: "GB",
-    },
-    packages: [
-      {
-        weightInGrams: 500,
-        packageType: "Parcel",
-      },
-    ],
-    recipient: {
-      fullName: `${order.fore_name || ""} ${order.sur_name || ""}`.trim() || "Customer",
-      addressLine1: order.address || "Address on file",
-      city: order.town || "London",
-      postcode: order.postal_code || "SW1A 1AA",
-      countryCode: "GB",
-      emailAddress: order.customer_email,
-    },
-    reference: `SR-${returnId}-${order.id}`,
-  };
-
-  const shipRes = await fetch("https://api.parcel.royalmail.com/api/v1/returns", {
+  const res = await fetch(url, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${authJson.access_token}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json",
     },
-    body: JSON.stringify(payload),
+    body: body.toString(),
   });
-  if (!shipRes.ok) {
-    const body = await shipRes.text();
-    throw new Error(`Royal Mail returns failed (${shipRes.status}): ${body.slice(0, 300)}`);
+
+  const text = await res.text();
+  let json: { success?: boolean; data?: { message?: string } } = {};
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new Error(
+      `WordPress create-return returned non-JSON (${res.status}): ${text.slice(0, 200)}`
+    );
   }
-  const shipJson = (await shipRes.json()) as {
-    trackingNumber?: string;
-    qrCode?: string;
-  };
-  if (!shipJson.trackingNumber) {
-    throw new Error("Royal Mail response missing trackingNumber");
+
+  if (!res.ok || json.success !== true) {
+    return {
+      ok: false,
+      message:
+        json.data?.message ||
+        `WordPress create-return failed (${res.status})`,
+    };
   }
-  return {
-    trackingNumber: shipJson.trackingNumber,
-    qrData: (shipJson.qrCode || "").replace(/^data:image\/png;base64,/, ""),
-  };
+  return { ok: true };
 }
 
 async function createStubShipment(
@@ -485,20 +469,44 @@ async function confirmAndCreateReturn(
     );
   }
 
+  // Option A (required): WordPress create-return.php talks to Royal Mail and
+  // updates yr_practitioner_returns with real tracking_number + qr_data.
   try {
-    const shipment =
-      (await createRoyalMailShipment(order, returnId)) ||
-      (await createStubShipment(order, returnId));
-
-    await pool.query(
-      `UPDATE yr_practitioner_returns
-       SET status = 'created',
-           tracking_number = ?,
-           qr_data = ?,
-           posted_at = NULL
-       WHERE id = ?`,
-      [shipment.trackingNumber, shipment.qrData, returnId]
-    );
+    const wp = await createRoyalMailViaWordpress(returnId, token);
+    if (!wp.ok) {
+      // Dev/local escape hatch only — never use for real customer returns.
+      if (process.env.SAMPLE_RETURNS_ALLOW_STUB === "1") {
+        console.warn(
+          "[SampleReturns] WP create-return failed; using stub because SAMPLE_RETURNS_ALLOW_STUB=1:",
+          wp.message
+        );
+        const shipment = await createStubShipment(order, returnId);
+        await pool.query(
+          `UPDATE yr_practitioner_returns
+           SET status = 'created',
+               tracking_number = ?,
+               qr_data = ?,
+               posted_at = NULL
+           WHERE id = ?`,
+          [shipment.trackingNumber, shipment.qrData, returnId]
+        );
+      } else {
+        throw new Error(wp.message || "WordPress create-return failed");
+      }
+    } else {
+      // Re-read what WP wrote into the shared returns table.
+      const after = await getReturnById(returnId);
+      if (
+        !after ||
+        !after.tracking_number ||
+        after.status === "requested" ||
+        after.status === "awaiting_payment"
+      ) {
+        throw new Error(
+          "WordPress create-return succeeded but return was not updated with tracking"
+        );
+      }
+    }
   } catch (err) {
     console.error("[SampleReturns] create shipment failed", err);
     await pool.query(
@@ -514,7 +522,23 @@ async function confirmAndCreateReturn(
   }
 
   const updated = (await getReturnById(returnId))!;
-  return toSnapshot(updated, order);
+  const snapshot = toSnapshot(updated, order);
+
+  // First "return ready" email (matches app Ready UI). Failures shouldn't block create.
+  if (updated.tracking_number) {
+    try {
+      await MailService.sendSampleReturnQrEmail({
+        to: order.customer_email,
+        orderNumber: snapshot.order_number,
+        trackingNumber: updated.tracking_number,
+        qrDataBase64: updated.qr_data || "",
+      });
+    } catch (mailErr) {
+      console.error("[SampleReturns] ready email failed", mailErr);
+    }
+  }
+
+  return snapshot;
 }
 
 async function emailQr(

@@ -22,6 +22,7 @@ import appVersionRouter from "./appVersionRouter";
 import phlebotomistRouter from "./phlebotomistRouter";
 import plebJobRouter from "./plebJobRouter";
 import eventBookingRouter from "./eventBookingRouter";
+import gymPhlebBookingRouter from "./gymPhlebBookingRouter";
 import fileUploadRouter from "./fileUploadRouter";
 import visitChatRouter from "./visitChatRouter";
 import sampleReturnsRouter from "./sampleReturnsRouter";
@@ -93,6 +94,9 @@ routes.use(Paths.PlebJobs.Base, plebJobRouter);
 
 // Event bookings (phleb job type — Assigned/Pickup/Delivered/Cancelled)
 routes.use(Paths.EventBookings.Base, eventBookingRouter);
+
+// Gym phleb bookings (same status flow as events)
+routes.use(Paths.GymPhlebBookings.Base, gymPhlebBookingRouter);
 
 // Add FileUploadRouter
 routes.use(Paths.FileUpload.Base, fileUploadRouter);
