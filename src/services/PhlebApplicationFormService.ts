@@ -152,22 +152,57 @@ function mapSubmissionRow(row: RowDataPacket): IWpContractSubmissionSummary {
   };
 }
 
-async function getWpContractSubmission(
-  phlebId: number
-): Promise<IWpContractSubmissionSummary | null> {
-  const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT id, application_id, created_at, full_name, contractor_name,
+const WP_CONTRACT_SELECT = `id, application_id, created_at, full_name, contractor_name,
             personal_email, email, mobile_number, phone, youth_signature,
             cv_file, hep_b_proof, occupational_health_records,
-            dbs_adults, dbs_children, right_to_work, utr_file
+            dbs_adults, dbs_children, right_to_work, utr_file`;
+
+async function resolvePhlebEmail(
+  phlebId: number,
+  email?: string
+): Promise<string> {
+  const fromArg = (email || "").trim().toLowerCase();
+  if (fromArg) return fromArg;
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT email FROM phlebotomy_applications WHERE id = ? LIMIT 1`,
+    [phlebId]
+  );
+  return (rows[0]?.email != null ? String(rows[0].email) : "").trim().toLowerCase();
+}
+
+/**
+ * Find the WP contract for this phleb.
+ * Prefer application_id = phlebId; fall back to email/personal_email when
+ * WordPress stored a mismatched/orphan application_id (common re-upload 404).
+ */
+async function getWpContractSubmission(
+  phlebId: number,
+  email?: string
+): Promise<IWpContractSubmissionSummary | null> {
+  const [byAppId] = await pool.query<RowDataPacket[]>(
+    `SELECT ${WP_CONTRACT_SELECT}
      FROM wp_phleb_contracts
      WHERE application_id = ?
      ORDER BY id DESC
      LIMIT 1`,
     [phlebId]
   );
-  if (!rows.length) return null;
-  return mapSubmissionRow(rows[0]);
+  if (byAppId.length) return mapSubmissionRow(byAppId[0]);
+
+  const normalizedEmail = await resolvePhlebEmail(phlebId, email);
+  if (!normalizedEmail) return null;
+
+  const [byEmail] = await pool.query<RowDataPacket[]>(
+    `SELECT ${WP_CONTRACT_SELECT}
+     FROM wp_phleb_contracts
+     WHERE LOWER(TRIM(IFNULL(email, ''))) = ?
+        OR LOWER(TRIM(IFNULL(personal_email, ''))) = ?
+     ORDER BY id DESC
+     LIMIT 1`,
+    [normalizedEmail, normalizedEmail]
+  );
+  if (!byEmail.length) return null;
+  return mapSubmissionRow(byEmail[0]);
 }
 
 /**
@@ -191,7 +226,7 @@ export async function getSubmitContractAccess(
     throw new RouteError(HttpStatusCodes.BAD_REQUEST, "Invalid phlebotomist");
   }
 
-  const contract = await getWpContractSubmission(phlebId);
+  const contract = await getWpContractSubmission(phlebId, email);
   const url = buildSignedFormUrl(phlebId, email);
 
   return {
@@ -205,22 +240,21 @@ export async function getSubmitContractAccess(
 
 /**
  * Attach / replace document files on the existing wp_phleb_contracts row
- * for this phleb (application_id = phlebId). Does not create a new contract.
+ * for this phleb. Creates a minimal WP contract row if none exists yet
+ * (same table the website uses), then attaches files.
  */
 export async function updateWpContractDocuments(
   phlebId: number,
-  files: Partial<Record<WpContractFileField, string>>
+  files: Partial<Record<WpContractFileField, string>>,
+  email?: string
 ): Promise<IWpContractSubmissionSummary> {
   if (!Number.isFinite(phlebId) || phlebId <= 0) {
     throw new RouteError(HttpStatusCodes.BAD_REQUEST, "Invalid phlebotomist");
   }
 
-  const existing = await getWpContractSubmission(phlebId);
+  let existing = await getWpContractSubmission(phlebId, email);
   if (!existing) {
-    throw new RouteError(
-      HttpStatusCodes.NOT_FOUND,
-      "No submitted contract found to attach documents to"
-    );
+    existing = await ensureWpContractRow(phlebId, email);
   }
 
   const updates: string[] = [];
@@ -239,6 +273,12 @@ export async function updateWpContractDocuments(
     );
   }
 
+  // Keep app id linked when WP stored a mismatched application_id.
+  if (existing.application_id !== phlebId) {
+    updates.push("application_id = ?");
+    values.push(phlebId);
+  }
+
   values.push(existing.id);
   const [result] = await pool.query<ResultSetHeader>(
     `UPDATE wp_phleb_contracts SET ${updates.join(", ")} WHERE id = ?`,
@@ -251,7 +291,28 @@ export async function updateWpContractDocuments(
     );
   }
 
-  const refreshed = await getWpContractSubmission(phlebId);
+  // Keep admin compliance checklist in sync (same docs website shows as Submitted).
+  const complianceByField: Partial<Record<WpContractFileField, string>> = {
+    cv_file: "cv_quals",
+    hep_b_proof: "hep_b",
+    occupational_health_records: "occ_health",
+    dbs_adults: "dbs_adults",
+    dbs_children: "dbs_children",
+    right_to_work: "right_to_work",
+  };
+  for (const field of WP_CONTRACT_FILE_FIELDS) {
+    if (!files[field]) continue;
+    const rowKey = complianceByField[field];
+    if (!rowKey) continue;
+    await pool.query(
+      `INSERT INTO npn_phleb_compliance (phleb_id, row_key, status)
+       VALUES (?, ?, 'submitted')
+       ON DUPLICATE KEY UPDATE status = 'submitted', updated_at = NOW()`,
+      [phlebId, rowKey]
+    );
+  }
+
+  const refreshed = await getWpContractSubmission(phlebId, email);
   if (!refreshed) {
     throw new RouteError(
       HttpStatusCodes.INTERNAL_SERVER_ERROR,
@@ -259,6 +320,70 @@ export async function updateWpContractDocuments(
     );
   }
   return refreshed;
+}
+
+/**
+ * Create a minimal wp_phleb_contracts row from the phleb profile so app
+ * document uploads land in the same table the website admin reviews.
+ */
+async function ensureWpContractRow(
+  phlebId: number,
+  email?: string
+): Promise<IWpContractSubmissionSummary> {
+  const [phlebRows] = await pool.query<RowDataPacket[]>(
+    `SELECT id, email, full_name, phone, home_address
+     FROM phlebotomy_applications
+     WHERE id = ?
+     LIMIT 1`,
+    [phlebId]
+  );
+  if (!phlebRows.length) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, "Phlebotomist not found");
+  }
+  const phleb = phlebRows[0];
+  const normalizedEmail = await resolvePhlebEmail(
+    phlebId,
+    email || (phleb.email != null ? String(phleb.email) : undefined)
+  );
+  const fullName =
+    phleb.full_name != null && String(phleb.full_name).trim() !== ""
+      ? String(phleb.full_name).trim()
+      : null;
+  const phone =
+    phleb.phone != null && String(phleb.phone).trim() !== ""
+      ? String(phleb.phone).trim()
+      : null;
+  const homeAddress =
+    phleb.home_address != null && String(phleb.home_address).trim() !== ""
+      ? String(phleb.home_address).trim()
+      : null;
+
+  const [insert] = await pool.query<ResultSetHeader>(
+    `INSERT INTO wp_phleb_contracts
+       (application_id, created_at, email, personal_email, full_name,
+        contractor_name, phone, mobile_number, home_address, address)
+     VALUES (?, NOW(), ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      phlebId,
+      normalizedEmail || null,
+      normalizedEmail || null,
+      fullName,
+      fullName,
+      phone,
+      phone,
+      homeAddress,
+      homeAddress,
+    ]
+  );
+
+  const created = await getWpContractSubmission(phlebId, normalizedEmail);
+  if (!created) {
+    throw new RouteError(
+      HttpStatusCodes.INTERNAL_SERVER_ERROR,
+      `Contract row created (id ${insert.insertId}) but could not be loaded`
+    );
+  }
+  return created;
 }
 
 export function getTokenTtlSeconds(): number {

@@ -13,6 +13,7 @@ import { LIMIT } from "@src/constants/pagination";
 import { IPractitionerCommission } from "@src/interfaces/IPractitionerCommission";
 import { IBooking } from "@src/interfaces/IBooking";
 import PhlebBookingService from "./PhlebBookingService";
+import ResultService from "./ResultService";
 
 // **** Variables **** //
 
@@ -92,6 +93,7 @@ async function getAll(
   const user_id = sessionUser?.id;
   const user_level = sessionUser?.user_level;
   const practitioner_id = sessionUser?.practitioner_id;
+  const forCustomer = user_level === UserLevels.Customer;
   const whereClauses = ["1"];
   const params: any[] = [];
 
@@ -242,7 +244,12 @@ async function getAll(
       };
     }
     
-    return orderData;
+    return forCustomer
+      ? (ResultService.applyClientResultAccessGate(
+          orderData as unknown as import("@src/interfaces/IResult").IResult,
+          true
+        ) as unknown as IOrder)
+      : orderData;
   });
 
   // Resolve test id + name for each order
@@ -422,7 +429,10 @@ async function getAllCustomerOrder(
       };
     }
     
-    return orderData;
+    return ResultService.applyClientResultAccessGate(
+      orderData as unknown as import("@src/interfaces/IResult").IResult,
+      true
+    ) as unknown as IOrder;
   });
   await attachPlebJobMeta(allOrders);
   const totalSql = `

@@ -241,6 +241,7 @@ export default {
     SopsAll: "/sops/all",
     SopsPhleb: "/sops/phleb/:phleb_id",
     SopsAcknowledge: "/sops/:id/acknowledge",
+    SopsAcknowledgeAll: "/sops/acknowledge-all",
     SopsView: "/sops/:id/view",
     SopsById: "/sops/:id",
     UpdateStatus: "/update_status",

@@ -40,7 +40,7 @@ async function getAll(req: IReq, res: IRes) {
 async function getById(req: IReq, res: IRes) {
   const id = parseInt(req.params.id);
   try {
-    const result = await ResultService.getOne(id);
+    const result = await ResultService.getOne(id, res.locals.sessionUser);
     return res
       .status(HttpStatusCodes.OK)
       .json({

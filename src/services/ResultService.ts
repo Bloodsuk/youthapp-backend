@@ -8,13 +8,45 @@ import { UserLevels } from "@src/constants/enums";
 import { ISessionUser } from "@src/interfaces/ISessionUser";
 import { LIMIT } from "@src/constants/pagination";
 import moment from "moment";
-import path from "path";
-import fs from "fs";
-import pdf from "pdf-parse";
 
 // **** Variables **** //
 
 export const NOT_FOUND_ERR = "Result not found";
+
+const ACCESS_OFF_MESSAGE =
+  "Results are not available for download yet. Access has not been enabled for this order.";
+
+function isClientAccessOn(value: unknown): boolean {
+  if (value === true || value === 1) return true;
+  if (typeof value === "string") {
+    const v = value.trim().toLowerCase();
+    return v === "1" || v === "true";
+  }
+  return false;
+}
+
+/**
+ * For customers: access off → no file paths, message only.
+ * Access on → keep attachment / basic_explain.
+ * Staff always get files.
+ */
+function applyClientResultAccessGate(
+  row: IResult,
+  forCustomer: boolean
+): IResult {
+  if (!forCustomer) {
+    return row;
+  }
+  if (isClientAccessOn(row.can_client_access)) {
+    return { ...row, access_message: null };
+  }
+  return {
+    ...row,
+    attachment: null,
+    basic_explain: null,
+    access_message: ACCESS_OFF_MESSAGE,
+  };
+}
 
 // **** Functions **** //
 
@@ -40,6 +72,7 @@ async function getAll(
   const user_id = sessionUser?.id;
   const user_level = sessionUser?.user_level;
   const practitioner_id = sessionUser?.practitioner_id;
+  const forCustomer = user_level === UserLevels.Customer;
   const whereClauses = ["1"];
   const params: any[] = [];
 
@@ -63,9 +96,16 @@ async function getAll(
 
   if (status && !empty(status)) {
     if (status === "Results Published" || status === "Result Published") {
-      whereClauses.push("orders.status IN ('Results Published', 'Result Published')");
-    } else if (status === "Received at the Lab" || status === "Received at Lab") {
-      whereClauses.push("orders.status IN ('Received at Lab', 'Received at the Lab')");
+      whereClauses.push(
+        "orders.status IN ('Results Published', 'Result Published')"
+      );
+    } else if (
+      status === "Received at the Lab" ||
+      status === "Received at Lab"
+    ) {
+      whereClauses.push(
+        "orders.status IN ('Received at Lab', 'Received at the Lab')"
+      );
     } else {
       whereClauses.push("orders.status = ?");
       params.push(status);
@@ -97,7 +137,7 @@ async function getAll(
     params.push(`%${search}%`);
   }
 
-  const last_week = moment().subtract(7, 'days').format('YYYY-MM-DD HH:mm:ss');
+  const last_week = moment().subtract(7, "days").format("YYYY-MM-DD HH:mm:ss");
   if (reportThisWeek) {
     whereClauses.push("orders.created_at >= ?");
     params.push(last_week);
@@ -124,20 +164,18 @@ async function getAll(
     ORDER BY orders.id DESC 
     ${pagination}
   `;
-  console.log(sql);
-  console.log(params);
 
   const [rows] = await pool.query<RowDataPacket[]>(sql, params);
   const allResults = rows.map((result) => {
-    return {
+    const mapped = {
       ...result,
       test_ids: result.test_ids,
       practitioner_name: result.practitioner_name,
       tests: result.tests,
       date_of_birth: result.date_of_birth,
     } as IResult;
+    return applyClientResultAccessGate(mapped, forCustomer);
   });
-  console.log(rows[0], "rows");
 
   const totalSql = `
     SELECT COUNT(*) as count
@@ -156,7 +194,10 @@ async function getAll(
 /**
  * Get one result.
  */
-async function getOne(id: number): Promise<IResult> {
+async function getOne(
+  id: number,
+  sessionUser?: ISessionUser
+): Promise<IResult> {
   const [rows] = await pool.query<RowDataPacket[]>(
     "SELECT * FROM orders WHERE id = ?",
     [id]
@@ -165,7 +206,8 @@ async function getOne(id: number): Promise<IResult> {
     throw new RouteError(HttpStatusCodes.NOT_FOUND, NOT_FOUND_ERR);
   }
   const result = rows[0] as IResult;
-  return result;
+  const forCustomer = sessionUser?.user_level === UserLevels.Customer;
+  return applyClientResultAccessGate(result, forCustomer);
 }
 
 /**
@@ -178,11 +220,12 @@ async function _delete(id: number, type: string): Promise<void> {
       [id]
     );
   } catch (error) {
-    throw new RouteError(HttpStatusCodes.INTERNAL_SERVER_ERROR, "Error deleting order: " + error);
+    throw new RouteError(
+      HttpStatusCodes.INTERNAL_SERVER_ERROR,
+      "Error deleting order: " + error
+    );
   }
 }
-
-
 
 // **** Export default **** //
 
@@ -190,4 +233,7 @@ export default {
   getAll,
   getOne,
   delete: _delete,
+  applyClientResultAccessGate,
+  isClientAccessOn,
+  ACCESS_OFF_MESSAGE,
 } as const;

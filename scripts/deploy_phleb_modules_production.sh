@@ -98,6 +98,42 @@ const get = (k) => {
   }
   console.log("OK: npn_sop_documents / npn_sop_acknowledgements / npn_sop_document_views");
 
+  // SOP acknowledgement spec: columns + version notifications + required flags
+  const [[reqCol]] = await conn.query(
+    `SELECT COUNT(*) AS c FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'npn_sop_documents'
+       AND COLUMN_NAME = 'requires_acknowledgement'`
+  );
+  if (Number(reqCol.c) === 0) {
+    await conn.query(
+      `ALTER TABLE npn_sop_documents
+       ADD COLUMN requires_acknowledgement tinyint(1) NOT NULL DEFAULT 0 AFTER is_active`
+    );
+    console.log("OK: added npn_sop_documents.requires_acknowledgement");
+  }
+  const [[codeCol]] = await conn.query(
+    `SELECT COUNT(*) AS c FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'npn_sop_documents'
+       AND COLUMN_NAME = 'document_code'`
+  );
+  if (Number(codeCol.c) === 0) {
+    await conn.query(
+      `ALTER TABLE npn_sop_documents
+       ADD COLUMN document_code varchar(64) DEFAULT NULL AFTER requires_acknowledgement`
+    );
+    console.log("OK: added npn_sop_documents.document_code");
+  }
+  const sopAckSql = fs.readFileSync(
+    path.join(appDir, "scripts/add_npn_sop_acknowledgement_spec.sql"),
+    "utf8"
+  );
+  for (const stmt of sopAckSql.split(";").map((s) => s.trim()).filter(Boolean)) {
+    await conn.query(stmt);
+  }
+  console.log("OK: SOP acknowledgement flags + npn_sop_version_notifications");
+
   const partnerSsoSql = fs.readFileSync(
     path.join(appDir, "scripts/partner_sso_tokens.sql"),
     "utf8"

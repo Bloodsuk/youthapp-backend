@@ -1,4 +1,4 @@
--- Controlled SOP documents + per-phleb versioned acknowledgements.
+-- Controlled SOP documents + per-phleb versioned acknowledgements + opens + version notices.
 CREATE TABLE IF NOT EXISTS npn_sop_documents (
   id int NOT NULL AUTO_INCREMENT,
   title varchar(255) NOT NULL,
@@ -6,11 +6,14 @@ CREATE TABLE IF NOT EXISTS npn_sop_documents (
   current_version varchar(20) NOT NULL DEFAULT '1.0',
   file_url varchar(500) DEFAULT NULL,
   is_active tinyint(1) NOT NULL DEFAULT 1,
+  requires_acknowledgement tinyint(1) NOT NULL DEFAULT 0,
+  document_code varchar(64) DEFAULT NULL,
   created_by varchar(100) DEFAULT NULL,
   created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  KEY idx_sop_active (is_active)
+  KEY idx_sop_active (is_active),
+  KEY idx_sop_requires_ack (requires_acknowledgement)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS npn_sop_acknowledgements (
@@ -26,6 +29,7 @@ CREATE TABLE IF NOT EXISTS npn_sop_acknowledgements (
   KEY idx_phleb_id (phleb_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- Spec name: npn_sop_opens — implemented as document views (first open per version).
 CREATE TABLE IF NOT EXISTS npn_sop_document_views (
   id int NOT NULL AUTO_INCREMENT,
   phleb_id int NOT NULL,
@@ -36,4 +40,16 @@ CREATE TABLE IF NOT EXISTS npn_sop_document_views (
   UNIQUE KEY uq_phleb_sop_view_version (phleb_id, sop_id, version),
   KEY idx_sop_view_sop_id (sop_id),
   KEY idx_sop_view_phleb_id (phleb_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS npn_sop_version_notifications (
+  id int NOT NULL AUTO_INCREMENT,
+  phleb_id int NOT NULL,
+  sop_id int NOT NULL,
+  version varchar(20) NOT NULL,
+  notified_at datetime NOT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_phleb_sop_version (phleb_id, sop_id, version),
+  KEY idx_sop_id (sop_id),
+  KEY idx_phleb_id (phleb_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

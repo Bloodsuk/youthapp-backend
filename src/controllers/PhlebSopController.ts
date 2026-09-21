@@ -95,6 +95,23 @@ async function markSopViewed(req: IReq, res: IRes) {
   }
 }
 
+function signerName(sessionUser: {
+  first_name?: string;
+  last_name?: string;
+  username?: string;
+  email?: string;
+}): string {
+  return (
+    [sessionUser.first_name, sessionUser.last_name]
+      .filter(Boolean)
+      .join(" ")
+      .trim() ||
+    sessionUser.username?.trim() ||
+    sessionUser.email?.trim() ||
+    "Phlebotomist"
+  );
+}
+
 async function acknowledgeSop(req: IReq, res: IRes) {
   const sessionUser = requirePhlebotomist(res);
   if (!sessionUser) {
@@ -113,23 +130,40 @@ async function acknowledgeSop(req: IReq, res: IRes) {
   }
 
   try {
-    const signedBy =
-      [sessionUser.first_name, sessionUser.last_name]
-        .filter(Boolean)
-        .join(" ")
-        .trim() ||
-      sessionUser.username?.trim() ||
-      sessionUser.email?.trim() ||
-      "Phlebotomist";
     const data = await PhlebSopService.acknowledge(
       sessionUser.id,
       sopId,
-      signedBy,
+      signerName(sessionUser),
       requestBaseUrl(req)
     );
     return res.status(HttpStatusCodes.OK).json({
       success: true,
       message: "SOP acknowledged",
+      data,
+    }).end();
+  } catch (error) {
+    return handleError(res, error);
+  }
+}
+
+async function acknowledgeAllSops(req: IReq, res: IRes) {
+  const sessionUser = requirePhlebotomist(res);
+  if (!sessionUser) {
+    return res.status(HttpStatusCodes.FORBIDDEN).json({
+      success: false,
+      error: "Phlebotomist access required",
+    }).end();
+  }
+
+  try {
+    const data = await PhlebSopService.acknowledgeAllRequired(
+      sessionUser.id,
+      signerName(sessionUser),
+      requestBaseUrl(req)
+    );
+    return res.status(HttpStatusCodes.OK).json({
+      success: true,
+      message: "All required SOPs acknowledged",
       data,
     }).end();
   } catch (error) {
@@ -238,6 +272,7 @@ export default {
   listMySops,
   markSopViewed,
   acknowledgeSop,
+  acknowledgeAllSops,
   listAllSops,
   listPhlebSops,
   createSop,

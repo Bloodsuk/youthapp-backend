@@ -14,6 +14,18 @@ export type SampleReturnStep =
   | "return_ready"
   | "manual_review";
 
+export interface ISampleReturnAddress {
+  first_name: string;
+  last_name: string;
+  address_line1: string;
+  city: string;
+  postcode: string;
+  country: string;
+  country_iso_code: string;
+  /** Single-line label for UI / email. */
+  label: string;
+}
+
 export interface ISampleReturnRow {
   id: number;
   order_id: number;
@@ -39,6 +51,17 @@ export interface ISampleReturnSnapshot {
   customer_email: string;
   tracking_number: string | null;
   qr_data: string | null;
+  /**
+   * Where the package is sent (QR destination) — fixed Youth Revisited PO Box.
+   * Kept as `return_address` for older app builds.
+   */
+  return_address: ISampleReturnAddress;
+  /** Alias of return_address — clearer name for “send to company”. */
+  destination_address: ISampleReturnAddress;
+  /**
+   * If Royal Mail cannot deliver to the lab, package goes back here (customer).
+   */
+  customer_return_address: ISampleReturnAddress | null;
   fee_label: string;
   amount_pence: number;
   message?: string | null;

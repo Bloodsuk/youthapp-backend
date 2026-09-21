@@ -89,7 +89,7 @@ phlebotomistRouter.get(
   PhlebTrainingController.getCompetency
 );
 
-// Logged-in phlebotomist compliance documents (npn_phleb_files + signoffs)
+// Logged-in phlebotomist compliance (checklist status + docs mirrored to wp_phleb_contracts)
 phlebotomistRouter.get(
   Paths.Phlebotomists.ComplianceOverview,
   PhlebComplianceController.getOverview
@@ -122,7 +122,7 @@ phlebotomistRouter.patch(
   PhlebComplianceController.reviewDocument
 );
 
-// Phlebotomist contracts (npn_phleb_contracts — legacy wp_phleb_contracts)
+// Phlebotomist contracts — source of truth is WordPress `wp_phleb_contracts`
 phlebotomistRouter.get(
   Paths.Phlebotomists.Contracts,
   PhlebContractController.getMyContracts
@@ -173,6 +173,10 @@ phlebotomistRouter.get(
 phlebotomistRouter.post(
   Paths.Phlebotomists.Sops,
   PhlebSopController.createSop
+);
+phlebotomistRouter.post(
+  Paths.Phlebotomists.SopsAcknowledgeAll,
+  PhlebSopController.acknowledgeAllSops
 );
 phlebotomistRouter.post(
   Paths.Phlebotomists.SopsAcknowledge,

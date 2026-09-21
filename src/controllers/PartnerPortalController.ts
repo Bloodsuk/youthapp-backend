@@ -97,6 +97,8 @@ async function uploadSubmitContractDocuments(req: IReq, res: IRes) {
       | { [field: string]: Express.Multer.File[] }
       | undefined;
 
+    const profile = await PhlebotomistService.getProfileById(sessionUser.id);
+
     const uploaded: Partial<
       Record<(typeof PhlebApplicationFormService.WP_CONTRACT_FILE_FIELDS)[number], string>
     > = {};
@@ -111,7 +113,8 @@ async function uploadSubmitContractDocuments(req: IReq, res: IRes) {
     const contract =
       await PhlebApplicationFormService.updateWpContractDocuments(
         sessionUser.id,
-        uploaded
+        uploaded,
+        profile?.email
       );
 
     return res.status(HttpStatusCodes.OK).json({

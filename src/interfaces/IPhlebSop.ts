@@ -1,4 +1,7 @@
-export type PhlebSopAckStatus = "pending" | "acknowledged";
+export type PhlebSopAckStatus =
+  | "acknowledged"
+  | "unacknowledged"
+  | "reference";
 
 export interface IPhlebSopDocument {
   id: number;
@@ -7,6 +10,8 @@ export interface IPhlebSopDocument {
   current_version: string;
   file_url: string | null;
   is_active: boolean;
+  requires_acknowledgement: boolean;
+  document_code: string | null;
   created_by: string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -29,6 +34,17 @@ export interface IPhlebSopForPhleb extends IPhlebSopDocument {
   has_document: boolean;
   document_viewed: boolean;
   viewed_at: string | null;
+  /** Spec: only required docs show a tick / can be acknowledged. */
+  can_acknowledge: boolean;
+  reacknowledgement_needed: boolean;
+}
+
+export interface IPhlebSopListResult {
+  documents: IPhlebSopForPhleb[];
+  required_total: number;
+  required_opened: number;
+  required_acknowledged: number;
+  can_acknowledge_all: boolean;
 }
 
 export interface IPhlebSopCreateInput {
@@ -37,6 +53,8 @@ export interface IPhlebSopCreateInput {
   current_version?: string;
   file_url?: string;
   is_active?: boolean;
+  requires_acknowledgement?: boolean;
+  document_code?: string | null;
 }
 
 export interface IPhlebSopUpdateInput {
@@ -45,4 +63,6 @@ export interface IPhlebSopUpdateInput {
   current_version?: string;
   file_url?: string;
   is_active?: boolean;
+  requires_acknowledgement?: boolean;
+  document_code?: string | null;
 }

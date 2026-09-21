@@ -14,20 +14,82 @@ import {
 import { RouteError } from "@src/other/classes";
 import HttpStatusCodes from "@src/constants/HttpStatusCodes";
 
-const SIGNOFF_LABELS: Record<string, string> = {
-  identity_verified: "Identity verified",
-  dbs_verified: "DBS verified",
-  hep_b_verified: "Hepatitis B verified",
-  right_to_work_verified: "Right to work verified",
-  insurance_verified: "Insurance verified",
-  practical_competency_confirmed: "Practical competency confirmed",
-  qualifications_reviewed: "Qualifications reviewed",
-  cpd_reviewed: "CPD reviewed",
-  sop_reading_confirmed: "SOP reading confirmed",
-  cv_reviewed: "CV reviewed",
+/** Admin dashboard checklist keys (`npn_phleb_compliance.row_key`). */
+const COMPLIANCE_ROWS: { key: string; title: string }[] = [
+  { key: "identity", title: "Identity" },
+  { key: "dbs_adults", title: "DBS (adults)" },
+  { key: "dbs_children", title: "DBS (children)" },
+  { key: "hep_b", title: "Hep B proof" },
+  { key: "occ_health", title: "Occupational health" },
+  { key: "cv_quals", title: "CV & Qualifications" },
+  { key: "right_to_work", title: "Right to work" },
+  { key: "sop_reading", title: "SOP reading" },
+  { key: "practical_competency", title: "Practical competency" },
+];
+
+const UPLOADABLE_KEYS = COMPLIANCE_ROWS.map((r) => r.key);
+
+/** Map compliance row → file column on `wp_phleb_contracts` when present. */
+const CONTRACT_FILE_BY_ROW: Record<string, string> = {
+  dbs_adults: "dbs_adults",
+  dbs_children: "dbs_children",
+  hep_b: "hep_b_proof",
+  occ_health: "occupational_health_records",
+  cv_quals: "cv_file",
+  right_to_work: "right_to_work",
 };
 
-const UPLOADABLE_KEYS = Object.keys(SIGNOFF_LABELS);
+const WP_CONTRACT_FILES_BASE_URL =
+  process.env.WP_CONTRACT_FILES_BASE_URL?.trim() ||
+  "https://www.practitioner.youth-revisited.co.uk";
+
+const REMOTE_FILES_BASE_URL =
+  process.env.PUBLIC_FILES_BASE_URL?.trim() ||
+  "https://prapp.youth-revisited.co.uk";
+
+/** Public URL stored on wp_phleb_contracts (same as website / Agreement uploads). */
+function toWpContractFileUrl(storedPath: string): string {
+  const raw = storedPath.trim();
+  if (/^https?:\/\//i.test(raw)) return raw;
+  const normalized = raw.startsWith("/") ? raw : `/${raw}`;
+  return `${REMOTE_FILES_BASE_URL.replace(/\/$/, "")}${normalized}`;
+}
+
+/**
+ * Resolve the WordPress contract row the admin dashboard uses.
+ * Prefer application_id; fall back to phleb email (same as Agreement re-upload).
+ */
+async function findWpContractId(phlebId: number): Promise<number | null> {
+  const [byApp] = await pool.query<RowDataPacket[]>(
+    `SELECT id FROM wp_phleb_contracts
+     WHERE application_id = ?
+     ORDER BY id DESC
+     LIMIT 1`,
+    [phlebId]
+  );
+  if (byApp.length) return Number(byApp[0].id);
+
+  const [phlebRows] = await pool.query<RowDataPacket[]>(
+    `SELECT email FROM phlebotomy_applications WHERE id = ? LIMIT 1`,
+    [phlebId]
+  );
+  const email = (
+    phlebRows[0]?.email != null ? String(phlebRows[0].email) : ""
+  )
+    .trim()
+    .toLowerCase();
+  if (!email) return null;
+
+  const [byEmail] = await pool.query<RowDataPacket[]>(
+    `SELECT id FROM wp_phleb_contracts
+     WHERE LOWER(TRIM(IFNULL(email, ''))) = ?
+        OR LOWER(TRIM(IFNULL(personal_email, ''))) = ?
+     ORDER BY id DESC
+     LIMIT 1`,
+    [email, email]
+  );
+  return byEmail.length ? Number(byEmail[0].id) : null;
+}
 
 function toDateOnly(value: unknown): string | null {
   if (value == null) return null;
@@ -58,10 +120,6 @@ function daysUntil(dateStr: string): number {
   return Math.ceil((due.getTime() - today.getTime()) / 86400000);
 }
 
-const REMOTE_FILES_BASE_URL =
-  process.env.PUBLIC_FILES_BASE_URL?.trim() ||
-  "https://prapp.youth-revisited.co.uk";
-
 function buildFileUrl(filePath: string, baseUrl?: string): string {
   const normalized = filePath.startsWith("/") ? filePath.slice(1) : filePath;
   if (baseUrl) {
@@ -71,8 +129,7 @@ function buildFileUrl(filePath: string, baseUrl?: string): string {
   return `/${normalized}`;
 }
 
-/** Local dev + live DB: file metadata is remote but PDF may only exist on production disk. */
-function resolveFileUrl(filePath: string, requestBaseUrl?: string): string {
+function resolveUploadedFileUrl(filePath: string, requestBaseUrl?: string): string {
   if (!filePath) return "";
   const normalized = filePath.startsWith("/") ? filePath.slice(1) : filePath;
   const localFile = path.join(process.cwd(), "public", normalized);
@@ -80,6 +137,27 @@ function resolveFileUrl(filePath: string, requestBaseUrl?: string): string {
     return buildFileUrl(filePath, requestBaseUrl);
   }
   return buildFileUrl(filePath, REMOTE_FILES_BASE_URL);
+}
+
+function resolveContractFileUrl(filePath: string): string {
+  const raw = filePath.trim();
+  if (/^https?:\/\//i.test(raw)) return raw;
+  const normalized = raw.startsWith("/") ? raw.slice(1) : raw;
+  return `${WP_CONTRACT_FILES_BASE_URL.replace(/\/$/, "")}/${normalized}`;
+}
+
+function mapAdminStatus(raw: string): PhlebComplianceItemStatus {
+  switch (raw) {
+    case "verified":
+    case "override":
+    case "not_applicable":
+      return "valid";
+    case "submitted":
+      return "pendingReview";
+    case "empty":
+    default:
+      return "missing";
+  }
 }
 
 function mapDocumentRow(
@@ -91,7 +169,7 @@ function mapDocumentRow(
     id: Number(row.id),
     file_name: String(row.file_name ?? ""),
     file_path: filePath,
-    file_url: resolveFileUrl(filePath, baseUrl),
+    file_url: resolveUploadedFileUrl(filePath, baseUrl),
     mime_type: row.mime_type ? String(row.mime_type) : null,
     file_size: row.file_size != null ? Number(row.file_size) : null,
     status: String(row.status) as PhlebComplianceDocStatus,
@@ -101,26 +179,6 @@ function mapDocumentRow(
     reviewed_by: row.reviewed_by ? String(row.reviewed_by) : null,
     reviewed_at: toIsoString(row.reviewed_at),
   };
-}
-
-function deriveItemStatus(
-  signoffCompleted: boolean,
-  doc: IPhlebComplianceDocument | null
-): PhlebComplianceItemStatus {
-  if (doc?.status === "rejected") return "rejected";
-  if (doc?.status === "pending_review") return "pendingReview";
-
-  if (signoffCompleted) {
-    if (doc?.expiry_date) {
-      const days = daysUntil(doc.expiry_date);
-      if (days < 0) return "expired";
-      if (days <= 30) return "expiringSoon";
-    }
-    return "valid";
-  }
-
-  if (!doc) return "missing";
-  return "missing";
 }
 
 function deriveOverallStatus(
@@ -143,28 +201,19 @@ function deriveOverallStatus(
   return "green";
 }
 
-async function getSignoffsByPhlebId(
+async function getComplianceRowsByPhlebId(
   phlebId: number
-): Promise<Map<string, IPhlebComplianceSignoff>> {
+): Promise<Map<string, RowDataPacket>> {
   const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT id, item_key, signed_off, signed_by, signed_at
-     FROM npn_phleb_signoffs
-     WHERE phleb_id = ?
-     ORDER BY item_key ASC`,
+    `SELECT id, row_key, status, verified_by, verified_at,
+            na_reason, override_reason, updated_at
+     FROM npn_phleb_compliance
+     WHERE phleb_id = ?`,
     [phlebId]
   );
-
-  const map = new Map<string, IPhlebComplianceSignoff>();
+  const map = new Map<string, RowDataPacket>();
   for (const row of rows) {
-    const key = String(row.item_key ?? "");
-    map.set(key, {
-      id: Number(row.id),
-      item_key: key,
-      title: SIGNOFF_LABELS[key] ?? key.replace(/_/g, " "),
-      completed: Number(row.signed_off) === 1,
-      signed_off_by: row.signed_by ? String(row.signed_by) : null,
-      signed_off_at: toIsoString(row.signed_at),
-    });
+    map.set(String(row.row_key), row);
   }
   return map;
 }
@@ -192,35 +241,122 @@ async function getCurrentDocumentsByPhlebId(
   return map;
 }
 
+async function getLatestContractFiles(
+  phlebId: number
+): Promise<Record<string, string | null>> {
+  const contractId = await findWpContractId(phlebId);
+  if (!contractId) return {};
+
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT dbs_adults, dbs_children, hep_b_proof, occupational_health_records,
+            cv_file, right_to_work
+     FROM wp_phleb_contracts
+     WHERE id = ?
+     LIMIT 1`,
+    [contractId]
+  );
+  if (!rows.length) return {};
+  const row = rows[0];
+  const out: Record<string, string | null> = {};
+  for (const [rowKey, field] of Object.entries(CONTRACT_FILE_BY_ROW)) {
+    const value = row[field];
+    out[rowKey] =
+      value != null && String(value).trim() !== ""
+        ? String(value).trim()
+        : null;
+  }
+  return out;
+}
+
+function documentFromContractPath(
+  rowKey: string,
+  filePath: string
+): IPhlebComplianceDocument {
+  const name = filePath.split("/").pop() || `${rowKey}.pdf`;
+  return {
+    id: 0,
+    file_name: name,
+    file_path: filePath,
+    file_url: resolveContractFileUrl(filePath),
+    mime_type: null,
+    file_size: null,
+    status: "pending_review",
+    expiry_date: null,
+    notes: null,
+    uploaded_at: new Date().toISOString(),
+    reviewed_by: null,
+    reviewed_at: null,
+  };
+}
+
 async function buildItems(
   phlebId: number,
   baseUrl?: string
 ): Promise<IPhlebComplianceItem[]> {
-  const signoffs = await getSignoffsByPhlebId(phlebId);
-  const documents = await getCurrentDocumentsByPhlebId(phlebId, baseUrl);
+  const complianceRows = await getComplianceRowsByPhlebId(phlebId);
+  const uploadedDocs = await getCurrentDocumentsByPhlebId(phlebId, baseUrl);
+  const contractFiles = await getLatestContractFiles(phlebId);
 
-  return UPLOADABLE_KEYS.map((itemKey) => {
-    const signoff = signoffs.get(itemKey) ?? {
-      id: 0,
-      item_key: itemKey,
-      title: SIGNOFF_LABELS[itemKey] ?? itemKey,
-      completed: false,
-      signed_off_by: null,
-      signed_off_at: null,
+  return COMPLIANCE_ROWS.map(({ key, title }) => {
+    const row = complianceRows.get(key);
+    const adminStatus = row ? String(row.status || "empty") : "empty";
+    let status = mapAdminStatus(adminStatus);
+
+    const uploaded = uploadedDocs.get(key) ?? null;
+    let currentDocument = uploaded;
+    if (!currentDocument && contractFiles[key]) {
+      currentDocument = documentFromContractPath(key, contractFiles[key]!);
+    }
+
+    // App upload pending review wins over empty admin status.
+    if (uploaded?.status === "pending_review") {
+      status = "pendingReview";
+    } else if (uploaded?.status === "rejected") {
+      status = "rejected";
+    } else if (uploaded?.status === "approved" && status === "missing") {
+      status = "pendingReview";
+    }
+
+    if (status === "valid" && currentDocument?.expiry_date) {
+      const days = daysUntil(currentDocument.expiry_date);
+      if (days < 0) status = "expired";
+      else if (days <= 30) status = "expiringSoon";
+    }
+
+    const completed =
+      status === "valid" ||
+      status === "expiringSoon" ||
+      adminStatus === "verified" ||
+      adminStatus === "override" ||
+      adminStatus === "not_applicable";
+
+    const signoff: IPhlebComplianceSignoff = {
+      id: row ? Number(row.id) : 0,
+      item_key: key,
+      title,
+      completed,
+      signed_off_by: row?.verified_by ? String(row.verified_by) : null,
+      signed_off_at: toIsoString(row?.verified_at),
     };
-    const currentDocument = documents.get(itemKey) ?? null;
-    const status = deriveItemStatus(signoff.completed, currentDocument);
+
+    if (currentDocument && status === "valid") {
+      currentDocument = {
+        ...currentDocument,
+        status: "approved",
+        reviewed_by: signoff.signed_off_by,
+        reviewed_at: signoff.signed_off_at,
+      };
+    }
+
     const canUpload =
-      !signoff.completed ||
       status === "missing" ||
       status === "rejected" ||
-      status === "expiringSoon" ||
       status === "expired" ||
-      currentDocument?.status === "rejected";
+      status === "expiringSoon";
 
     return {
-      item_key: itemKey,
-      title: signoff.title,
+      item_key: key,
+      title,
       status,
       signoff,
       current_document: currentDocument,
@@ -245,7 +381,7 @@ async function getOverviewByPhlebId(
       i.status === "pendingReview"
   ).length;
   const pendingReviewCount = items.filter(
-    (i) => i.current_document?.status === "pending_review"
+    (i) => i.status === "pendingReview"
   ).length;
 
   return {
@@ -270,6 +406,15 @@ async function getItemsByPhlebId(
   return buildItems(phlebId, baseUrl);
 }
 
+async function ensureComplianceRow(phlebId: number, itemKey: string): Promise<void> {
+  await pool.query(
+    `INSERT INTO npn_phleb_compliance (phleb_id, row_key, status)
+     VALUES (?, ?, 'empty')
+     ON DUPLICATE KEY UPDATE phleb_id = phleb_id`,
+    [phlebId, itemKey]
+  );
+}
+
 async function uploadDocument(
   phlebId: number,
   itemKey: string,
@@ -282,14 +427,34 @@ async function uploadDocument(
   }
 
   const filePath = `uploads/${file.filename}`;
+  const publicUrl = toWpContractFileUrl(`/uploads/${file.filename}`);
+  const contractField = CONTRACT_FILE_BY_ROW[itemKey];
 
+  // Website admin View reads wp_phleb_contracts — keep app uploads on the same table.
+  if (contractField) {
+    const contractId = await findWpContractId(phlebId);
+    if (!contractId) {
+      throw new RouteError(
+        HttpStatusCodes.BAD_REQUEST,
+        "No agreement/contract found for this phlebotomist. Submit Agreement first, then upload documents."
+      );
+    }
+    await pool.query(
+      `UPDATE wp_phleb_contracts
+       SET ${contractField} = ?, application_id = ?
+       WHERE id = ?`,
+      [publicUrl, phlebId, contractId]
+    );
+  }
+
+  // App history / non-contract rows (identity, practical_competency, etc.)
   await pool.query(
     `UPDATE npn_phleb_files SET is_current = 0
      WHERE phleb_id = ? AND item_key = ? AND is_current = 1`,
     [phlebId, itemKey]
   );
 
-  const [insertResult] = await pool.query<ResultSetHeader>(
+  await pool.query<ResultSetHeader>(
     `INSERT INTO npn_phleb_files
        (phleb_id, item_key, file_name, file_path, mime_type, file_size, status, expiry_date, notes, is_current)
      VALUES (?, ?, ?, ?, ?, ?, 'pending_review', ?, ?, 1)`,
@@ -305,44 +470,23 @@ async function uploadDocument(
     ]
   );
 
+  await ensureComplianceRow(phlebId, itemKey);
   await pool.query(
-    `UPDATE npn_phleb_signoffs
-     SET signed_off = 0, signed_by = NULL, signed_at = NULL
-     WHERE phleb_id = ? AND item_key = ?`,
+    `UPDATE npn_phleb_compliance
+     SET status = 'submitted', updated_at = NOW()
+     WHERE phleb_id = ? AND row_key = ?`,
     [phlebId, itemKey]
   );
 
   const items = await buildItems(phlebId, baseUrl);
-  return (
-    items.find((i) => i.item_key === itemKey) ?? {
-      item_key: itemKey,
-      title: SIGNOFF_LABELS[itemKey] ?? itemKey,
-      status: "pendingReview",
-      signoff: {
-        id: 0,
-        item_key: itemKey,
-        title: SIGNOFF_LABELS[itemKey] ?? itemKey,
-        completed: false,
-        signed_off_by: null,
-        signed_off_at: null,
-      },
-      current_document: {
-        id: insertResult.insertId,
-        file_name: file.originalname,
-        file_path: filePath,
-        file_url: resolveFileUrl(filePath, baseUrl),
-        mime_type: file.mimetype,
-        file_size: file.size,
-        status: "pending_review",
-        expiry_date: options.expiryDate ?? null,
-        notes: options.notes ?? null,
-        uploaded_at: new Date().toISOString(),
-        reviewed_by: null,
-        reviewed_at: null,
-      },
-      can_upload: false,
-    }
-  );
+  const found = items.find((i) => i.item_key === itemKey);
+  if (!found) {
+    throw new RouteError(
+      HttpStatusCodes.INTERNAL_SERVER_ERROR,
+      "Upload saved but item could not be loaded"
+    );
+  }
+  return found;
 }
 
 async function reviewDocument(
@@ -374,10 +518,11 @@ async function reviewDocument(
        WHERE id = ?`,
       [signedOffBy, review.notes ?? null, documentId]
     );
+    await ensureComplianceRow(phlebId, itemKey);
     await pool.query(
-      `UPDATE npn_phleb_signoffs
-       SET signed_off = 1, signed_by = ?, signed_at = NOW()
-       WHERE phleb_id = ? AND item_key = ?`,
+      `UPDATE npn_phleb_compliance
+       SET status = 'verified', verified_by = ?, verified_at = NOW(), updated_at = NOW()
+       WHERE phleb_id = ? AND row_key = ?`,
       [signedOffBy, phlebId, itemKey]
     );
   } else {
@@ -387,10 +532,11 @@ async function reviewDocument(
        WHERE id = ?`,
       [signedOffBy, review.notes ?? null, documentId]
     );
+    await ensureComplianceRow(phlebId, itemKey);
     await pool.query(
-      `UPDATE npn_phleb_signoffs
-       SET signed_off = 0, signed_by = NULL, signed_at = NULL
-       WHERE phleb_id = ? AND item_key = ?`,
+      `UPDATE npn_phleb_compliance
+       SET status = 'empty', verified_by = NULL, verified_at = NULL, updated_at = NOW()
+       WHERE phleb_id = ? AND row_key = ?`,
       [phlebId, itemKey]
     );
   }

@@ -6,6 +6,7 @@ import QRCode from "qrcode";
 import EnvVars from "@src/constants/EnvVars";
 import HttpStatusCodes from "@src/constants/HttpStatusCodes";
 import {
+  ISampleReturnAddress,
   ISampleReturnRow,
   ISampleReturnSnapshot,
   SampleReturnStatus,
@@ -19,6 +20,57 @@ const FEE_PENCE = 395;
 const FEE_LABEL = "£3.95";
 const ELIGIBLE_STATUSES = ["Started", "Shipped", "Processing"];
 const ELIGIBLE_SHIPPING = ["2", "5", "7", "9"];
+
+/**
+ * Fixed Royal Mail destination (send-to) — Youth Revisited PO Box.
+ * Confirmed: package always goes to the company; customer is only return-to.
+ */
+function youthRevisitedDestinationAddress(): ISampleReturnAddress {
+  // Exact WP yr_rm_return_address() values — all fields set.
+  const firstName = "Youth";
+  const lastName = "Revisited";
+  const addressLine1 = "PO Box 689";
+  const city = "Grimsby";
+  const postcode = "DN31 9LR";
+  const country = "United Kingdom";
+  const countryIsoCode = "GBR";
+  return {
+    first_name: firstName,
+    last_name: lastName,
+    address_line1: addressLine1,
+    city,
+    postcode,
+    country,
+    country_iso_code: countryIsoCode,
+    label: `${firstName} ${lastName}, ${addressLine1}, ${city} ${postcode}, ${country}`,
+  };
+}
+
+function customerReturnAddressFromOrder(
+  order: EligibleOrderRow
+): ISampleReturnAddress | null {
+  const line1 = (order.address || "").trim();
+  const postcode = (order.postal_code || "").trim();
+  if (!line1 || !postcode) return null;
+
+  const firstName = (order.fore_name || "").trim() || "Customer";
+  const lastName = (order.sur_name || "").trim();
+  const city = (order.town || "").trim();
+  const country = (order.country || "").trim() || "United Kingdom";
+
+  return {
+    first_name: firstName,
+    last_name: lastName,
+    address_line1: line1,
+    city,
+    postcode,
+    country,
+    country_iso_code: "GBR",
+    label: [firstName, lastName, line1, city, postcode, country]
+      .filter((p) => p.length > 0)
+      .join(", "),
+  };
+}
 
 type EligibleOrderRow = {
   id: number;
@@ -102,6 +154,7 @@ function toSnapshot(
   message?: string | null
 ): ISampleReturnSnapshot {
   const amount = Number(row.amount_pence ?? FEE_PENCE);
+  const destination = youthRevisitedDestinationAddress();
   return {
     return_id: row.id,
     token: makeToken(row.id),
@@ -112,6 +165,9 @@ function toSnapshot(
     customer_email: order.customer_email,
     tracking_number: row.tracking_number || null,
     qr_data: row.qr_data || null,
+    return_address: destination,
+    destination_address: destination,
+    customer_return_address: customerReturnAddressFromOrder(order),
     fee_label: amount > 0 ? FEE_LABEL : "Waived",
     amount_pence: amount,
     message: message ?? null,
@@ -471,6 +527,8 @@ async function confirmAndCreateReturn(
 
   // Option A (required): WordPress create-return.php talks to Royal Mail and
   // updates yr_practitioner_returns with real tracking_number + qr_data.
+  // Send-to (QR) = yr_rm_destination_address() / company PO Box.
+  // Return-to (undeliverable) = yr_rm_customer_return_address(order_id).
   try {
     const wp = await createRoyalMailViaWordpress(returnId, token);
     if (!wp.ok) {

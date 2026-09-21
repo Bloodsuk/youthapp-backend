@@ -19,6 +19,10 @@ export interface IResult {
   order_placed_by: number;
   attachment: string | null;
   basic_explain: string | null;
+  /** Practitioner flag: customer may see result files only when on. */
+  can_client_access?: number | boolean | string | null;
+  /** Set by API when access is off — no file paths returned. */
+  access_message?: string | null;
   created_by: number;
   practitioner_id: number;
   created_at: string;

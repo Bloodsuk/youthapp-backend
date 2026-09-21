@@ -1645,7 +1645,8 @@ const sendSampleReturnQrEmail = async (payload: {
               Do not use a self-service kiosk.
             </p>
             <p style="margin:12px 0 0;font-size:13px;color:#7a8792;">
-              Return address: PO Box 689, Grimsby DN31 9LR
+              Send to (lab): Youth Revisited, PO Box 689, Grimsby DN31 9LR, United Kingdom.
+              If undeliverable, Royal Mail returns the parcel to the customer address on the order.
             </p>
           </td>
         </tr>
