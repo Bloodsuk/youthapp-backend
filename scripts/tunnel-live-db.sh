@@ -27,6 +27,7 @@ echo "Opening tunnel: localhost:3306 -> ${HOST}:127.0.0.1:3306"
 echo "Leave this running. In another terminal: npm run dev:live && ngrok http 7020"
 
 if [[ -n "${SSHPASS:-}" ]] && command -v expect >/dev/null 2>&1; then
+  export SSHPASS
   exec expect <<EOF
 set timeout -1
 spawn ssh -o StrictHostKeyChecking=accept-new -N -L 3306:127.0.0.1:3306 ${USER}@${HOST}
