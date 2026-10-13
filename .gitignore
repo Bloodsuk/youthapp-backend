@@ -3,3 +3,10 @@ dist/
 **/**/*.log
 .idea
 env/live.env
+# Local secrets — never push to GitHub
+env/ssh.local.env
+env/*.local.env
+.env.local
+**/*.pem
+**/*_rsa
+**/*_ed25519

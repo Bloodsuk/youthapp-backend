@@ -174,12 +174,25 @@ Full notes: [`docs/visit-chat-production-deploy.md`](./visit-chat-production-dep
 
 ---
 
+## Local SSH secrets (Mac only — not on GitHub)
+
+| File | Purpose |
+|------|---------|
+| `env/ssh.local.env` | Real password — **gitignored** |
+| `env/ssh.local.env.example` | Template (safe to commit) |
+| `scripts/load-ssh-local.sh` | `source scripts/load-ssh-local.sh` then tunnel/deploy |
+
+```bash
+source scripts/load-ssh-local.sh
+./scripts/tunnel-live-db.sh
+```
+
 ## Why Cursor/agent sometimes “can’t run SSH”
 
-- Needs **SSH password or private key** — not stored in the repo
+- Needs **SSH password or private key** — use `env/ssh.local.env` (never commit it)
 - SSH is **interactive** unless using `expect` / `sshpass` with credentials
 - Without tunnel, `127.0.0.1` = **local MySQL**, not production
-- Agent can run commands **on your machine** if you provide SSH password or keys are loaded
+- Agent can run commands **on your machine** if `ssh.local.env` exists or keys are loaded
 
 ---
 
