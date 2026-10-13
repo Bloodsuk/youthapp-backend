@@ -34,4 +34,9 @@ sampleReturnsRouter.post(
   SampleReturnsController.emailQr
 );
 
+sampleReturnsRouter.post(
+  Paths.SampleReturns.MarkPosted,
+  SampleReturnsController.markPosted
+);
+
 export default sampleReturnsRouter;

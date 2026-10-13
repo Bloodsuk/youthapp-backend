@@ -299,5 +299,6 @@ export default {
     FinalizePayment: "/:id/finalize_payment",
     Create: "/:id/create",
     EmailQr: "/:id/email_qr",
+    MarkPosted: "/:id/mark_posted",
   },
 } as const;

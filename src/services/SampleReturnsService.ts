@@ -148,6 +148,11 @@ function stepFromStatus(status: SampleReturnStatus): SampleReturnStep {
   }
 }
 
+/** QR is one-time: only while status is still `created`. */
+function isQrUsable(status: SampleReturnStatus): boolean {
+  return status === "created";
+}
+
 function toSnapshot(
   row: ISampleReturnRow,
   order: EligibleOrderRow,
@@ -155,16 +160,19 @@ function toSnapshot(
 ): ISampleReturnSnapshot {
   const amount = Number(row.amount_pence ?? FEE_PENCE);
   const destination = youthRevisitedDestinationAddress();
+  const qrUsable = isQrUsable(row.status);
   return {
     return_id: row.id,
     token: makeToken(row.id),
     step: stepFromStatus(row.status),
     status: row.status,
+    qr_usable: qrUsable,
     order_number: displayOrderNumber(order.order_id),
     order_id: order.id,
     customer_email: order.customer_email,
     tracking_number: row.tracking_number || null,
-    qr_data: row.qr_data || null,
+    // Never re-serve the QR image once the return has been posted/used.
+    qr_data: qrUsable ? row.qr_data || null : null,
     return_address: destination,
     destination_address: destination,
     customer_return_address: customerReturnAddressFromOrder(order),
@@ -608,7 +616,13 @@ async function emailQr(
   if (!ret) {
     throw new RouteError(HttpStatusCodes.NOT_FOUND, "Return not found");
   }
-  if (!ret.tracking_number) {
+  if (!isQrUsable(ret.status)) {
+    throw new RouteError(
+      HttpStatusCodes.BAD_REQUEST,
+      "This return QR has already been used and cannot be emailed again"
+    );
+  }
+  if (!ret.tracking_number || !ret.qr_data) {
     throw new RouteError(
       HttpStatusCodes.BAD_REQUEST,
       "Return is not ready to email yet"
@@ -629,6 +643,58 @@ async function emailQr(
   return { emailed: true };
 }
 
+/**
+ * Mark return as posted after Post Office use — QR becomes one-time (unusable).
+ * Idempotent if already posted / at_lab / results.
+ */
+async function markPosted(
+  returnId: number,
+  token: string
+): Promise<ISampleReturnSnapshot> {
+  assertToken(returnId, token);
+  const ret = await getReturnById(returnId);
+  if (!ret) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, "Return not found");
+  }
+  const order = await loadOrderForReturn(ret.order_id);
+  if (!order) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, "Order not found for return");
+  }
+
+  if (
+    ret.status === "posted" ||
+    ret.status === "at_lab" ||
+    ret.status === "results"
+  ) {
+    return toSnapshot(ret, order, "Return already marked as posted");
+  }
+
+  if (ret.status !== "created") {
+    throw new RouteError(
+      HttpStatusCodes.BAD_REQUEST,
+      "Only a ready return with an active QR can be marked as posted"
+    );
+  }
+
+  await pool.query(
+    `UPDATE yr_practitioner_returns
+     SET status = 'posted',
+         posted_at = NOW()
+     WHERE id = ?`,
+    [returnId]
+  );
+
+  const updated = await getReturnById(returnId);
+  if (!updated) {
+    throw new RouteError(HttpStatusCodes.NOT_FOUND, "Return not found after update");
+  }
+  return toSnapshot(
+    updated,
+    order,
+    "Return marked as posted — this QR can no longer be used"
+  );
+}
+
 export default {
   FEE_PENCE,
   FEE_LABEL,
@@ -638,4 +704,5 @@ export default {
   finalizePayment,
   confirmAndCreateReturn,
   emailQr,
+  markPosted,
 } as const;

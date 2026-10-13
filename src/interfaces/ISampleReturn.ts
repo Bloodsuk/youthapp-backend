@@ -46,6 +46,8 @@ export interface ISampleReturnSnapshot {
   token: string;
   step: SampleReturnStep;
   status: SampleReturnStatus;
+  /** False once status is posted / at_lab / results — QR must not be shown or emailed. */
+  qr_usable: boolean;
   order_number: string;
   order_id: number;
   customer_email: string;

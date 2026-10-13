@@ -161,6 +161,21 @@ async function emailQr(req: IReq<TokenBody>, res: IRes) {
   }
 }
 
+async function markPosted(req: IReq<TokenBody>, res: IRes) {
+  if (!requirePhlebotomist(res)) return forbid(res);
+  try {
+    const returnId = parseReturnId(req.params.id);
+    const token = String(req.body?.token || "");
+    const snapshot = await SampleReturnsService.markPosted(returnId, token);
+    return res.status(HttpStatusCodes.OK).json({
+      success: true,
+      data: snapshot,
+    }).end();
+  } catch (error) {
+    return handleError(res, error);
+  }
+}
+
 export default {
   lookup,
   getOne,
@@ -168,4 +183,5 @@ export default {
   finalizePayment,
   createReturn,
   emailQr,
+  markPosted,
 } as const;
