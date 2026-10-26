@@ -4,7 +4,12 @@ import HttpStatusCodes from "@src/constants/HttpStatusCodes";
 import { ICustomer } from "@src/interfaces/ICustomer";
 import { pool } from "@src/server";
 import { ResultSetHeader, RowDataPacket } from "mysql2";
-import { empty, getTotalCount, trim } from "@src/util/misc";
+import {
+  empty,
+  getTotalCount,
+  normalizeDateOfBirth,
+  trim,
+} from "@src/util/misc";
 import AuthService, { Errors } from "./AuthService";
 import { Gender, UserLevels, YesNo } from "@src/constants/enums";
 import MailService from "./MailService";
@@ -162,9 +167,7 @@ async function getByUserId(
 async function addOne(customer: Record<string, any>): Promise<number> {
   const fore_name = customer["fore_name"] ? trim(customer["fore_name"]) : "";
   const sur_name = customer["sur_name"] ? trim(customer["sur_name"]) : "";
-  const date_of_birth = customer["date_of_birth"]
-    ? trim(customer["date_of_birth"])
-    : "";
+  const date_of_birth = normalizeDateOfBirth(customer["date_of_birth"]);
   const gender = customer["gender"] ? customer["gender"] : Gender.Male;
   const address = customer["address"] ? trim(customer["address"]) : "";
   const town = customer["town"] ? trim(customer["town"]) : "";
@@ -263,7 +266,11 @@ async function updateOne(
     let value = customer[key];
     // Not update password and email
     if (key === "password" || key === "email") continue;
-    else if (key === "notification_types") {
+    else if (key === "date_of_birth") {
+      if (!value) continue;
+      sql += ` ${key}=?,`;
+      values.push(normalizeDateOfBirth(value));
+    } else if (key === "notification_types") {
       value = Array.isArray(value) ? value.join(",") : "";
       sql += ` ${key}=?,`;
       values.push(value);

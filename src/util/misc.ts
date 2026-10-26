@@ -3,6 +3,8 @@
  */
 
 import { CreditRequestStatus } from "@src/constants/enums";
+import HttpStatusCodes from "@src/constants/HttpStatusCodes";
+import { RouteError } from "@src/other/classes";
 import mysql, { RowDataPacket } from "mysql2/promise";
 
 /**
@@ -81,6 +83,49 @@ export const trim = (value: string): string => {
 export const empty = (value: string): boolean => {
   return value.length === 0;
 };
+
+const INVALID_DOB_ERR =
+  "Invalid date of birth. Please use DD-MM-YYYY, e.g. 23-05-1998.";
+
+/**
+ * Normalize a date of birth to MySQL's YYYY-MM-DD.
+ * Accepts YYYY-MM-DD (optionally with a time part), DD-MM-YYYY, and the
+ * DD-MM-YY sent by app builds up to 28.0.17. Separators may be - / or .
+ * Two-digit years resolve to the most recent year that is not in the future.
+ * Returns "" for an empty value; throws a 400 RouteError when invalid.
+ */
+export function normalizeDateOfBirth(value: unknown): string {
+  const raw = value == null ? "" : String(value).trim();
+  if (raw.length === 0) return "";
+
+  let year: number;
+  let month: number;
+  let day: number;
+  const iso = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:[T\s].*)?$/.exec(raw);
+  const dmy = /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})$/.exec(raw);
+  if (iso) {
+    [year, month, day] = [Number(iso[1]), Number(iso[2]), Number(iso[3])];
+  } else if (dmy) {
+    [day, month, year] = [Number(dmy[1]), Number(dmy[2]), Number(dmy[3])];
+    if (dmy[3].length === 2) {
+      const currentYear = new Date().getFullYear();
+      year += Math.floor(currentYear / 100) * 100;
+      if (year > currentYear) year -= 100;
+    }
+  } else {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, INVALID_DOB_ERR);
+  }
+
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const isRealDate =
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day;
+  if (!isRealDate || year < 1900 || date.getTime() > Date.now()) {
+    throw new RouteError(HttpStatusCodes.BAD_REQUEST, INVALID_DOB_ERR);
+  }
+  return date.toISOString().slice(0, 10);
+}
 
 export function generateUniqueString(string?: string, n:number = 5)
 {

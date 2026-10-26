@@ -1,4 +1,4 @@
-import { generateUniqueString } from "@src/util/misc";
+import { generateUniqueString, normalizeDateOfBirth } from "@src/util/misc";
 
 import HttpStatusCodes from "@src/constants/HttpStatusCodes";
 import { IUser } from "@src/interfaces/IUser";
@@ -263,9 +263,7 @@ async function addCustomer(customer: Record<string, any>): Promise<number> {
   const fore_name = customer["first_name"] ? customer["first_name"].trim() : "";
   const sur_name = customer["last_name"] ? customer["last_name"].trim() : "";
   const user_level = customer["user_level"] ? customer["user_level"].trim() : "";
-  const date_of_birth = customer["date_of_birth"]
-    ? customer["date_of_birth"].trim()
-    : "";
+  const date_of_birth = normalizeDateOfBirth(customer["date_of_birth"]);
   const gender = customer["gender"] ? customer["gender"] : Gender.Male;
   const address = customer["address"] ? customer["address"].trim() : "";
   const town = customer["town"] ? customer["town"].trim() : "";
